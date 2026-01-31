@@ -4,9 +4,9 @@ members = [
     "crates/bimifc-model",
     "crates/bimifc-parser",
     "crates/bimifc-geometry",
-    # "crates/bimifc-leptos",   # Needs refactoring to use bimifc-model
+    "crates/bimifc-leptos",
     "crates/bimifc-bevy",
-    # "crates/bimifc-viewer",   # Depends on bimifc-leptos
+    "crates/bimifc-viewer",
     "crates/bimifc-viewer-tui",
 ]
 

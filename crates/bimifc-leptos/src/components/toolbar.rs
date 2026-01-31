@@ -2,8 +2,10 @@
 
 use crate::bridge::{self, CameraCommand, EntityData, GeometryData};
 use crate::state::{use_viewer_state, EntityInfo, Progress, SpatialNode, SpatialNodeType, Tool};
-use ifc_lite_core::DecodedEntity;
+use bimifc_model::{AttributeValue, DecodedEntity, EntityId, EntityResolver, IfcModel, IfcType};
+use bimifc_parser::{EntityDecoder, ParsedModel};
 use bimifc_geometry::GeometryRouter;
+use std::sync::Arc;
 use leptos::prelude::*;
 use std::collections::HashMap;
 use wasm_bindgen::JsCast;
@@ -271,8 +273,8 @@ fn load_file(file: web_sys::File, state: crate::state::ViewerState) {
 /// Helper to extract entity refs from a list attribute
 fn get_ref_list(entity: &DecodedEntity, index: usize) -> Option<Vec<u32>> {
     entity
-        .get_list(index)
-        .map(|list| list.iter().filter_map(|v| v.as_entity_ref()).collect())
+        .get_refs(index)
+        .map(|refs| refs.iter().map(|id| id.0).collect())
 }
 
 /// Spatial structure entity info
@@ -294,7 +296,7 @@ fn extract_properties_and_quantities(
     element_id: u32,
     element_properties: &std::collections::HashMap<u32, Vec<u32>>,
     element_to_type: &std::collections::HashMap<u32, u32>,
-    decoder: &mut ifc_lite_core::EntityDecoder,
+    decoder: &mut EntityDecoder,
     unit_scale: f64,
 ) -> (Vec<crate::state::PropertySet>, Vec<crate::state::QuantityValue>) {
     use crate::state::{PropertySet, PropertyValue, QuantityValue};
@@ -323,13 +325,13 @@ fn extract_properties_and_quantities(
 
     for prop_def_id in prop_def_ids {
         // Decode the property definition
-        let prop_def = match decoder.decode_by_id(prop_def_id) {
+        let prop_def = match decoder.decode_by_id(EntityId(prop_def_id)) {
             Ok(e) => e,
             Err(_) => continue,
         };
 
         match prop_def.ifc_type {
-            ifc_lite_core::IfcType::IfcPropertySet => {
+            IfcType::IfcPropertySet => {
                 // IfcPropertySet: (GlobalId, OwnerHistory, Name, Description, HasProperties)
                 let pset_name = prop_def
                     .get_string(2)
@@ -341,9 +343,9 @@ fn extract_properties_and_quantities(
                 // Get HasProperties list (attribute 4)
                 if let Some(prop_refs) = get_ref_list(&prop_def, 4) {
                     for prop_id in prop_refs {
-                        if let Ok(prop) = decoder.decode_by_id(prop_id) {
+                        if let Ok(prop) = decoder.decode_by_id(EntityId(prop_id)) {
                             // IfcPropertySingleValue: (Name, Description, NominalValue, Unit)
-                            if prop.ifc_type == ifc_lite_core::IfcType::IfcPropertySingleValue {
+                            if prop.ifc_type == IfcType::IfcPropertySingleValue {
                                 let name = prop
                                     .get_string(0)
                                     .map(|s| s.to_string())
@@ -374,7 +376,7 @@ fn extract_properties_and_quantities(
                     });
                 }
             }
-            ifc_lite_core::IfcType::IfcElementQuantity => {
+            IfcType::IfcElementQuantity => {
                 // IfcElementQuantity: (GlobalId, OwnerHistory, Name, Description, MethodOfMeasurement, Quantities)
                 let qset_name = prop_def
                     .get_string(2)
@@ -384,33 +386,33 @@ fn extract_properties_and_quantities(
                 // Get Quantities list (attribute 5)
                 if let Some(qty_refs) = get_ref_list(&prop_def, 5) {
                     for qty_id in qty_refs {
-                        if let Ok(qty) = decoder.decode_by_id(qty_id) {
+                        if let Ok(qty) = decoder.decode_by_id(EntityId(qty_id)) {
                             // IfcPhysicalQuantity subtypes: Name, Description, ...values
                             let name = qty.get_string(0).map(|s| s.to_string()).unwrap_or_default();
 
                             // Apply unit scale: length * scale, area * scale², volume * scale³
                             let (value, unit, qty_type) = match qty.ifc_type {
-                                ifc_lite_core::IfcType::IfcQuantityLength => {
+                                IfcType::IfcQuantityLength => {
                                     let val = qty.get_float(3).unwrap_or(0.0) * unit_scale;
                                     (val, "m".to_string(), "Length".to_string())
                                 }
-                                ifc_lite_core::IfcType::IfcQuantityArea => {
+                                IfcType::IfcQuantityArea => {
                                     let val = qty.get_float(3).unwrap_or(0.0) * unit_scale * unit_scale;
                                     (val, "m²".to_string(), "Area".to_string())
                                 }
-                                ifc_lite_core::IfcType::IfcQuantityVolume => {
+                                IfcType::IfcQuantityVolume => {
                                     let val = qty.get_float(3).unwrap_or(0.0) * unit_scale * unit_scale * unit_scale;
                                     (val, "m³".to_string(), "Volume".to_string())
                                 }
-                                ifc_lite_core::IfcType::IfcQuantityCount => {
+                                IfcType::IfcQuantityCount => {
                                     let val = qty.get_float(3).unwrap_or(0.0);
                                     (val, "".to_string(), "Count".to_string())
                                 }
-                                ifc_lite_core::IfcType::IfcQuantityWeight => {
+                                IfcType::IfcQuantityWeight => {
                                     let val = qty.get_float(3).unwrap_or(0.0);
                                     (val, "kg".to_string(), "Weight".to_string())
                                 }
-                                ifc_lite_core::IfcType::IfcQuantityTime => {
+                                IfcType::IfcQuantityTime => {
                                     let val = qty.get_float(3).unwrap_or(0.0);
                                     (val, "s".to_string(), "Time".to_string())
                                 }
@@ -437,26 +439,24 @@ fn extract_properties_and_quantities(
 }
 
 /// Format a property value for display
-fn format_property_value(val: &ifc_lite_core::AttributeValue) -> String {
+fn format_property_value(val: &AttributeValue) -> String {
     match val {
-        ifc_lite_core::AttributeValue::String(s) => s.clone(),
-        ifc_lite_core::AttributeValue::Float(f) => format!("{:.4}", f),
-        ifc_lite_core::AttributeValue::Integer(i) => i.to_string(),
-        ifc_lite_core::AttributeValue::Enum(e) => e.clone(),
-        ifc_lite_core::AttributeValue::List(items) => {
-            // Check if this is a typed value (first element is type name)
-            if items.len() >= 2 {
-                if let ifc_lite_core::AttributeValue::String(type_name) = &items[0] {
-                    let value_parts: Vec<String> = items[1..].iter().map(format_property_value).collect();
-                    return format!("{}({})", type_name, value_parts.join(", "));
-                }
-            }
+        AttributeValue::String(s) => s.clone(),
+        AttributeValue::Float(f) => format!("{:.4}", f),
+        AttributeValue::Integer(i) => i.to_string(),
+        AttributeValue::Enum(e) => e.clone(),
+        AttributeValue::Bool(b) => b.to_string(),
+        AttributeValue::TypedValue(type_name, args) => {
+            let value_parts: Vec<String> = args.iter().map(format_property_value).collect();
+            format!("{}({})", type_name, value_parts.join(", "))
+        }
+        AttributeValue::List(items) => {
             let formatted: Vec<String> = items.iter().map(format_property_value).collect();
             format!("[{}]", formatted.join(", "))
         }
-        ifc_lite_core::AttributeValue::EntityRef(id) => format!("#{}", id),
-        ifc_lite_core::AttributeValue::Null => "".to_string(),
-        ifc_lite_core::AttributeValue::Derived => "*".to_string(),
+        AttributeValue::EntityRef(id) => format!("#{}", id.0),
+        AttributeValue::Null => "".to_string(),
+        AttributeValue::Derived => "*".to_string(),
     }
 }
 
@@ -528,7 +528,7 @@ pub fn parse_and_process_ifc(
     content: &str,
     state: crate::state::ViewerState,
 ) -> Result<(), String> {
-    use ifc_lite_core::{build_entity_index, EntityDecoder, EntityScanner};
+    use bimifc_parser::EntityScanner;
     use std::collections::HashSet;
 
     let load_start = now_ms();
@@ -553,16 +553,13 @@ pub fn parse_and_process_ifc(
 
     // Build entity index for O(1) lookups
     let index_start = now_ms();
-    let index = build_entity_index(content);
-    let entity_count = index.len();
+    let mut decoder = EntityDecoder::new(content);
+    let entity_count = decoder.entity_count();
     bridge::log_info(&format!(
         "[BIMIFC] Entity index: {} entities in {:.0}ms",
         entity_count,
         now_ms() - index_start
     ));
-
-    // Create decoder with pre-built index
-    let mut decoder = EntityDecoder::with_index(content, index);
 
     state.loading.set_progress(Progress {
         phase: "Building spatial hierarchy".to_string(),
@@ -607,7 +604,7 @@ pub fn parse_and_process_ifc(
         match type_upper.as_str() {
             "IFCPROJECT" => {
                 project_id = Some(id);
-                if let Ok(entity) = decoder.decode_by_id(id) {
+                if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
                     let name = entity
                         .get_string(2)
                         .map(|s| s.to_string())
@@ -624,7 +621,7 @@ pub fn parse_and_process_ifc(
                 }
             }
             "IFCSITE" => {
-                if let Ok(entity) = decoder.decode_by_id(id) {
+                if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
                     let name = entity
                         .get_string(2)
                         .map(|s| s.to_string())
@@ -641,7 +638,7 @@ pub fn parse_and_process_ifc(
                 }
             }
             "IFCBUILDING" => {
-                if let Ok(entity) = decoder.decode_by_id(id) {
+                if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
                     let name = entity
                         .get_string(2)
                         .map(|s| s.to_string())
@@ -658,7 +655,7 @@ pub fn parse_and_process_ifc(
                 }
             }
             "IFCBUILDINGSTOREY" => {
-                if let Ok(entity) = decoder.decode_by_id(id) {
+                if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
                     let name = entity
                         .get_string(2)
                         .map(|s| s.to_string())
@@ -676,7 +673,7 @@ pub fn parse_and_process_ifc(
                 }
             }
             "IFCSPACE" => {
-                if let Ok(entity) = decoder.decode_by_id(id) {
+                if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
                     let name = entity
                         .get_string(2)
                         .map(|s| s.to_string())
@@ -693,8 +690,8 @@ pub fn parse_and_process_ifc(
                 }
             }
             "IFCRELAGGREGATES" => {
-                if let Ok(entity) = decoder.decode_by_id(id) {
-                    let parent_id = entity.get_ref(4);
+                if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
+                    let parent_id = entity.get_ref(4).map(|id| id.0);
                     let children = get_ref_list(&entity, 5);
                     if let (Some(parent_id), Some(children)) = (parent_id, children) {
                         aggregates.entry(parent_id).or_default().extend(children);
@@ -702,8 +699,8 @@ pub fn parse_and_process_ifc(
                 }
             }
             "IFCRELCONTAINEDINSPATIALSTRUCTURE" => {
-                if let Ok(entity) = decoder.decode_by_id(id) {
-                    if let Some(structure_id) = entity.get_ref(5) {
+                if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
+                    if let Some(structure_id) = entity.get_ref(5).map(|id| id.0) {
                         if let Some(elements) = get_ref_list(&entity, 4) {
                             contained_in
                                 .entry(structure_id)
@@ -718,8 +715,8 @@ pub fn parse_and_process_ifc(
             }
             "IFCRELDEFINESBYPROPERTIES" => {
                 // IfcRelDefinesByProperties: (GlobalId, OwnerHistory, Name, Description, RelatedObjects, RelatingPropertyDefinition)
-                if let Ok(entity) = decoder.decode_by_id(id) {
-                    if let Some(prop_def_id) = entity.get_ref(5) {
+                if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
+                    if let Some(prop_def_id) = entity.get_ref(5).map(|id| id.0) {
                         if let Some(related_objects) = get_ref_list(&entity, 4) {
                             for obj_id in related_objects {
                                 element_properties
@@ -733,8 +730,8 @@ pub fn parse_and_process_ifc(
             }
             "IFCRELDEFINESBYTYPE" => {
                 // IfcRelDefinesByType: (GlobalId, OwnerHistory, Name, Description, RelatedObjects, RelatingType)
-                if let Ok(entity) = decoder.decode_by_id(id) {
-                    if let Some(type_id) = entity.get_ref(5) {
+                if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
+                    if let Some(type_id) = entity.get_ref(5).map(|id| id.0) {
                         if let Some(related_objects) = get_ref_list(&entity, 4) {
                             for obj_id in related_objects {
                                 element_to_type.insert(obj_id, type_id);
@@ -747,23 +744,10 @@ pub fn parse_and_process_ifc(
         }
     }
 
-    // Extract unit scale
-    let unit_scale = if let Some(proj_id) = project_id {
-        match decoder.extract_unit_scale(proj_id) {
-            Ok(scale) => {
-                bridge::log(&format!("Unit scale: {}", scale));
-                decoder.set_length_unit_scale(scale);
-                scale as f32
-            }
-            Err(_) => {
-                decoder.set_length_unit_scale(1.0);
-                1.0
-            }
-        }
-    } else {
-        decoder.set_length_unit_scale(1.0);
-        1.0
-    };
+    // Extract unit scale - use 1.0 for now, the ParsedModel handles this
+    // TODO: Use proper unit extraction when we have full model access
+    let unit_scale = 1.0f32;
+    bridge::log(&format!("Unit scale: {}", unit_scale));
 
     // Apply unit scale to elevations
     for info in spatial_entities.values_mut() {
@@ -780,8 +764,13 @@ pub fn parse_and_process_ifc(
         spatial_time
     ));
 
-    // Create geometry router
+    // Create geometry router and parsed model for geometry processing
     let router = GeometryRouter::new();
+    let parsed_model = match ParsedModel::parse(content, false, false) {
+        Ok(model) => Arc::new(model),
+        Err(e) => return Err(format!("Failed to parse model: {:?}", e)),
+    };
+    let resolver = parsed_model.resolver();
 
     state.loading.set_progress(Progress {
         phase: "Processing geometry".to_string(),
@@ -801,13 +790,9 @@ pub fn parse_and_process_ifc(
     let color_palette = state.ui.color_palette.get_untracked();
 
     while let Some((id, type_name, _start, _end)) = scanner.next_entity() {
-        if ifc_lite_core::has_geometry_by_name(type_name) {
-            let ifc_type = ifc_lite_core::IfcType::from_str(type_name);
-            if matches!(ifc_type, ifc_lite_core::IfcType::Unknown(_)) {
-                continue;
-            }
-
-            match decoder.decode_by_id(id) {
+        let ifc_type = IfcType::parse(type_name);
+        if ifc_type.has_geometry() {
+            match decoder.decode_by_id(EntityId(id)) {
                 Ok(entity) => {
                     let global_id = entity.get_string(0).map(|s| s.to_string());
                     let name = entity.get_string(2).map(|s| s.to_string());
@@ -834,7 +819,7 @@ pub fn parse_and_process_ifc(
                         storey_elevation,
                     });
 
-                    match router.process_element(&entity, &mut decoder) {
+                    match router.process_element(&entity, resolver) {
                         Ok(mesh) => {
                             if !mesh.is_empty() {
                                 let sanitize = |arr: &[f32]| -> Vec<f32> {

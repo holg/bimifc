@@ -8,12 +8,83 @@ repository = "https://github.com/holg/bimifc"
 keywords = ["ifc", "bim", "leptos", "wasm"]
 categories = ["wasm", "gui"]
 
-[dependencies]
-bimifc-model = { path = "../bimifc-model" }
-
-leptos = { version = "0.7", features = ["csr"] }
-wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["console"] }
+[lib]
+name = "bimifc_leptos"
+path = "src/lib.rs"
 
 [features]
 default = []
+# Enable unified mode - direct memory sharing with Bevy (no serialization)
+unified = ["bimifc-bevy"]
+
+[dependencies]
+# Core IFC parsing (our own parser)
+bimifc-model = { path = "../bimifc-model" }
+bimifc-parser = { path = "../bimifc-parser" }
+bimifc-geometry = { path = "../bimifc-geometry" }
+
+# Bevy types for unified mode (optional)
+bimifc-bevy = { path = "../bimifc-bevy", optional = true, default-features = false }
+
+# Leptos framework
+leptos = { version = "0.7", features = ["csr"] }
+
+# WASM utilities
+gloo = "0.11"
+gloo-file = { version = "0.3", features = ["futures"] }
+gloo-timers = { version = "0.3", features = ["futures"] }
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Fast hashing
+rustc-hash = "1.1"
+
+# Logging
+log = "0.4"
+
+# Base64 for binary data
+base64 = "0.22"
+
+# Zero-copy byte casting
+bytemuck = { version = "1.14", features = ["derive"] }
+
+[dependencies.web-sys]
+version = "0.3"
+features = [
+    "Clipboard",
+    "console",
+    "Document",
+    "DragEvent",
+    "DataTransfer",
+    "Element",
+    "Event",
+    "EventTarget",
+    "File",
+    "FileList",
+    "FileReader",
+    "Headers",
+    "HtmlCanvasElement",
+    "HtmlDivElement",
+    "HtmlElement",
+    "HtmlInputElement",
+    "HtmlSelectElement",
+    "KeyboardEvent",
+    "Location",
+    "MouseEvent",
+    "Navigator",
+    "Request",
+    "RequestInit",
+    "RequestMode",
+    "Response",
+    "ScrollBehavior",
+    "Storage",
+    "Url",
+    "UrlSearchParams",
+    "WheelEvent",
+    "Window",
+]

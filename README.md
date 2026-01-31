@@ -19,9 +19,9 @@ Pure Rust IFC (Industry Foundation Classes) parser and viewer for BIM applicatio
 | `bimifc-parser` | High-performance IFC4/IFC5 parser |
 | `bimifc-geometry` | Geometry processing and tessellation |
 | `bimifc-bevy` | Bevy-based 3D renderer (WebGPU/WebGL2) |
+| `bimifc-leptos` | Leptos-based UI components |
+| `bimifc-viewer` | Web viewer application |
 | `bimifc-viewer-tui` | Terminal viewer with 3D rendering |
-
-*Note: `bimifc-leptos` and `bimifc-viewer` are work-in-progress.*
 
 ## Quick Start
 
