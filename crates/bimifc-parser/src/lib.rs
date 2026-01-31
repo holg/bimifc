@@ -31,6 +31,7 @@
 
 mod decoder;
 pub mod ifcx;
+pub mod lighting;
 mod model;
 mod properties;
 mod resolver;
@@ -41,6 +42,7 @@ mod units;
 
 pub use decoder::EntityDecoder;
 pub use ifcx::{is_ifcx_format, IfcxGeometry, IfcxModel};
+pub use lighting::{extract_lighting_data, export_to_json, LightingExport, LightFixtureData};
 pub use model::ParsedModel;
 pub use scanner::EntityScanner;
 pub use tokenizer::{parse_entity, Token};

@@ -297,6 +297,20 @@ pub enum IfcType {
     IfcPresentationLayerAssignment,
 
     // ========================================================================
+    // Lighting
+    // ========================================================================
+    IfcLightFixture,
+    IfcLightFixtureType,
+    IfcLightSource,
+    IfcLightSourceAmbient,
+    IfcLightSourceDirectional,
+    IfcLightSourceGoniometric,
+    IfcLightSourcePositional,
+    IfcLightSourceSpot,
+    IfcLightIntensityDistribution,
+    IfcLightDistributionData,
+
+    // ========================================================================
     // Units
     // ========================================================================
     IfcUnitAssignment,
@@ -591,6 +605,18 @@ impl IfcType {
             "IFCCOLOURRGB" => IfcType::IfcColourRgb,
             "IFCPRESENTATIONLAYERASSIGNMENT" => IfcType::IfcPresentationLayerAssignment,
 
+            // Lighting
+            "IFCLIGHTFIXTURE" => IfcType::IfcLightFixture,
+            "IFCLIGHTFIXTURETYPE" => IfcType::IfcLightFixtureType,
+            "IFCLIGHTSOURCE" => IfcType::IfcLightSource,
+            "IFCLIGHTSOURCEAMBIENT" => IfcType::IfcLightSourceAmbient,
+            "IFCLIGHTSOURCEDIRECTIONAL" => IfcType::IfcLightSourceDirectional,
+            "IFCLIGHTSOURCEGONIOMETRIC" => IfcType::IfcLightSourceGoniometric,
+            "IFCLIGHTSOURCEPOSITIONAL" => IfcType::IfcLightSourcePositional,
+            "IFCLIGHTSOURCESPOT" => IfcType::IfcLightSourceSpot,
+            "IFCLIGHTINTENSITYDISTRIBUTION" => IfcType::IfcLightIntensityDistribution,
+            "IFCLIGHTDISTRIBUTIONDATA" => IfcType::IfcLightDistributionData,
+
             // Units
             "IFCUNITASSIGNMENT" => IfcType::IfcUnitAssignment,
             "IFCSIUNIT" => IfcType::IfcSIUnit,
@@ -721,6 +747,7 @@ impl IfcType {
                 | IfcType::IfcMember
                 | IfcType::IfcFooting
                 | IfcType::IfcPile
+                | IfcType::IfcLightFixture
                 | IfcType::IfcBuildingElementProxy
                 | IfcType::IfcFurnishingElement
                 | IfcType::IfcFurniture
