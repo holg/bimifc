@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/bimifc-model",
+    "crates/bimifc-parser",
+    "crates/bimifc-geometry",
+    # "crates/bimifc-leptos",   # Needs refactoring to use bimifc-model
+    "crates/bimifc-bevy",
+    # "crates/bimifc-viewer",   # Depends on bimifc-leptos
+    "crates/bimifc-viewer-tui",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MPL-2.0"
+repository = "https://github.com/holg/bimifc"
+authors = ["holg"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

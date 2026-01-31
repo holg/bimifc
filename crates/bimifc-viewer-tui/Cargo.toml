@@ -1,0 +1,31 @@
+[package]
+name = "bimifc-viewer-tui"
+version = "0.1.0"
+edition = "2021"
+description = "Terminal-based IFC viewer with floor plan rendering"
+license = "MPL-2.0"
+repository = "https://github.com/holg/bimifc"
+keywords = ["ifc", "bim", "tui", "terminal", "ratatui"]
+categories = ["command-line-utilities", "visualization"]
+
+[[bin]]
+name = "bimifc-tui"
+path = "src/main.rs"
+
+[dependencies]
+bimifc-model = { path = "../bimifc-model" }
+bimifc-parser = { path = "../bimifc-parser" }
+bimifc-geometry = { path = "../bimifc-geometry" }
+
+# TUI
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Math
+glam = "0.29"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Error handling
+anyhow = "1.0"

@@ -1,0 +1,19 @@
+[package]
+name = "bimifc-leptos"
+version = "0.1.0"
+edition = "2021"
+description = "Leptos-based UI components for BIM IFC viewer"
+license = "MPL-2.0"
+repository = "https://github.com/holg/bimifc"
+keywords = ["ifc", "bim", "leptos", "wasm"]
+categories = ["wasm", "gui"]
+
+[dependencies]
+bimifc-model = { path = "../bimifc-model" }
+
+leptos = { version = "0.7", features = ["csr"] }
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ["console"] }
+
+[features]
+default = []

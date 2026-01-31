@@ -1,0 +1,23 @@
+[package]
+name = "bimifc-viewer"
+version = "0.1.0"
+edition = "2021"
+description = "BIM IFC web viewer - Leptos UI + Bevy 3D"
+license = "MPL-2.0"
+repository = "https://github.com/holg/bimifc"
+keywords = ["ifc", "bim", "viewer", "wasm", "webgpu"]
+categories = ["wasm", "rendering", "visualization"]
+
+[dependencies]
+bimifc-model = { path = "../bimifc-model" }
+bimifc-parser = { path = "../bimifc-parser" }
+bimifc-geometry = { path = "../bimifc-geometry" }
+bimifc-leptos = { path = "../bimifc-leptos" }
+bimifc-bevy = { path = "../bimifc-bevy" }
+
+leptos = { version = "0.7", features = ["csr"] }
+wasm-bindgen = "0.2"
+console_error_panic_hook = "0.1"
+
+[features]
+default = []

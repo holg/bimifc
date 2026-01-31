@@ -1,0 +1,24 @@
+[package]
+name = "bimifc-geometry"
+version = "0.1.0"
+edition = "2021"
+description = "Geometry processing for IFC models"
+license = "MPL-2.0"
+repository = "https://github.com/holg/bimifc"
+keywords = ["ifc", "bim", "geometry", "mesh"]
+categories = ["graphics", "rendering"]
+
+[dependencies]
+bimifc-model = { path = "../bimifc-model" }
+
+# Math
+nalgebra = "0.33"
+
+# Triangulation
+earcutr = "0.4"
+
+# Data structures
+rustc-hash = "2"
+
+# Error handling  
+thiserror = "2"
