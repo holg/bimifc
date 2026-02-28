@@ -190,6 +190,7 @@ impl<'a> SpatialBuilder<'a> {
             IfcType::IfcFlowTerminal,
             IfcType::IfcFlowSegment,
             IfcType::IfcFlowFitting,
+            IfcType::IfcLightFixture,
         ];
 
         for ifc_type in product_types {

@@ -20,5 +20,8 @@ earcutr = "0.4"
 # Data structures
 rustc-hash = "2"
 
-# Error handling  
+# Error handling
 thiserror = "2"
+
+[dev-dependencies]
+bimifc-parser = { path = "../bimifc-parser" }

@@ -652,12 +652,11 @@ fn spawn_meshes_system(
         let mesh = opaque_batch.build();
         let material = StandardMaterial {
             base_color: Color::WHITE,
-            metallic: 0.0,
-            perceptual_roughness: 0.6,
-            reflectance: 0.3,
+            metallic: 0.05,
+            perceptual_roughness: 0.45,
+            reflectance: 0.4,
             double_sided: true,
             cull_mode: None,
-            // Use vertex colors
             ..default()
         };
 
@@ -689,9 +688,9 @@ fn spawn_meshes_system(
         let mesh = transparent_batch.build();
         let material = StandardMaterial {
             base_color: Color::WHITE,
-            metallic: 0.0,
-            perceptual_roughness: 0.1,
-            reflectance: 0.5,
+            metallic: 0.02,
+            perceptual_roughness: 0.08,
+            reflectance: 0.6,
             double_sided: true,
             cull_mode: None,
             alpha_mode: AlphaMode::Blend,
@@ -1102,6 +1101,8 @@ fn get_vibrant_color(entity_type: &str) -> [f32; 4] {
         [0.60, 0.58, 0.55, 1.0] // Dark concrete
     } else if upper.contains("PROXY") {
         [0.75, 0.60, 0.80, 1.0] // Purple accent
+    } else if upper.contains("LIGHTFIXTURE") {
+        [1.0, 0.9, 0.3, 1.0] // Warm yellow
     } else if upper.contains("FLOW") || upper.contains("DUCT") || upper.contains("PIPE") {
         [0.40, 0.75, 0.50, 1.0] // Green MEP
     } else if upper.contains("ELECTRIC") || upper.contains("ENERGY") {
@@ -1152,6 +1153,8 @@ fn get_realistic_color(entity_type: &str) -> [f32; 4] {
         [0.55, 0.53, 0.50, 1.0] // Dark concrete
     } else if upper.contains("PROXY") {
         [0.70, 0.65, 0.75, 1.0] // Purple tint
+    } else if upper.contains("LIGHTFIXTURE") {
+        [0.85, 0.78, 0.30, 1.0] // Warm amber
     } else if upper.contains("FLOW") || upper.contains("DUCT") || upper.contains("PIPE") {
         [0.55, 0.70, 0.58, 1.0] // Green tint
     } else if upper.contains("ELECTRIC") || upper.contains("ENERGY") {
@@ -1202,6 +1205,8 @@ fn get_high_contrast_color(entity_type: &str) -> [f32; 4] {
         [0.4, 0.4, 0.35, 1.0] // Dark brown-gray
     } else if upper.contains("PROXY") {
         [0.8, 0.4, 0.9, 1.0] // Bright purple
+    } else if upper.contains("LIGHTFIXTURE") {
+        [1.0, 0.95, 0.2, 1.0] // Bright warm yellow
     } else if upper.contains("FLOW") || upper.contains("DUCT") || upper.contains("PIPE") {
         [0.2, 0.9, 0.4, 1.0] // Bright green
     } else if upper.contains("ELECTRIC") || upper.contains("ENERGY") {
@@ -1253,6 +1258,8 @@ fn get_monochrome_color(entity_type: &str) -> [f32; 4] {
         [0.45, 0.45, 0.45, 1.0] // Dark gray
     } else if upper.contains("PROXY") {
         [0.70, 0.70, 0.70, 1.0] // Medium gray
+    } else if upper.contains("LIGHTFIXTURE") {
+        [0.60, 0.60, 0.60, 1.0] // Mid-brightness gray
     } else if upper.contains("FLOW") || upper.contains("DUCT") || upper.contains("PIPE") {
         [0.55, 0.55, 0.55, 1.0] // Medium gray
     } else if upper.contains("ELECTRIC") || upper.contains("ENERGY") {

@@ -496,6 +496,28 @@ fn load_ifc_file(
         };
 
         if mesh.is_empty() {
+            // For point-placed entities like IfcLightFixture, generate a marker sphere
+            if is_point_entity_type(&type_name) {
+                if let Some(pos) = extract_entity_position(&entity, resolver) {
+                    let marker = create_marker_sphere(pos, 0.5);
+                    let color = crate::mesh::get_default_color(&type_name);
+                    let ifc_mesh = IfcMesh::from_geometry_mesh(
+                        id as u64,
+                        marker,
+                        color,
+                        type_name.clone(),
+                        name.clone(),
+                    );
+                    meshes.push(ifc_mesh);
+                    entities.push(EntityInfo {
+                        id: id as u64,
+                        entity_type: type_name,
+                        name,
+                        storey: None,
+                        storey_elevation: None,
+                    });
+                }
+            }
             continue;
         }
 
@@ -582,6 +604,28 @@ fn load_ifc_content(
         };
 
         if mesh.is_empty() {
+            // For point-placed entities like IfcLightFixture, generate a marker sphere
+            if is_point_entity_type(&type_name) {
+                if let Some(pos) = extract_entity_position(&entity, resolver) {
+                    let marker = create_marker_sphere(pos, 0.5);
+                    let color = crate::mesh::get_default_color(&type_name);
+                    let ifc_mesh = IfcMesh::from_geometry_mesh(
+                        id as u64,
+                        marker,
+                        color,
+                        type_name.clone(),
+                        name.clone(),
+                    );
+                    meshes.push(ifc_mesh);
+                    entities.push(EntityInfo {
+                        id: id as u64,
+                        entity_type: type_name,
+                        name,
+                        storey: None,
+                        storey_elevation: None,
+                    });
+                }
+            }
             continue;
         }
 
@@ -650,7 +694,111 @@ fn has_geometry_type_name(type_name: &str) -> bool {
             | "IFCFLOWSEGMENT"
             | "IFCFLOWFITTING"
             | "IFCFLOWCONTROLLER"
+            // Lighting
+            | "IFCLIGHTFIXTURE"
             // Spaces (optional, often transparent)
             | "IFCSPACE"
     )
+}
+
+/// Check if an IFC type is a point-placed entity (no geometry, just a placement)
+fn is_point_entity_type(type_name: &str) -> bool {
+    matches!(type_name.to_uppercase().as_str(), "IFCLIGHTFIXTURE")
+}
+
+/// Extract world position from an entity's ObjectPlacement chain.
+///
+/// Follows: entity[5] (ObjectPlacement) → IfcLocalPlacement[1] (RelativePlacement)
+///        → IfcAxis2Placement3D[0] (Location) → IfcCartesianPoint[0] (Coordinates)
+fn extract_entity_position(
+    entity: &bimifc_model::DecodedEntity,
+    resolver: &dyn bimifc_model::EntityResolver,
+) -> Option<[f32; 3]> {
+    // ObjectPlacement is at attribute index 5 for IFC products
+    let placement_id = entity.get_ref(5)?;
+    let placement = resolver.get(placement_id)?;
+
+    // IfcLocalPlacement: RelativePlacement at index 1
+    let relative_id = placement.get_ref(1)?;
+    let axis_placement = resolver.get(relative_id)?;
+
+    // IfcAxis2Placement3D: Location at index 0
+    let location_id = axis_placement.get_ref(0)?;
+    let point = resolver.get(location_id)?;
+
+    // IfcCartesianPoint: Coordinates at index 0 (list of floats)
+    let coords = point.get(0)?.as_list()?;
+    let x = coords.first().and_then(|v| v.as_float()).unwrap_or(0.0) as f32;
+    let y = coords.get(1).and_then(|v| v.as_float()).unwrap_or(0.0) as f32;
+    let z = coords.get(2).and_then(|v| v.as_float()).unwrap_or(0.0) as f32;
+
+    Some([x, y, z])
+}
+
+/// Create a UV sphere mesh at the given position.
+///
+/// Generates a small sphere (~96 triangles) as a visual marker
+/// for point-placed entities without their own geometry.
+fn create_marker_sphere(center: [f32; 3], radius: f32) -> bimifc_geometry::Mesh {
+    let stacks: u32 = 8;
+    let slices: u32 = 12;
+
+    let vertex_count = ((stacks + 1) * (slices + 1)) as usize;
+    let index_count = (stacks * slices * 6) as usize;
+
+    let mut positions = Vec::with_capacity(vertex_count * 3);
+    let mut normals = Vec::with_capacity(vertex_count * 3);
+    let mut indices = Vec::with_capacity(index_count);
+
+    // Generate vertices
+    for i in 0..=stacks {
+        let phi = std::f32::consts::PI * i as f32 / stacks as f32;
+        let sin_phi = phi.sin();
+        let cos_phi = phi.cos();
+
+        for j in 0..=slices {
+            let theta = 2.0 * std::f32::consts::PI * j as f32 / slices as f32;
+            let sin_theta = theta.sin();
+            let cos_theta = theta.cos();
+
+            let nx = sin_phi * cos_theta;
+            let ny = sin_phi * sin_theta;
+            let nz = cos_phi;
+
+            positions.push(center[0] + radius * nx);
+            positions.push(center[1] + radius * ny);
+            positions.push(center[2] + radius * nz);
+
+            normals.push(nx);
+            normals.push(ny);
+            normals.push(nz);
+        }
+    }
+
+    // Generate indices
+    for i in 0..stacks {
+        for j in 0..slices {
+            let row_start = i * (slices + 1);
+            let next_row = (i + 1) * (slices + 1);
+
+            let tl = row_start + j;
+            let tr = row_start + j + 1;
+            let bl = next_row + j;
+            let br = next_row + j + 1;
+
+            indices.push(tl);
+            indices.push(bl);
+            indices.push(tr);
+
+            indices.push(tr);
+            indices.push(bl);
+            indices.push(br);
+        }
+    }
+
+    bimifc_geometry::Mesh {
+        positions,
+        normals,
+        indices,
+    }
 }

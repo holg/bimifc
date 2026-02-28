@@ -8,7 +8,7 @@
 //! Uses the `EntityResolver` trait from bimifc-model for entity lookup.
 
 use crate::{Error, Mesh, Result};
-use bimifc_model::{DecodedEntity, EntityId, EntityResolver, IfcType};
+use bimifc_model::{DecodedEntity, EntityResolver, IfcType};
 use nalgebra::Matrix4;
 use rustc_hash::FxHashMap;
 use std::cell::RefCell;
@@ -201,8 +201,9 @@ impl GeometryRouter {
             None => return Ok(combined_mesh),
         };
 
-        // Get Representations list (index 1 in IfcProductDefinitionShape)
-        let reps = match representation.get(1) {
+        // Get Representations list (index 2 in IfcProductDefinitionShape)
+        // IfcProductRepresentation: 0=Name, 1=Description, 2=Representations
+        let reps = match representation.get(2) {
             Some(bimifc_model::AttributeValue::List(list)) => list,
             _ => return Ok(combined_mesh),
         };
@@ -211,9 +212,14 @@ impl GeometryRouter {
         for rep_ref in reps {
             if let Some(shape_rep_id) = rep_ref.as_entity_ref() {
                 if let Some(shape_rep) = resolver.get(shape_rep_id) {
-                    // Filter to Body representations
-                    if let Some(rep_type) = shape_rep.get_string(1) {
-                        if rep_type != "Body" && rep_type != "Facetation" {
+                    // Filter: skip non-geometry representations (e.g., "Axis", "Box", "FootPrint")
+                    // Attribute 1: RepresentationIdentifier (e.g., "Body", "Facetation")
+                    if let Some(rep_id_str) = shape_rep.get_string(1) {
+                        if !matches!(
+                            rep_id_str,
+                            "Body" | "Facetation" | "Reference"
+                                | "MappedRepresentation"
+                        ) {
                             continue;
                         }
                     }
@@ -228,7 +234,13 @@ impl GeometryRouter {
 
         // Apply object placement transform
         if let Some(placement_id) = element.get_ref(5) {
-            if let Some(transform) = self.resolve_placement(placement_id, resolver) {
+            if let Some(mut transform) = crate::transform::resolve_placement(placement_id, resolver) {
+                // Scale translation components from file units to meters
+                if self.unit_scale != 1.0 {
+                    transform[(0, 3)] *= self.unit_scale;
+                    transform[(1, 3)] *= self.unit_scale;
+                    transform[(2, 3)] *= self.unit_scale;
+                }
                 crate::extrusion::apply_transform(&mut combined_mesh, &transform);
             }
         }
@@ -321,139 +333,7 @@ impl GeometryRouter {
     ) -> Option<Matrix4<f64>> {
         // MappingTarget at index 1
         let target_id = mapped_item.get_ref(1)?;
-        self.resolve_placement(target_id, resolver)
-    }
-
-    /// Resolve a placement to a transformation matrix
-    fn resolve_placement(
-        &self,
-        placement_id: EntityId,
-        resolver: &dyn EntityResolver,
-    ) -> Option<Matrix4<f64>> {
-        let placement = resolver.get(placement_id)?;
-
-        match placement.ifc_type {
-            IfcType::IfcLocalPlacement => {
-                // RelativePlacement at index 1
-                let relative_id = placement.get_ref(1)?;
-                self.resolve_axis_placement(relative_id, resolver)
-            }
-            IfcType::IfcAxis2Placement3D => self.resolve_axis_placement(placement_id, resolver),
-            IfcType::IfcCartesianTransformationOperator3D
-            | IfcType::IfcCartesianTransformationOperator3DnonUniform => {
-                self.resolve_transformation_operator(placement_id, resolver)
-            }
-            _ => None,
-        }
-    }
-
-    /// Resolve an IfcAxis2Placement3D to a transformation matrix
-    fn resolve_axis_placement(
-        &self,
-        placement_id: EntityId,
-        resolver: &dyn EntityResolver,
-    ) -> Option<Matrix4<f64>> {
-        let placement = resolver.get(placement_id)?;
-
-        if placement.ifc_type != IfcType::IfcAxis2Placement3D {
-            return None;
-        }
-
-        // Location (index 0)
-        let location = self.resolve_cartesian_point(placement.get_ref(0)?, resolver)?;
-
-        // Axis (index 1) - Z direction, optional
-        let axis = placement
-            .get_ref(1)
-            .and_then(|id| self.resolve_direction(id, resolver))
-            .unwrap_or_else(|| nalgebra::Vector3::new(0.0, 0.0, 1.0));
-
-        // RefDirection (index 2) - X direction, optional
-        let ref_dir = placement
-            .get_ref(2)
-            .and_then(|id| self.resolve_direction(id, resolver))
-            .unwrap_or_else(|| nalgebra::Vector3::new(1.0, 0.0, 0.0));
-
-        // Build orthonormal basis
-        let z = axis.normalize();
-        let x = ref_dir.normalize();
-        let y = z.cross(&x).normalize();
-        let x = y.cross(&z).normalize();
-
-        Some(Matrix4::new(
-            x.x, y.x, z.x, location.x, x.y, y.y, z.y, location.y, x.z, y.z, z.z, location.z, 0.0,
-            0.0, 0.0, 1.0,
-        ))
-    }
-
-    /// Resolve a CartesianTransformationOperator3D to a transformation matrix
-    fn resolve_transformation_operator(
-        &self,
-        op_id: EntityId,
-        resolver: &dyn EntityResolver,
-    ) -> Option<Matrix4<f64>> {
-        let op = resolver.get(op_id)?;
-
-        // LocalOrigin (index 3)
-        let origin = self.resolve_cartesian_point(op.get_ref(3)?, resolver)?;
-
-        // Scale (index 6), default 1.0
-        let scale = op.get_float(6).unwrap_or(1.0);
-
-        // Build matrix with translation and uniform scale
-        let mut matrix = Matrix4::identity();
-        matrix[(0, 0)] = scale;
-        matrix[(1, 1)] = scale;
-        matrix[(2, 2)] = scale;
-        matrix[(0, 3)] = origin.x;
-        matrix[(1, 3)] = origin.y;
-        matrix[(2, 3)] = origin.z;
-
-        Some(matrix)
-    }
-
-    /// Resolve an IfcCartesianPoint to a Point3
-    fn resolve_cartesian_point(
-        &self,
-        point_id: EntityId,
-        resolver: &dyn EntityResolver,
-    ) -> Option<nalgebra::Point3<f64>> {
-        let point = resolver.get(point_id)?;
-
-        if point.ifc_type != IfcType::IfcCartesianPoint {
-            return None;
-        }
-
-        // Coordinates at index 0
-        let coords = point.get(0)?.as_list()?;
-
-        let x = coords.first().and_then(|v| v.as_float()).unwrap_or(0.0);
-        let y = coords.get(1).and_then(|v| v.as_float()).unwrap_or(0.0);
-        let z = coords.get(2).and_then(|v| v.as_float()).unwrap_or(0.0);
-
-        Some(nalgebra::Point3::new(x, y, z))
-    }
-
-    /// Resolve an IfcDirection to a Vector3
-    fn resolve_direction(
-        &self,
-        dir_id: EntityId,
-        resolver: &dyn EntityResolver,
-    ) -> Option<nalgebra::Vector3<f64>> {
-        let direction = resolver.get(dir_id)?;
-
-        if direction.ifc_type != IfcType::IfcDirection {
-            return None;
-        }
-
-        // DirectionRatios at index 0
-        let ratios = direction.get(0)?.as_list()?;
-
-        let x = ratios.first().and_then(|v| v.as_float()).unwrap_or(0.0);
-        let y = ratios.get(1).and_then(|v| v.as_float()).unwrap_or(0.0);
-        let z = ratios.get(2).and_then(|v| v.as_float()).unwrap_or(1.0);
-
-        Some(nalgebra::Vector3::new(x, y, z))
+        crate::transform::resolve_placement(target_id, resolver)
     }
 
     /// Compute hash of mesh geometry for deduplication

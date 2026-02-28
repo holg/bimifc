@@ -15,7 +15,7 @@ crate-type = ["cdylib", "rlib"]
 bimifc-model = { path = "../bimifc-model" }
 bimifc-parser = { path = "../bimifc-parser" }
 bimifc-geometry = { path = "../bimifc-geometry" }
-bimifc-leptos = { path = "../bimifc-leptos" }
+bimifc-leptos = { path = "../bimifc-leptos", features = ["unified"] }
 bimifc-bevy = { path = "../bimifc-bevy", default-features = false }
 
 leptos = { version = "0.7", features = ["csr"] }
@@ -36,4 +36,5 @@ features = [
 ]
 
 [features]
-default = []
+default = ["unified"]
+unified = ["bimifc-leptos/unified"]

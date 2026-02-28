@@ -262,6 +262,7 @@ fn poll_camera_commands_system(
 
 /// Setup the 3D camera
 fn setup_camera(mut commands: Commands, controller: Res<CameraController>) {
+    use bevy::core_pipeline::tonemapping::Tonemapping;
     use bevy::render::view::Msaa;
 
     let position = controller.get_position();
@@ -278,20 +279,22 @@ fn setup_camera(mut commands: Commands, controller: Res<CameraController>) {
         MainCamera,
         // Enable 4x MSAA for smoother edges
         Msaa::Sample4,
+        // AgX tonemapping for natural, filmic look
+        Tonemapping::AgX,
     ));
 
-    // Ambient light - lower for more contrast (like original viewer)
+    // Ambient light - enough to see into shadows but not wash out
     commands.spawn(AmbientLight {
-        color: Color::WHITE,
-        brightness: 80.0, // Much lower ambient for better contrast
+        color: Color::srgb(0.9, 0.92, 1.0), // Slightly cool ambient
+        brightness: 150.0,
         affects_lightmapped_meshes: true,
     });
 
     // Key directional light - main light from top-right-front
     commands.spawn((
         DirectionalLight {
-            color: Color::srgb(1.0, 0.99, 0.97), // Slightly warm
-            illuminance: 25000.0,                // Strong key light
+            color: Color::srgb(1.0, 0.98, 0.95), // Warm sunlight
+            illuminance: 30000.0,
             shadows_enabled: false,
             affects_lightmapped_mesh_diffuse: true,
             ..default()
@@ -299,11 +302,11 @@ fn setup_camera(mut commands: Commands, controller: Res<CameraController>) {
         Transform::from_xyz(0.5, 1.0, 0.3).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
-    // Fill light from opposite side - subtle
+    // Fill light from opposite side - cooler, softer
     commands.spawn((
         DirectionalLight {
-            color: Color::srgb(0.85, 0.9, 1.0), // Cool fill
-            illuminance: 8000.0,                // Moderate fill
+            color: Color::srgb(0.8, 0.88, 1.0), // Cool sky fill
+            illuminance: 12000.0,
             shadows_enabled: false,
             affects_lightmapped_mesh_diffuse: true,
             ..default()
@@ -314,13 +317,25 @@ fn setup_camera(mut commands: Commands, controller: Res<CameraController>) {
     // Rim/back light for edge definition
     commands.spawn((
         DirectionalLight {
-            color: Color::srgb(0.9, 0.95, 1.0),
-            illuminance: 5000.0,
+            color: Color::srgb(0.95, 0.95, 1.0),
+            illuminance: 8000.0,
             shadows_enabled: false,
             affects_lightmapped_mesh_diffuse: true,
             ..default()
         },
         Transform::from_xyz(-0.3, 0.8, -0.8).looking_at(Vec3::ZERO, Vec3::Y),
+    ));
+
+    // Bottom fill - subtle uplight to reduce dark undersides
+    commands.spawn((
+        DirectionalLight {
+            color: Color::srgb(0.7, 0.75, 0.85),
+            illuminance: 3000.0,
+            shadows_enabled: false,
+            affects_lightmapped_mesh_diffuse: true,
+            ..default()
+        },
+        Transform::from_xyz(0.0, -1.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 }
 

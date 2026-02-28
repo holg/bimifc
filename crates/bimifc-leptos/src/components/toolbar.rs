@@ -541,12 +541,16 @@ pub fn parse_and_process_ifc(
     // Check cache first
     let file_hash = bridge::compute_file_hash(content);
     if let Some(cached) = bridge::load_cached_model(&file_hash) {
-        bridge::log_info(&format!(
-            "[BIMIFC] Cache hit! Loading {} entities, {} meshes from cache",
-            cached.entities.len(),
-            cached.geometry.len()
-        ));
-        return load_from_cache(cached, state, load_start);
+        if cached.geometry.is_empty() {
+            bridge::log_info("[BIMIFC] Cache hit but 0 meshes — treating as stale, re-processing...");
+        } else {
+            bridge::log_info(&format!(
+                "[BIMIFC] Cache hit! Loading {} entities, {} meshes from cache",
+                cached.entities.len(),
+                cached.geometry.len()
+            ));
+            return load_from_cache(cached, state, load_start);
+        }
     }
 
     bridge::log_info("[BIMIFC] Cache miss, parsing IFC file...");
@@ -744,10 +748,10 @@ pub fn parse_and_process_ifc(
         }
     }
 
-    // Extract unit scale - use 1.0 for now, the ParsedModel handles this
-    // TODO: Use proper unit extraction when we have full model access
-    let unit_scale = 1.0f32;
-    bridge::log(&format!("Unit scale: {}", unit_scale));
+    // Extract unit scale from the model (will be set properly after ParsedModel is created)
+    // Placeholder until ParsedModel is available below
+    let mut unit_scale = 1.0f32;
+    bridge::log(&format!("Unit scale (initial): {}", unit_scale));
 
     // Apply unit scale to elevations
     for info in spatial_entities.values_mut() {
@@ -764,13 +768,18 @@ pub fn parse_and_process_ifc(
         spatial_time
     ));
 
-    // Create geometry router and parsed model for geometry processing
-    let router = GeometryRouter::new();
+    // Create parsed model and geometry router with proper unit scale
     let parsed_model = match ParsedModel::parse(content, false, false) {
         Ok(model) => Arc::new(model),
         Err(e) => return Err(format!("Failed to parse model: {:?}", e)),
     };
     let resolver = parsed_model.resolver();
+
+    // Use the model's extracted unit scale (from IFCPROJECT → IFCUNITASSIGNMENT)
+    unit_scale = parsed_model.unit_scale() as f32;
+    bridge::log(&format!("Unit scale (from model): {}", unit_scale));
+
+    let router = GeometryRouter::with_default_processors_and_unit_scale(unit_scale as f64);
 
     state.loading.set_progress(Progress {
         phase: "Processing geometry".to_string(),

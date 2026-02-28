@@ -48,6 +48,7 @@ pub mod mesh;
 pub mod processors;
 pub mod profile;
 pub mod router;
+pub mod transform;
 pub mod triangulation;
 
 // Re-export nalgebra types for convenience
@@ -61,6 +62,10 @@ pub use profile::{
     calculate_circle_segments, Profile2D, Profile2DWithVoids, ProfileType, Triangulation, VoidInfo,
 };
 pub use router::{GeometryProcessor, GeometryRouter};
+pub use transform::{
+    resolve_axis_placement, resolve_cartesian_point, resolve_direction, resolve_placement,
+    resolve_transformation_operator,
+};
 pub use triangulation::{
     calculate_polygon_normal, project_to_2d, project_to_2d_with_basis, triangulate_polygon,
     triangulate_polygon_with_holes,
