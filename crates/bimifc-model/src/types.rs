@@ -79,6 +79,7 @@ pub enum IfcType {
     IfcFooting,
     IfcPile,
     IfcBuildingElementProxy,
+    IfcElementAssembly,
 
     // ========================================================================
     // Distribution Elements (MEP)
@@ -417,6 +418,7 @@ impl IfcType {
             "IFCFOOTING" => IfcType::IfcFooting,
             "IFCPILE" => IfcType::IfcPile,
             "IFCBUILDINGELEMENTPROXY" => IfcType::IfcBuildingElementProxy,
+            "IFCELEMENTASSEMBLY" => IfcType::IfcElementAssembly,
 
             // Distribution elements
             "IFCDISTRIBUTIONELEMENT" => IfcType::IfcDistributionElement,
@@ -712,6 +714,7 @@ impl IfcType {
                     IfcType::IfcFooting => "IFCFOOTING",
                     IfcType::IfcPile => "IFCPILE",
                     IfcType::IfcBuildingElementProxy => "IFCBUILDINGELEMENTPROXY",
+                    IfcType::IfcElementAssembly => "IFCELEMENTASSEMBLY",
                     IfcType::IfcExtrudedAreaSolid => "IFCEXTRUDEDAREASOLID",
                     IfcType::IfcFacetedBrep => "IFCFACETEDBREP",
                     IfcType::IfcTriangulatedFaceSet => "IFCTRIANGULATEDFACESET",

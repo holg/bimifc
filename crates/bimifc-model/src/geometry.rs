@@ -226,6 +226,9 @@ pub fn get_default_color(ifc_type: &IfcType) -> [f32; 4] {
         // Light fixtures - warm yellow
         IfcType::IfcLightFixture => [1.0, 0.9, 0.3, 1.0],
 
+        // Element assembly - light blue (panel/bracket)
+        IfcType::IfcElementAssembly => [0.6, 0.7, 0.85, 1.0],
+
         // Building element proxy - purple (catch-all)
         IfcType::IfcBuildingElementProxy => [0.7, 0.5, 0.8, 1.0],
 

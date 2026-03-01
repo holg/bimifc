@@ -5,6 +5,23 @@ use crate::state::use_viewer_state;
 use leptos::prelude::*;
 use rustc_hash::FxHashSet;
 
+/// Parsed photometric data ready for display
+#[derive(Clone, Debug)]
+struct PhotometryData {
+    svg: String,
+    luminaire_name: String,
+    total_flux: f64,
+    beam_angle: f64,
+    field_angle: f64,
+    max_intensity: f64,
+    lor: f64,
+    colour_temp: String,
+    cri: String,
+    cie_flux: String,
+    wattage: f64,
+    efficacy: f64,
+}
+
 /// Properties panel component
 #[component]
 pub fn PropertiesPanel() -> impl IntoView {
@@ -30,6 +47,8 @@ pub fn PropertiesPanel() -> impl IntoView {
                 let count = selection_count.get();
 
                 if let Some(entity) = entity {
+                    let photometry_ldt = entity.photometry_ldt.clone();
+
                     // Single entity selected
                     view! {
                         <div>
@@ -97,6 +116,11 @@ pub fn PropertiesPanel() -> impl IntoView {
                                     <ActionButtons entity_id=entity.id entity_type=entity.entity_type.clone() />
                                 </div>
                             </div>
+
+                            // Photometric data section (for entities with embedded LDT data)
+                            {photometry_ldt.map(|ldt_content| view! {
+                                <PhotometricSection ldt_content=ldt_content />
+                            })}
 
                             // Property sets
                             {if entity.property_sets.is_empty() {
@@ -187,6 +211,221 @@ pub fn PropertiesPanel() -> impl IntoView {
             }}
         </div>
     }
+}
+
+/// Photometric data section - parses embedded LDT data and displays polar diagram
+#[component]
+fn PhotometricSection(ldt_content: String) -> impl IntoView {
+    // Parse the LDT content synchronously (it's already in memory)
+    let data = parse_ldt_data(&ldt_content);
+
+    view! {
+        <div class="property-section photometric-section">
+            <div class="section-header">"Photometric Data"</div>
+            {match data {
+                Err(e) => view! {
+                    <div class="photometric-error">
+                        <span class="error-text">{format!("Parse error: {}", e)}</span>
+                    </div>
+                }.into_any(),
+                Ok(data) => {
+                    let svg = data.svg.clone();
+                    view! {
+                        <div class="photometric-content">
+                            // Polar diagram SVG
+                            <div class="polar-diagram" inner_html=svg></div>
+
+                            // Luminaire info
+                            {if !data.luminaire_name.is_empty() {
+                                Some(view! {
+                                    <div class="property-row">
+                                        <span class="property-label">"Luminaire"</span>
+                                        <span class="property-value">{data.luminaire_name.clone()}</span>
+                                    </div>
+                                })
+                            } else {
+                                None
+                            }}
+
+                            // Key metrics
+                            <div class="property-row">
+                                <span class="property-label">"Luminous Flux"</span>
+                                <span class="property-value">{format!("{:.0} lm", data.total_flux)}</span>
+                            </div>
+                            <div class="property-row">
+                                <span class="property-label">"Beam Angle"</span>
+                                <span class="property-value">{format!("{:.1}\u{00b0}", data.beam_angle)}</span>
+                            </div>
+                            <div class="property-row">
+                                <span class="property-label">"Field Angle"</span>
+                                <span class="property-value">{format!("{:.1}\u{00b0}", data.field_angle)}</span>
+                            </div>
+                            <div class="property-row">
+                                <span class="property-label">"Max Intensity"</span>
+                                <span class="property-value">{format!("{:.0} cd", data.max_intensity)}</span>
+                            </div>
+                            <div class="property-row">
+                                <span class="property-label">"Light Output"</span>
+                                <span class="property-value">{format!("{:.1}%", data.lor)}</span>
+                            </div>
+                            <div class="property-row">
+                                <span class="property-label">"Power"</span>
+                                <span class="property-value">{format!("{:.0} W", data.wattage)}</span>
+                            </div>
+                            <div class="property-row">
+                                <span class="property-label">"Efficacy"</span>
+                                <span class="property-value">{format!("{:.1} lm/W", data.efficacy)}</span>
+                            </div>
+                            {if !data.cie_flux.is_empty() {
+                                Some(view! {
+                                    <div class="property-row">
+                                        <span class="property-label">"CIE Flux Code"</span>
+                                        <span class="property-value">{data.cie_flux.clone()}</span>
+                                    </div>
+                                })
+                            } else {
+                                None
+                            }}
+                            {if !data.colour_temp.is_empty() {
+                                Some(view! {
+                                    <div class="property-row">
+                                        <span class="property-label">"Colour Temp"</span>
+                                        <span class="property-value">{data.colour_temp.clone()}</span>
+                                    </div>
+                                })
+                            } else {
+                                None
+                            }}
+                            {if !data.cri.is_empty() {
+                                Some(view! {
+                                    <div class="property-row">
+                                        <span class="property-label">"CRI"</span>
+                                        <span class="property-value">{data.cri.clone()}</span>
+                                    </div>
+                                })
+                            } else {
+                                None
+                            }}
+                        </div>
+                    }.into_any()
+                }
+            }}
+        </div>
+    }
+}
+
+/// Decode IFC STEP encoded string sequences:
+/// \X2\HHHH\X0\ → Unicode char, \S\c → extended char, '' → '
+fn decode_ifc_string(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            // Check for \X2\ ... \X0\ (Unicode hex encoding)
+            if chars.peek() == Some(&'X') {
+                let mut seq = String::new();
+                // Consume the potential \X2\ prefix
+                seq.push(chars.next().unwrap_or(' ')); // 'X'
+                seq.push(chars.next().unwrap_or(' ')); // '2' or other
+                if seq == "X2" {
+                    // Expect backslash
+                    if chars.next() == Some('\\') {
+                        // Read hex pairs until \X0\
+                        let mut hex = String::new();
+                        loop {
+                            match chars.next() {
+                                Some('\\') => {
+                                    // Check for \X0\ terminator
+                                    if chars.peek() == Some(&'X') {
+                                        chars.next(); // X
+                                        chars.next(); // 0
+                                        chars.next(); // backslash
+                                        break;
+                                    } else {
+                                        hex.push('\\');
+                                    }
+                                }
+                                Some(ch) => hex.push(ch),
+                                None => break,
+                            }
+                        }
+                        // Decode hex pairs as Unicode code points (4 hex digits each)
+                        let mut i = 0;
+                        while i + 3 < hex.len() {
+                            if let Ok(cp) = u32::from_str_radix(&hex[i..i + 4], 16) {
+                                if let Some(ch) = char::from_u32(cp) {
+                                    result.push(ch);
+                                }
+                            }
+                            i += 4;
+                        }
+                    }
+                } else {
+                    result.push('\\');
+                    for ch in seq.chars() {
+                        result.push(ch);
+                    }
+                }
+            } else if chars.peek() == Some(&'S') {
+                // \S\c → ISO 8859-1 extended
+                chars.next(); // S
+                chars.next(); // backslash
+                if let Some(ch) = chars.next() {
+                    result.push(ch);
+                }
+            } else {
+                result.push('\\');
+            }
+        } else if c == '\'' && chars.peek() == Some(&'\'') {
+            // '' → '
+            chars.next();
+            result.push('\'');
+        } else {
+            result.push(c);
+        }
+    }
+
+    result
+}
+
+/// Parse embedded LDT content and generate photometric data
+fn parse_ldt_data(content: &str) -> Result<PhotometryData, String> {
+    use eulumdat::{Eulumdat, PhotometricSummary};
+    use eulumdat::diagram::{PolarDiagram, SvgTheme};
+
+    // Decode IFC STEP string encoding (e.g. \X2\000A\X0\ → newline)
+    let decoded = decode_ifc_string(content);
+    let ldt = Eulumdat::parse(&decoded)
+        .map_err(|e| format!("{}", e))?;
+
+    let polar = PolarDiagram::from_eulumdat(&ldt);
+    let theme = SvgTheme::dark();
+    let svg = polar.to_svg(280.0, 280.0, &theme);
+
+    let summary = PhotometricSummary::from_eulumdat(&ldt);
+
+    let colour_temp = ldt.lamp_sets.first()
+        .map(|ls| ls.color_appearance.clone())
+        .unwrap_or_default();
+    let cri = ldt.lamp_sets.first()
+        .map(|ls| ls.color_rendering_group.clone())
+        .unwrap_or_default();
+
+    Ok(PhotometryData {
+        svg,
+        luminaire_name: ldt.luminaire_name.clone(),
+        total_flux: summary.total_lamp_flux,
+        beam_angle: summary.beam_angle,
+        field_angle: summary.field_angle,
+        max_intensity: summary.max_intensity,
+        lor: summary.lor,
+        colour_temp,
+        cri,
+        cie_flux: format!("{}", summary.cie_flux_codes),
+        wattage: summary.total_wattage,
+        efficacy: summary.luminaire_efficacy,
+    })
 }
 
 /// Action buttons for single entity

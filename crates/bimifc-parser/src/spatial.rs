@@ -185,6 +185,7 @@ impl<'a> SpatialBuilder<'a> {
             IfcType::IfcFooting,
             IfcType::IfcPile,
             IfcType::IfcBuildingElementProxy,
+            IfcType::IfcElementAssembly,
             IfcType::IfcOpeningElement,
             IfcType::IfcFurnishingElement,
             IfcType::IfcFlowTerminal,
@@ -291,7 +292,11 @@ impl<'a> SpatialBuilder<'a> {
             for elem_ref in elements {
                 if let AttributeValue::EntityRef(elem_id) = elem_ref {
                     if let Some(elem_entity) = self.resolver.get(*elem_id) {
-                        let child_node = self.create_node(&elem_entity);
+                        let mut child_node = self.create_node(&elem_entity);
+
+                        // Recurse into element's own aggregation children
+                        // (e.g. IfcElementAssembly → IfcLightFixture)
+                        self.add_spatial_children(&mut child_node, *elem_id);
 
                         // Track element to storey mapping
                         if parent.node_type == SpatialNodeType::Storey {

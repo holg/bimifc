@@ -23,6 +23,9 @@ bimifc-model = { path = "../bimifc-model" }
 bimifc-parser = { path = "../bimifc-parser" }
 bimifc-geometry = { path = "../bimifc-geometry" }
 
+# Photometric data parsing and SVG diagram generation
+eulumdat = { path = "../../../eulumdat-rs/crates/eulumdat", default-features = false }
+
 # Bevy types for unified mode (optional)
 bimifc-bevy = { path = "../bimifc-bevy", optional = true, default-features = false }
 

@@ -178,6 +178,8 @@ pub struct EntityData {
     pub global_id: Option<String>,
     pub storey: Option<String>,
     pub storey_elevation: Option<f32>,
+    /// Embedded EULUMDAT photometric data (LDT content from Pset_Photometry.EulumdatData)
+    pub photometry_ldt: Option<String>,
 }
 
 impl EntityData {

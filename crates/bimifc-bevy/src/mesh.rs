@@ -17,9 +17,11 @@
 //! expensive cloning. This saves ~1.7GB RAM on a 200MB IFC file by sharing geometry
 //! between the parser output and our mesh structures.
 
-use crate::{log, IfcSceneData, SceneBounds, ViewerSettings};
+use crate::{log, IfcSceneData, SceneBounds};
 use bevy::asset::RenderAssetUsages;
-use bevy::mesh::{Indices, PrimitiveTopology, VertexAttributeValues};
+use bevy::mesh::{Indices, PrimitiveTopology};
+#[cfg(feature = "color-palette")]
+use bevy::mesh::VertexAttributeValues;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -35,6 +37,7 @@ impl Plugin for MeshPlugin {
             .init_resource::<CurrentPalette>()
             .init_resource::<EntityColorMapping>()
             .init_resource::<PreviousSelection>()
+            .init_resource::<PreviousVisibility>()
             .add_systems(
                 Update,
                 (
@@ -794,22 +797,107 @@ fn auto_fit_camera_system(
     }
 }
 
-/// System to update mesh visibility based on settings
-/// Note: With batched rendering, per-entity visibility requires rebuilding the batch.
-/// For now, this is a no-op - visibility changes require scene reload.
-/// TODO: Implement dynamic visibility via vertex color alpha or shader.
+/// System to update mesh visibility via vertex alpha.
+/// Polls visibility state from localStorage and hides/isolates entities by
+/// setting their vertex alpha to 0.0 (same approach as selection highlighting).
+#[cfg(feature = "color-palette")]
 fn update_mesh_visibility_system(
-    settings: Res<ViewerSettings>,
-    _query: Query<(&IfcEntity, &mut Visibility)>,
+    mut previous_visibility: ResMut<PreviousVisibility>,
+    selection: Res<crate::picking::SelectionState>,
+    color_mapping: Res<EntityColorMapping>,
+    mut mesh_assets: ResMut<Assets<Mesh>>,
+    batched_meshes: Query<(&Mesh3d, &BatchedMesh)>,
 ) {
-    if !settings.is_changed() {
-        // With batched meshes, individual entity visibility would require:
-        // 1. Rebuilding the batch (expensive), or
-        // 2. Custom shader with visibility buffer, or
-        // 3. Setting vertex alpha to 0 (requires mesh mutation)
-        // For now, visibility is handled at scene load time only.
+    #[cfg(target_arch = "wasm32")]
+    {
+        let vis = crate::storage::load_visibility();
+
+        let (new_hidden, new_isolated) = match &vis {
+            Some(v) => {
+                let hidden: rustc_hash::FxHashSet<u64> = v.hidden.iter().copied().collect();
+                let isolated: Option<rustc_hash::FxHashSet<u64>> = v.isolated.as_ref().map(|i| i.iter().copied().collect());
+                (hidden, isolated)
+            }
+            None => (rustc_hash::FxHashSet::default(), None),
+        };
+
+        // Check if visibility actually changed
+        if new_hidden == previous_visibility.hidden && new_isolated == previous_visibility.isolated {
+            return;
+        }
+
+        log(&format!(
+            "[Bevy] Visibility changed: {} hidden, isolated={:?}",
+            new_hidden.len(),
+            new_isolated.as_ref().map(|s| s.len()),
+        ));
+
+        let current_selection = &selection.selected;
+
+        // Update vertex colors in batched meshes
+        for (mesh_handle, batched_mesh) in batched_meshes.iter() {
+            let Some(mesh) = mesh_assets.get_mut(&mesh_handle.0) else {
+                continue;
+            };
+
+            let Some(VertexAttributeValues::Float32x4(colors)) = mesh.attribute_mut(Mesh::ATTRIBUTE_COLOR) else {
+                continue;
+            };
+
+            let color_infos = if batched_mesh.is_transparent {
+                &color_mapping.transparent
+            } else {
+                &color_mapping.opaque
+            };
+
+            for info in color_infos {
+                let visible = if let Some(ref iso) = new_isolated {
+                    iso.contains(&info.entity_id)
+                } else {
+                    !new_hidden.contains(&info.entity_id)
+                };
+
+                let start = info.start_vertex as usize;
+                let end = start + info.vertex_count as usize;
+
+                if visible {
+                    // Restore original color (or selection color if selected)
+                    let color = if current_selection.contains(&info.entity_id) {
+                        SELECTION_COLOR
+                    } else {
+                        info.original_color
+                    };
+                    for c in colors[start..end].iter_mut() {
+                        *c = color;
+                    }
+                } else {
+                    // Hide by setting alpha to 0
+                    for c in colors[start..end].iter_mut() {
+                        *c = [c[0], c[1], c[2], 0.0];
+                    }
+                }
+            }
+        }
+
+        previous_visibility.hidden = new_hidden;
+        previous_visibility.isolated = new_isolated;
     }
 }
+
+#[cfg(not(feature = "color-palette"))]
+fn update_mesh_visibility_system() {}
+
+/// Resource to track previous visibility state for efficient updates
+#[cfg(feature = "color-palette")]
+#[derive(Resource, Default)]
+pub struct PreviousVisibility {
+    pub hidden: rustc_hash::FxHashSet<u64>,
+    pub isolated: Option<rustc_hash::FxHashSet<u64>>,
+}
+
+#[cfg(not(feature = "color-palette"))]
+#[derive(Resource, Default)]
+pub struct PreviousVisibility;
 
 /// Selection highlight color (light blue / hellblau)
 #[cfg(feature = "color-palette")]

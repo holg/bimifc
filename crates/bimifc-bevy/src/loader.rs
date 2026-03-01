@@ -11,8 +11,9 @@ use bevy::prelude::*;
 use bevy::tasks::IoTaskPool;
 use bevy::tasks::Task;
 use bimifc_geometry::GeometryRouter;
-use bimifc_model::{EntityId, IfcModel};
+use bimifc_model::{AttributeValue, EntityId, EntityResolver, IfcModel, IfcType};
 use bimifc_parser::{EntityScanner, ParsedModel};
+use rustc_hash::FxHashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -472,6 +473,15 @@ fn load_ifc_file(
         element_ids.len()
     ));
 
+    // Build styled item color map for IFC-authored surface colors
+    let styled_colors = build_styled_item_colors(resolver);
+    if !styled_colors.is_empty() {
+        crate::log_info(&format!(
+            "[Loader] Found {} styled item colors",
+            styled_colors.len()
+        ));
+    }
+
     // Process each element - only NOW do we decode entities
     for (id, type_name) in element_ids {
         // Get the decoded entity (lazy decode)
@@ -495,12 +505,15 @@ fn load_ifc_file(
             }
         };
 
+        // Prefer IFC-authored surface color over type-based default
+        let color = get_entity_surface_color(&entity, resolver, &styled_colors)
+            .unwrap_or_else(|| crate::mesh::get_default_color(&type_name));
+
         if mesh.is_empty() {
             // For point-placed entities like IfcLightFixture, generate a marker sphere
             if is_point_entity_type(&type_name) {
                 if let Some(pos) = extract_entity_position(&entity, resolver) {
                     let marker = create_marker_sphere(pos, 0.5);
-                    let color = crate::mesh::get_default_color(&type_name);
                     let ifc_mesh = IfcMesh::from_geometry_mesh(
                         id as u64,
                         marker,
@@ -522,7 +535,6 @@ fn load_ifc_file(
         }
 
         // Convert to IfcMesh format - takes ownership of mesh, no cloning!
-        let color = crate::mesh::get_default_color(&type_name);
         let ifc_mesh = IfcMesh::from_geometry_mesh(
             id as u64,
             mesh, // Move, not clone
@@ -580,6 +592,15 @@ fn load_ifc_content(
         element_ids.len()
     ));
 
+    // Build styled item color map for IFC-authored surface colors
+    let styled_colors = build_styled_item_colors(resolver);
+    if !styled_colors.is_empty() {
+        crate::log_info(&format!(
+            "[Loader] Found {} styled item colors",
+            styled_colors.len()
+        ));
+    }
+
     // Process each element - only NOW do we decode entities
     for (id, type_name) in element_ids {
         // Get the decoded entity (lazy decode)
@@ -603,12 +624,15 @@ fn load_ifc_content(
             }
         };
 
+        // Prefer IFC-authored surface color over type-based default
+        let color = get_entity_surface_color(&entity, resolver, &styled_colors)
+            .unwrap_or_else(|| crate::mesh::get_default_color(&type_name));
+
         if mesh.is_empty() {
             // For point-placed entities like IfcLightFixture, generate a marker sphere
             if is_point_entity_type(&type_name) {
                 if let Some(pos) = extract_entity_position(&entity, resolver) {
                     let marker = create_marker_sphere(pos, 0.5);
-                    let color = crate::mesh::get_default_color(&type_name);
                     let ifc_mesh = IfcMesh::from_geometry_mesh(
                         id as u64,
                         marker,
@@ -630,7 +654,6 @@ fn load_ifc_content(
         }
 
         // Convert to IfcMesh format - takes ownership of mesh, no cloning!
-        let color = crate::mesh::get_default_color(&type_name);
         let ifc_mesh = IfcMesh::from_geometry_mesh(
             id as u64,
             mesh, // Move, not clone
@@ -689,6 +712,7 @@ fn has_geometry_type_name(type_name: &str) -> bool {
             | "IFCPILE"
             // Generic building elements
             | "IFCBUILDINGELEMENTPROXY"
+            | "IFCELEMENTASSEMBLY"
             // MEP
             | "IFCFLOWTERMINAL"
             | "IFCFLOWSEGMENT"
@@ -801,4 +825,116 @@ fn create_marker_sphere(center: [f32; 3], radius: f32) -> bimifc_geometry::Mesh 
         normals,
         indices,
     }
+}
+
+/// Build a map from geometry item entity ID → RGBA surface color.
+///
+/// Scans all IfcStyledItem entities and follows the chain:
+///   IfcStyledItem[0]=Item, [1]=Styles
+///   → IfcSurfaceStyle[2]=Styles
+///   → IfcSurfaceStyleRendering[0]=SurfaceColour
+///   → IfcColourRgb[1]=R, [2]=G, [3]=B
+fn build_styled_item_colors(
+    resolver: &dyn EntityResolver,
+) -> FxHashMap<u32, [f32; 4]> {
+    let mut color_map = FxHashMap::default();
+
+    for styled_item in resolver.entities_by_type(&IfcType::IfcStyledItem) {
+        // [0] Item — the geometry entity this style applies to
+        let item_id = match styled_item.get_ref(0) {
+            Some(id) => id,
+            None => continue,
+        };
+
+        // [1] Styles — list of style assignments
+        let styles = match styled_item.get(1) {
+            Some(AttributeValue::List(list)) => list,
+            _ => continue,
+        };
+
+        // Follow first style ref → IfcSurfaceStyle
+        let surface_style_id = match styles.first().and_then(|v| v.as_entity_ref()) {
+            Some(id) => id,
+            None => continue,
+        };
+        let surface_style = match resolver.get(surface_style_id) {
+            Some(e) => e,
+            None => continue,
+        };
+
+        // IfcSurfaceStyle[2] = Styles (list of rendering styles)
+        let sub_styles = match surface_style.get(2) {
+            Some(AttributeValue::List(list)) => list,
+            _ => continue,
+        };
+
+        let rendering_id = match sub_styles.first().and_then(|v| v.as_entity_ref()) {
+            Some(id) => id,
+            None => continue,
+        };
+        let rendering = match resolver.get(rendering_id) {
+            Some(e) => e,
+            None => continue,
+        };
+
+        // IfcSurfaceStyleRendering[0] = SurfaceColour → IfcColourRgb
+        let colour_id = match rendering.get_ref(0) {
+            Some(id) => id,
+            None => continue,
+        };
+        let colour = match resolver.get(colour_id) {
+            Some(e) => e,
+            None => continue,
+        };
+
+        // IfcColourRgb: [1]=Red, [2]=Green, [3]=Blue
+        let r = colour.get_float(1).unwrap_or(0.7) as f32;
+        let g = colour.get_float(2).unwrap_or(0.7) as f32;
+        let b = colour.get_float(3).unwrap_or(0.7) as f32;
+
+        color_map.insert(item_id.0, [r, g, b, 1.0]);
+    }
+
+    color_map
+}
+
+/// Get the IFC surface style color for a product entity, if any.
+///
+/// Follows: entity[6]=Representation → IfcProductDefinitionShape[2]=Representations
+/// → IfcShapeRepresentation[3]=Items → check each item against styled_item_colors map.
+fn get_entity_surface_color(
+    entity: &bimifc_model::DecodedEntity,
+    resolver: &dyn EntityResolver,
+    styled_colors: &FxHashMap<u32, [f32; 4]>,
+) -> Option<[f32; 4]> {
+    // Representation is at attribute index 6 for most IFC products
+    let rep_id = entity.get_ref(6)?;
+    let representation = resolver.get(rep_id)?;
+
+    // IfcProductDefinitionShape[2] = Representations (list)
+    let reps = match representation.get(2) {
+        Some(AttributeValue::List(list)) => list,
+        _ => return None,
+    };
+
+    for rep_ref in reps {
+        let shape_rep_id = rep_ref.as_entity_ref()?;
+        let shape_rep = resolver.get(shape_rep_id)?;
+
+        // IfcShapeRepresentation[3] = Items (list of geometry items)
+        let items = match shape_rep.get(3) {
+            Some(AttributeValue::List(list)) => list,
+            _ => continue,
+        };
+
+        for item_ref in items {
+            if let Some(item_id) = item_ref.as_entity_ref() {
+                if let Some(color) = styled_colors.get(&item_id.0) {
+                    return Some(*color);
+                }
+            }
+        }
+    }
+
+    None
 }

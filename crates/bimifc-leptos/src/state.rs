@@ -133,6 +133,8 @@ pub struct EntityInfo {
     pub storey_elevation: Option<f32>,
     pub property_sets: Vec<PropertySet>,
     pub quantities: Vec<QuantityValue>,
+    /// Embedded EULUMDAT photometric data (LDT content from Pset_Photometry.EulumdatData)
+    pub photometry_ldt: Option<String>,
 }
 
 impl EntityInfo {

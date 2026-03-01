@@ -312,10 +312,16 @@ fn extract_properties_and_quantities(
         prop_def_ids.extend(ids.iter().cloned());
     }
 
-    // Get properties from element's type (inherited)
+    // Get properties from element's type (inherited via IfcRelDefinesByProperties)
     if let Some(&type_id) = element_to_type.get(&element_id) {
         if let Some(ids) = element_properties.get(&type_id) {
             prop_def_ids.extend(ids.iter().cloned());
+        }
+        // Also get HasPropertySets directly from the type entity (attribute 5 on IfcTypeObject)
+        if let Ok(type_entity) = decoder.decode_by_id(EntityId(type_id)) {
+            if let Some(pset_refs) = get_ref_list(&type_entity, 5) {
+                prop_def_ids.extend(pset_refs);
+            }
         }
     }
 
@@ -442,13 +448,46 @@ fn extract_properties_and_quantities(
 fn format_property_value(val: &AttributeValue) -> String {
     match val {
         AttributeValue::String(s) => s.clone(),
-        AttributeValue::Float(f) => format!("{:.4}", f),
+        AttributeValue::Float(f) => {
+            // Show cleaner numbers: remove trailing zeros
+            let s = format!("{:.4}", f);
+            let s = s.trim_end_matches('0').trim_end_matches('.').to_string();
+            if s.is_empty() { "0".to_string() } else { s }
+        }
         AttributeValue::Integer(i) => i.to_string(),
         AttributeValue::Enum(e) => e.clone(),
-        AttributeValue::Bool(b) => b.to_string(),
+        AttributeValue::Bool(b) => if *b { "Yes".to_string() } else { "No".to_string() },
         AttributeValue::TypedValue(type_name, args) => {
-            let value_parts: Vec<String> = args.iter().map(format_property_value).collect();
-            format!("{}({})", type_name, value_parts.join(", "))
+            // Extract inner value and add unit suffix from the IFC type name
+            let inner = if args.len() == 1 {
+                format_property_value(&args[0])
+            } else {
+                let value_parts: Vec<String> = args.iter().map(format_property_value).collect();
+                value_parts.join(", ")
+            };
+            let upper = type_name.to_uppercase();
+            // Map IFC measure types to unit suffixes
+            let unit = match upper.as_str() {
+                "IFCPOWERMEASURE" => " W",
+                "IFCLUMINOUSFLUXMEASURE" => " lm",
+                "IFCTHERMODYNAMICTEMPERATUREMEASURE" => " K",
+                "IFCLENGTHMEASURE" => " m",
+                "IFCAREAMEASURE" => " m\u{00b2}",
+                "IFCVOLUMEMEASURE" => " m\u{00b3}",
+                "IFCMASSMEASURE" => " kg",
+                "IFCPLANEANGLEMEASURE" => {
+                    // Convert radians to degrees
+                    if let Some(AttributeValue::Float(rad)) = args.first() {
+                        let deg = rad.to_degrees();
+                        return format!("{:.1}\u{00b0}", deg);
+                    }
+                    "\u{00b0}"
+                }
+                "IFCREAL" | "IFCINTEGER" | "IFCBOOLEAN" | "IFCLABEL"
+                | "IFCIDENTIFIER" | "IFCTEXT" => "",
+                _ => "",
+            };
+            format!("{}{}", inner, unit)
         }
         AttributeValue::List(items) => {
             let formatted: Vec<String> = items.iter().map(format_property_value).collect();
@@ -492,6 +531,7 @@ fn load_from_cache(
             // Note: property_sets and quantities not cached (would be too large)
             property_sets: Vec::new(),
             quantities: Vec::new(),
+            photometry_ldt: e.photometry_ldt,
         })
         .collect();
 
@@ -581,6 +621,8 @@ pub fn parse_and_process_ifc(
     let mut element_properties: HashMap<u32, Vec<u32>> = HashMap::new();
     // Type relationships: element -> type object ID
     let mut element_to_type: HashMap<u32, u32> = HashMap::new();
+    // Surface style colors: geometry item ID -> [r, g, b, a]
+    let mut styled_item_colors: HashMap<u32, [f32; 4]> = HashMap::new();
 
     // Scan for spatial structure
     for line in content.lines() {
@@ -693,6 +735,23 @@ pub fn parse_and_process_ifc(
                     );
                 }
             }
+            "IFCELEMENTASSEMBLY" | "IFCLIGHTFIXTURE" => {
+                if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
+                    let name = entity
+                        .get_string(2)
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| format!("{} #{}", type_name, id));
+                    spatial_entities.insert(
+                        id,
+                        SpatialInfo {
+                            id,
+                            name,
+                            entity_type: type_name.to_string(),
+                            elevation: None,
+                        },
+                    );
+                }
+            }
             "IFCRELAGGREGATES" => {
                 if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
                     let parent_id = entity.get_ref(4).map(|id| id.0);
@@ -739,6 +798,42 @@ pub fn parse_and_process_ifc(
                         if let Some(related_objects) = get_ref_list(&entity, 4) {
                             for obj_id in related_objects {
                                 element_to_type.insert(obj_id, type_id);
+                            }
+                        }
+                    }
+                }
+            }
+            "IFCSTYLEDITEM" => {
+                // IfcStyledItem: (Item, Styles, Name)
+                // Item = geometry entity (IfcTriangulatedFaceSet, etc.)
+                // Styles = list of IfcPresentationStyleAssignment or IfcSurfaceStyle
+                if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
+                    if let Some(item_id) = entity.get_ref(0).map(|id| id.0) {
+                        // Follow Styles → IfcSurfaceStyle → IfcSurfaceStyleRendering → IfcColourRgb
+                        if let Some(styles) = get_ref_list(&entity, 1) {
+                            for style_id in styles {
+                                if let Ok(style) = decoder.decode_by_id(EntityId(style_id)) {
+                                    // IfcSurfaceStyle has Styles at index 2 (a set)
+                                    if let Some(renderings) = get_ref_list(&style, 2) {
+                                        for rendering_id in renderings {
+                                            if let Ok(rendering) = decoder.decode_by_id(EntityId(rendering_id)) {
+                                                // IfcSurfaceStyleRendering: SurfaceColour at index 0
+                                                if let Some(colour_id) = rendering.get_ref(0).map(|id| id.0) {
+                                                    if let Ok(colour) = decoder.decode_by_id(EntityId(colour_id)) {
+                                                        // IfcColourRgb: (Name, Red, Green, Blue)
+                                                        let r = colour.get_float(1).unwrap_or(0.7) as f32;
+                                                        let g = colour.get_float(2).unwrap_or(0.7) as f32;
+                                                        let b = colour.get_float(3).unwrap_or(0.7) as f32;
+                                                        // Transparency at index 1 in rendering
+                                                        let transparency = rendering.get_float(1).unwrap_or(0.0) as f32;
+                                                        let alpha = 1.0 - transparency;
+                                                        styled_item_colors.insert(item_id, [r, g, b, alpha]);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -799,6 +894,38 @@ pub fn parse_and_process_ifc(
     let color_palette = state.ui.color_palette.get_untracked();
 
     while let Some((id, type_name, _start, _end)) = scanner.next_entity() {
+        let type_upper = type_name.to_uppercase();
+        // Include assembly/fixture entities in entity_data for properties display
+        if matches!(type_upper.as_str(), "IFCELEMENTASSEMBLY" | "IFCLIGHTFIXTURE") {
+            if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
+                let global_id = entity.get_string(0).map(|s| s.to_string());
+                let name = entity.get_string(2).map(|s| s.to_string());
+                let description = entity.get_string(3).map(|s| s.to_string());
+
+                let (storey_name, storey_elevation) =
+                    if let Some(&storey_id) = element_to_storey.get(&id) {
+                        if let Some(storey) = spatial_entities.get(&storey_id) {
+                            (Some(storey.name.clone()), storey.elevation)
+                        } else {
+                            (None, None)
+                        }
+                    } else {
+                        (None, None)
+                    };
+
+                entity_data.push(EntityData {
+                    id: id as u64,
+                    entity_type: type_name.to_string(),
+                    name: name.clone(),
+                    description: description.clone(),
+                    global_id: global_id.clone(),
+                    storey: storey_name,
+                    storey_elevation,
+                    photometry_ldt: None, // populated later from Pset_Photometry
+                });
+            }
+            continue;
+        }
         let ifc_type = IfcType::parse(type_name);
         if ifc_type.has_geometry() {
             match decoder.decode_by_id(EntityId(id)) {
@@ -826,6 +953,7 @@ pub fn parse_and_process_ifc(
                         global_id: global_id.clone(),
                         storey: storey_name,
                         storey_elevation,
+                        photometry_ldt: None,
                     });
 
                     match router.process_element(&entity, resolver) {
@@ -846,7 +974,9 @@ pub fn parse_and_process_ifc(
                                     continue;
                                 }
 
-                                let color = get_element_color(type_name, color_palette);
+                                // Use IFC surface style color if available, else palette
+                                let color = get_styled_color(&entity, &styled_item_colors, &mut decoder)
+                                    .unwrap_or_else(|| get_element_color(type_name, color_palette));
                                 let transform = [
                                     1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
                                     0.0, 0.0, 0.0, 1.0,
@@ -962,7 +1092,14 @@ pub fn parse_and_process_ifc(
 
         if let Some(element_ids) = contained_in.get(&id) {
             for &elem_id in element_ids {
-                if let Some(elem) = entity_lookup.get(&(elem_id as u64)) {
+                // Try building as a full node first (supports nested aggregation)
+                if let Some(child_node) = build_node(
+                    elem_id, spatial_entities, aggregates, contained_in,
+                    entity_lookup, entities_with_geometry, get_node_type,
+                ) {
+                    children.push(child_node);
+                } else if let Some(elem) = entity_lookup.get(&(elem_id as u64)) {
+                    // Fallback: simple leaf node
                     let has_geometry = entities_with_geometry.contains(&(elem_id as u64));
                     children.push(SpatialNode {
                         id: elem_id as u64,
@@ -1038,6 +1175,19 @@ pub fn parse_and_process_ifc(
                 &mut decoder,
                 unit_scale as f64,
             );
+            // Extract embedded EULUMDAT data from Pset_Photometry if present
+            let photometry_ldt = property_sets.iter()
+                .find(|ps| ps.name == "Pset_Photometry")
+                .and_then(|ps| ps.properties.iter()
+                    .find(|p| p.name == "EulumdatData")
+                    .map(|p| p.value.clone())
+                );
+
+            // Remove Pset_Photometry from display (raw LDT content is not user-readable)
+            let property_sets: Vec<_> = property_sets.into_iter()
+                .filter(|ps| ps.name != "Pset_Photometry")
+                .collect();
+
             EntityInfo {
                 id: e.id,
                 entity_type: e.entity_type.clone(),
@@ -1048,6 +1198,7 @@ pub fn parse_and_process_ifc(
                 storey_elevation: e.storey_elevation,
                 property_sets,
                 quantities,
+                photometry_ldt,
             }
         })
         .collect();
@@ -1101,6 +1252,37 @@ pub fn parse_and_process_ifc(
     ));
 
     Ok(())
+}
+
+/// Look up IFC surface style color for an entity via its representation items.
+/// Follows: entity[6] → IfcProductDefinitionShape[2] → IfcShapeRepresentation[3] → items
+fn get_styled_color(
+    entity: &bimifc_model::DecodedEntity,
+    styled_colors: &HashMap<u32, [f32; 4]>,
+    decoder: &mut EntityDecoder,
+) -> Option<[f32; 4]> {
+    let rep_id = entity.get_ref(6)?;
+    let representation = decoder.decode_by_id(rep_id).ok()?;
+    let reps = match representation.get(2) {
+        Some(bimifc_model::AttributeValue::List(list)) => list,
+        _ => return None,
+    };
+    for rep_ref in reps {
+        let shape_rep_id = rep_ref.as_entity_ref()?;
+        let shape_rep = decoder.decode_by_id(shape_rep_id).ok()?;
+        let items = match shape_rep.get(3) {
+            Some(bimifc_model::AttributeValue::List(list)) => list,
+            _ => continue,
+        };
+        for item_ref in items {
+            if let Some(item_id) = item_ref.as_entity_ref() {
+                if let Some(color) = styled_colors.get(&item_id.0) {
+                    return Some(*color);
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Get color for element type based on palette
