@@ -42,6 +42,7 @@ pub const SECTION_KEY: &str = "ifc_lite_section";
 pub const FOCUS_KEY: &str = "ifc_lite_focus";
 pub const CAMERA_CMD_KEY: &str = "ifc_lite_camera_cmd";
 pub const PALETTE_KEY: &str = "ifc_lite_palette";
+pub const LIGHTING_CMD_KEY: &str = "ifc_lite_lighting_cmd";
 
 // JavaScript FFI functions (used in split mode when Bevy is separate WASM)
 #[wasm_bindgen]
@@ -165,6 +166,9 @@ pub struct GeometryData {
     pub transform: [f32; 16],
     pub entity_type: String,
     pub name: Option<String>,
+    /// True if color was authored in IFC (IfcStyledItem)
+    #[serde(default)]
+    pub has_ifc_color: bool,
 }
 
 /// Entity data for Bevy
@@ -374,6 +378,7 @@ pub fn save_geometry(geometry: Vec<GeometryData>) {
                 transform: g.transform,
                 entity_type: g.entity_type,
                 name: g.name,
+                has_ifc_color: g.has_ifc_color,
             })
             .collect();
 
@@ -502,6 +507,14 @@ pub fn save_camera_cmd(cmd: &CameraCommand) {
             let _ = storage.set_item(CAMERA_CMD_KEY, &json);
             update_timestamp();
         }
+    }
+}
+
+/// Send lighting toggle command to Bevy
+pub fn toggle_lighting() {
+    if let Some(storage) = get_storage() {
+        let _ = storage.set_item(LIGHTING_CMD_KEY, "toggle");
+        update_timestamp();
     }
 }
 

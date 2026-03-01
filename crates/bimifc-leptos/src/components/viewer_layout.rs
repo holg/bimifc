@@ -290,6 +290,7 @@ fn ShortcutsDialog() -> impl IntoView {
                         <ShortcutRow key="H" action="Home View" />
                         <ShortcutRow key="F" action="Fit All" />
                         <ShortcutRow key="T" action="Toggle Theme" />
+                        <ShortcutRow key="L" action="Toggle Lighting" />
                     </div>
                 </div>
             </div>

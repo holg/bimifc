@@ -34,6 +34,7 @@ pub mod shared {
             transform: g.transform,
             entity_type: g.entity_type,
             name: g.name,
+            has_ifc_color: g.has_ifc_color,
         }
     }
 

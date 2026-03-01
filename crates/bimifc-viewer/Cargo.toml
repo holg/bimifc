@@ -36,6 +36,7 @@ features = [
 ]
 
 [features]
-default = ["unified", "photometric"]
+default = ["unified", "photometric", "color-palette"]
+color-palette = ["bimifc-bevy/color-palette"]
 unified = ["bimifc-leptos/unified"]
 photometric = ["bimifc-bevy/photometric", "bimifc-leptos/photometric"]

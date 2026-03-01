@@ -5,3 +5,11 @@ Cargo.lock
 .DS_Store
 *.log
 /tmp
+plans
+
+# Build output (deployed separately)
+crates/bimifc-viewer/dist/
+
+# Local IFC test files
+ifc/
+crates/bimifc-viewer/ifc/

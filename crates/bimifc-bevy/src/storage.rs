@@ -247,6 +247,7 @@ fn deserialize_geometry_binary(data: &[u8]) -> Option<Vec<crate::IfcMesh>> {
             transform,
             entity_type,
             name,
+            has_ifc_color: false,
         });
     }
 
@@ -455,3 +456,28 @@ pub fn clear_palette() {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn clear_palette() {}
+
+/// Load lighting toggle command from localStorage
+#[cfg(target_arch = "wasm32")]
+pub fn load_lighting_cmd() -> Option<String> {
+    let storage = web_sys::window()?.local_storage().ok()??;
+    storage.get_item("ifc_lite_lighting_cmd").ok()?
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn load_lighting_cmd() -> Option<String> {
+    None
+}
+
+/// Clear lighting command
+#[cfg(target_arch = "wasm32")]
+pub fn clear_lighting_cmd() {
+    if let Some(window) = web_sys::window() {
+        if let Ok(Some(storage)) = window.local_storage() {
+            let _ = storage.remove_item("ifc_lite_lighting_cmd");
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn clear_lighting_cmd() {}

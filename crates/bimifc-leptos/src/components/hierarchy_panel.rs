@@ -194,7 +194,29 @@ pub fn HierarchyPanel() -> impl IntoView {
     };
 
     let on_toggle_visibility = move |id: u64| {
-        state.visibility.toggle_visibility(id);
+        // Collect this node + all descendant IDs so hiding a parent hides its children too
+        let all_ids = state.scene.spatial_tree.get_untracked()
+            .and_then(|tree| tree.find(id).map(|node| {
+                let mut ids = Vec::new();
+                node.collect_all_ids(&mut ids);
+                ids
+            }))
+            .unwrap_or_else(|| vec![id]);
+
+        state.visibility.hidden_ids.update(|hidden| {
+            // Toggle based on the clicked node's current state
+            if hidden.contains(&id) {
+                // Show all
+                for &nid in &all_ids {
+                    hidden.remove(&nid);
+                }
+            } else {
+                // Hide all
+                for &nid in &all_ids {
+                    hidden.insert(nid);
+                }
+            }
+        });
     };
 
     view! {
@@ -433,8 +455,8 @@ fn TreeRow(
                 None
             }}
 
-            // Visibility toggle for elements
-            {if is_element && row.has_geometry {
+            // Visibility toggle (elements with geometry + grouping nodes with children)
+            {if row.has_geometry || row.has_children {
                 Some(view! {
                     <button
                         class=move || if is_hidden.get() { "visibility-btn hidden" } else { "visibility-btn" }

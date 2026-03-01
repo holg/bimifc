@@ -286,6 +286,9 @@ fn setup_camera(mut commands: Commands, controller: Res<CameraController>) {
         Msaa::Sample4,
         // AgX tonemapping for natural, filmic look
         Tonemapping::AgX,
+        // Single cluster: all lights evaluated per fragment — best for stadium
+        // floodlights where most lights illuminate the same area (the pitch).
+        bevy::light::cluster::ClusterConfig::Single,
     ));
 
     // Ambient light - enough to see into shadows but not wash out

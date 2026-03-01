@@ -76,9 +76,13 @@ pub fn Toolbar() -> impl IntoView {
             // Visibility controls
             <div class="toolbar-group">
                 <button
-                    class="tool-btn"
+                    class=move || {
+                        let has_hidden = !state.visibility.hidden_ids.get().is_empty()
+                            || state.visibility.isolated_ids.get().is_some();
+                        if has_hidden { "tool-btn active" } else { "tool-btn" }
+                    }
                     on:click=move |_| state.visibility.show_all()
-                    title="Show All (A)"
+                    title="Show All — reset all hidden/isolated entities"
                 >
                     "👁"
                 </button>
@@ -134,6 +138,19 @@ pub fn Toolbar() -> impl IntoView {
                     title="Fit All (F)"
                 >
                     "⬚"
+                </button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            // Lighting toggle
+            <div class="toolbar-group">
+                <button
+                    class="tool-btn"
+                    on:click=move |_| bridge::toggle_lighting()
+                    title="Toggle Lighting Mode (L): Architectural → Photometric → Combined"
+                >
+                    "💡"
                 </button>
             </div>
 
@@ -843,6 +860,11 @@ pub fn parse_and_process_ifc(
         }
     }
 
+    bridge::log_info(&format!("[IFC Colors] styled_item_colors has {} entries", styled_item_colors.len()));
+    for (item_id, color) in &styled_item_colors {
+        bridge::log_info(&format!("[IFC Colors]   item #{}: [{:.2}, {:.2}, {:.2}, {:.2}]", item_id, color[0], color[1], color[2], color[3]));
+    }
+
     // Extract unit scale from the model (will be set properly after ParsedModel is created)
     // Placeholder until ParsedModel is available below
     let mut unit_scale = 1.0f32;
@@ -975,7 +997,12 @@ pub fn parse_and_process_ifc(
                                 }
 
                                 // Use IFC surface style color if available, else palette
-                                let color = get_styled_color(&entity, &styled_item_colors, &mut decoder)
+                                let ifc_color = get_styled_color(&entity, &styled_item_colors, &mut decoder);
+                                let has_ifc_color = ifc_color.is_some();
+                                if type_name.eq_ignore_ascii_case("IfcSlab") || has_ifc_color {
+                                    bridge::log_info(&format!("[Color] #{} {} '{}': ifc_color={:?} has_ifc={}", id, type_name, name.as_deref().unwrap_or("?"), ifc_color, has_ifc_color));
+                                }
+                                let color = ifc_color
                                     .unwrap_or_else(|| get_element_color(type_name, color_palette));
                                 let transform = [
                                     1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
@@ -994,6 +1021,7 @@ pub fn parse_and_process_ifc(
                                     transform,
                                     entity_type: type_name.to_string(),
                                     name: name.clone(),
+                                    has_ifc_color,
                                 });
 
                                 processed += 1;
@@ -1203,39 +1231,158 @@ pub fn parse_and_process_ifc(
         })
         .collect();
 
-    // Collect IFC light fixtures with embedded LDT data and send to Bevy
+    // Collect IFC light fixtures with embedded LDT data, bundle by panel, send to Bevy
     #[cfg(feature = "photometric")]
     {
-        let pending_lights: Vec<bimifc_bevy::photometric::PendingLight> = entity_infos
+        use std::collections::HashSet;
+
+        // Build fixture lookup: id → (world position, decoded LDT, name)
+        let fixture_set: HashSet<u64> = entity_infos
             .iter()
             .filter(|e| e.entity_type.eq_ignore_ascii_case("IfcLightFixture"))
-            .filter_map(|e| {
-                let ldt_raw = e.photometry_ldt.as_ref()?;
-                // Decode IFC STEP \X2\000A\X0\ sequences → real newlines
-                let ldt_decoded =
-                    crate::components::properties_panel::decode_ifc_string(ldt_raw);
-                let entity = decoder.decode_by_id(EntityId(e.id as u32)).ok()?;
-                let placement_id = entity.get_ref(5)?;
-                let transform =
-                    bimifc_geometry::transform::resolve_placement(placement_id, resolver)?;
-                let s = unit_scale as f64;
-                Some(bimifc_bevy::photometric::PendingLight {
-                    entity_id: e.id,
-                    position: [
-                        (transform[(0, 3)] * s) as f32,
-                        (transform[(1, 3)] * s) as f32,
-                        (transform[(2, 3)] * s) as f32,
-                    ],
-                    ldt_content: ldt_decoded,
-                    beam_type: e.name.clone().unwrap_or_default(),
-                })
-            })
+            .filter(|e| e.photometry_ldt.is_some())
+            .map(|e| e.id)
             .collect();
+
+        // Resolve world position for a given entity id
+        let mut resolve_pos = |eid: u64| -> Option<[f32; 3]> {
+            let entity = decoder.decode_by_id(EntityId(eid as u32)).ok()?;
+            let placement_id = entity.get_ref(5)?;
+            let transform =
+                bimifc_geometry::transform::resolve_placement(placement_id, resolver)?;
+            let s = unit_scale as f64;
+            Some([
+                (transform[(0, 3)] * s) as f32,
+                (transform[(1, 3)] * s) as f32,
+                (transform[(2, 3)] * s) as f32,
+            ])
+        };
+
+        // Build reverse map: fixture_id → parent_panel_id (from aggregates)
+        let mut fixture_to_panel: HashMap<u32, u32> = HashMap::new();
+        for (&panel_id, children) in &aggregates {
+            for &child_id in children {
+                if fixture_set.contains(&(child_id as u64)) {
+                    fixture_to_panel.insert(child_id, panel_id);
+                }
+            }
+        }
+
+        // Group all fixtures by sector (e.g. "NORTH", "NE", "EAST", …) across all rings.
+        // Panel names follow: FLA-R{ring}-{SECTOR}-P{num}
+        // This gives ~8 physical floodlight clusters instead of 54 individual panels.
+        let entity_info_map: HashMap<u64, &EntityInfo> =
+            entity_infos.iter().map(|e| (e.id, e)).collect();
+
+        // Extract sector from panel name: "FLA-R1-NORTH-P01" → "NORTH"
+        fn extract_sector(panel_name: &str) -> String {
+            let parts: Vec<&str> = panel_name.split('-').collect();
+            // FLA-R1-NORTH-P01 → ["FLA", "R1", "NORTH", "P01"]
+            // FLA-R1-NE-P01    → ["FLA", "R1", "NE", "P01"]
+            if parts.len() >= 4 {
+                parts[2].to_uppercase()
+            } else if parts.len() >= 3 {
+                parts[2].to_uppercase()
+            } else {
+                "UNKNOWN".to_string()
+            }
+        }
+
+        // Map panel_id → panel_name (from entity_data)
+        let panel_names: HashMap<u32, String> = entity_data
+            .iter()
+            .filter(|e| e.entity_type.eq_ignore_ascii_case("IfcElementAssembly"))
+            .filter_map(|e| e.name.as_ref().map(|n| (e.id as u32, n.clone())))
+            .collect();
+
+        // Group fixtures by sector across all rings
+        let mut sector_groups: HashMap<String, Vec<u64>> = HashMap::new();
+        let mut ungrouped: Vec<u64> = Vec::new();
+
+        for &fid in &fixture_set {
+            if let Some(&panel_id) = fixture_to_panel.get(&(fid as u32)) {
+                let sector = panel_names
+                    .get(&panel_id)
+                    .map(|n| extract_sector(n))
+                    .unwrap_or_else(|| "UNKNOWN".to_string());
+                sector_groups.entry(sector).or_default().push(fid);
+            } else {
+                ungrouped.push(fid);
+            }
+        }
+
+        let mut pending_lights: Vec<bimifc_bevy::photometric::PendingLight> = Vec::new();
+
+        // One light per sector (centroid of all fixtures in that sector across all rings)
+        for (sector, fixture_ids) in &sector_groups {
+            let mut positions: Vec<[f32; 3]> = Vec::new();
+            let mut ldt_content = None;
+            let mut beam_type = String::new();
+
+            for &fid in fixture_ids {
+                if let Some(pos) = resolve_pos(fid) {
+                    positions.push(pos);
+                }
+                if ldt_content.is_none() {
+                    if let Some(info) = entity_info_map.get(&fid) {
+                        if let Some(ldt_raw) = &info.photometry_ldt {
+                            ldt_content = Some(
+                                crate::components::properties_panel::decode_ifc_string(ldt_raw),
+                            );
+                            beam_type = info.name.clone().unwrap_or_default();
+                        }
+                    }
+                }
+            }
+
+            if let Some(ldt) = ldt_content {
+                if !positions.is_empty() {
+                    let n = positions.len() as f32;
+                    let centroid = [
+                        positions.iter().map(|p| p[0]).sum::<f32>() / n,
+                        positions.iter().map(|p| p[1]).sum::<f32>() / n,
+                        positions.iter().map(|p| p[2]).sum::<f32>() / n,
+                    ];
+                    bridge::log_info(&format!(
+                        "[BIMIFC] Sector {}: {} fixtures, centroid ({:.1}, {:.1}, {:.1})",
+                        sector, fixture_ids.len(), centroid[0], centroid[1], centroid[2],
+                    ));
+                    pending_lights.push(bimifc_bevy::photometric::PendingLight {
+                        entity_id: 0, // sector group, no single entity
+                        position: centroid,
+                        ldt_content: ldt,
+                        beam_type: format!("Sector-{}", sector),
+                        fixture_count: positions.len() as u32,
+                        fixture_ids: fixture_ids.clone(),
+                    });
+                }
+            }
+        }
+
+        // Ungrouped fixtures (no panel parent) — send individually
+        for fid in ungrouped {
+            if let Some(info) = entity_info_map.get(&fid) {
+                if let Some(ldt_raw) = &info.photometry_ldt {
+                    if let Some(pos) = resolve_pos(fid) {
+                        pending_lights.push(bimifc_bevy::photometric::PendingLight {
+                            entity_id: fid,
+                            position: pos,
+                            ldt_content:
+                                crate::components::properties_panel::decode_ifc_string(ldt_raw),
+                            beam_type: info.name.clone().unwrap_or_default(),
+                            fixture_count: 1,
+                            fixture_ids: vec![fid],
+                        });
+                    }
+                }
+            }
+        }
 
         if !pending_lights.is_empty() {
             bridge::log_info(&format!(
-                "[BIMIFC] Sending {} photometric lights to Bevy",
-                pending_lights.len()
+                "[BIMIFC] Sending {} panel lights ({} fixtures bundled) to Bevy",
+                pending_lights.len(),
+                fixture_set.len(),
             ));
             bimifc_bevy::photometric::set_pending_lights(pending_lights);
         }

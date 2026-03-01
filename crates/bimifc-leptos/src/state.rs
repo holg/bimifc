@@ -185,6 +185,29 @@ pub struct SpatialNode {
     pub has_geometry: bool,
 }
 
+impl SpatialNode {
+    /// Find a node by ID in the tree
+    pub fn find(&self, id: u64) -> Option<&SpatialNode> {
+        if self.id == id {
+            return Some(self);
+        }
+        for child in &self.children {
+            if let Some(found) = child.find(id) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
+    /// Collect this node's ID and all descendant IDs
+    pub fn collect_all_ids(&self, ids: &mut Vec<u64>) {
+        ids.push(self.id);
+        for child in &self.children {
+            child.collect_all_ids(ids);
+        }
+    }
+}
+
 /// Progress state
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Progress {

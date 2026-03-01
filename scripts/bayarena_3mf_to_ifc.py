@@ -48,8 +48,10 @@ MESH_MAPPING = [
         "name": "Playing Field",
         "description": "UEFA regulation playing field 105x68m",
         "base_extruder": 6,     # White in 3MF (override to green for IFC)
-        "base_color": (0.13, 0.55, 0.13),  # Green (better than 3MF white)
+        "base_color": (0.13, 0.55, 0.13),  # Green soccer field
         "use_colour_map": False,  # Field is uniform green
+        # No flip_winding: IFC→Bevy coord swap (Z-up→Y-up) mirrors one axis,
+        # which flips winding. Original STL normals point down in IFC = up in Bevy.
     },
     {
         "model_file": "3D/Objects/main body.stl_2.model",
@@ -147,6 +149,7 @@ ASSEMBLY_Z_OFFSETS = {
 # Logo: placed on the body's outer wall; source_offset from 3MF metadata.
 ASSEMBLY_ELEVATION = {
     "roof.stl_3.model": 39.05,     # Roof base elevation (mm)
+    "field.stl_1.model": 2.0,       # Raise field 2mm (~2m real) above stadium body floor
 }
 ASSEMBLY_XY_OFFSETS = {
     # Logo positioning is handled in MESH_TRANSFORMS (not 3D-print assembly offsets)
@@ -502,7 +505,11 @@ def add_mesh_to_ifc(model, storey, body_context, vertices, triangles,
     point_list = model.createIfcCartesianPointList3D(vert_list)
 
     # IfcTriangulatedFaceSet — 1-based indexing
-    face_list = [[int(t[0]) + 1, int(t[1]) + 1, int(t[2]) + 1] for t in triangles]
+    # Optionally flip winding order to reverse face normals (e.g. field slab)
+    if mesh_info.get("flip_winding"):
+        face_list = [[int(t[0]) + 1, int(t[2]) + 1, int(t[1]) + 1] for t in triangles]
+    else:
+        face_list = [[int(t[0]) + 1, int(t[1]) + 1, int(t[2]) + 1] for t in triangles]
     face_set = model.createIfcTriangulatedFaceSet(
         Coordinates=point_list,
         CoordIndex=face_list,
@@ -840,6 +847,40 @@ def add_light_fixtures(model, roof_storey):
     # Collect fixtures per beam type for batched type assignment
     fixtures_by_beam = {"narrow": [], "medium": [], "wide": []}
 
+    # Create sector assemblies (8 sectors: NORTH, NE, EAST, SE, SOUTH, SW, WEST, NW)
+    # Each sector groups all panels (across all rings) in that direction.
+    sector_assemblies = {}
+    sector_panels = {s: [] for s in SIDES}
+
+    # Count panels per sector to build descriptions
+    panels_per_sector = {}
+    for p in panels:
+        s = p["side"]
+        panels_per_sector[s] = panels_per_sector.get(s, 0) + 1
+
+    for side in SIDES:
+        n_panels_in_sector = panels_per_sector.get(side, 0)
+        n_fixtures_in_sector = n_panels_in_sector * HEADS_PER_PANEL
+        sector_assembly = model.createIfcElementAssembly(
+            GlobalId=ifcopenshell.guid.new(),
+            Name=f"FLA-{side}",
+            Description=(
+                f"{side} floodlight sector, {n_panels_in_sector} panels "
+                f"({n_fixtures_in_sector} fixtures) across {N_RINGS} rings"
+            ),
+            ObjectType="Floodlight Sector",
+            PredefinedType="USERDEFINED",
+        )
+        # Sector has no specific placement (children have their own world placements)
+        sector_assemblies[side] = sector_assembly
+
+    # Assign all 8 sector assemblies to roof storey
+    model.createIfcRelContainedInSpatialStructure(
+        GlobalId=ifcopenshell.guid.new(),
+        RelatingStructure=roof_storey,
+        RelatedElements=list(sector_assemblies.values()),
+    )
+
     for panel_info in panels:
         ring = panel_info["ring"] + 1
         side = panel_info["side"]
@@ -897,12 +938,8 @@ def add_light_fixtures(model, roof_storey):
             RelatingPropertyDefinition=panel_pset,
         )
 
-        # Assign panel to roof storey via IfcRelContainedInSpatialStructure
-        model.createIfcRelContainedInSpatialStructure(
-            GlobalId=ifcopenshell.guid.new(),
-            RelatingStructure=roof_storey,
-            RelatedElements=[assembly],
-        )
+        # Collect panel for sector grouping (NOT directly in storey anymore)
+        sector_panels[side].append(assembly)
 
         # Create 6 fixture heads as children of the panel
         head_fixtures = []
@@ -944,6 +981,16 @@ def add_light_fixtures(model, roof_storey):
 
         # Collect panel for ring grouping
         ring_panels[panel_info["ring"]].append(assembly)
+
+    # IfcRelAggregates: sector → panels
+    for side in SIDES:
+        if sector_panels[side]:
+            model.createIfcRelAggregates(
+                GlobalId=ifcopenshell.guid.new(),
+                Name=f"FLA-{side} Panels",
+                RelatingObject=sector_assemblies[side],
+                RelatedObjects=sector_panels[side],
+            )
 
     # Batched type assignment: one IfcRelDefinesByType per beam type
     for beam_type, fixtures in fixtures_by_beam.items():
@@ -1014,6 +1061,29 @@ def main():
         verts[:, 1] -= center_y
         all_meshes[i] = (verts, tris, colours)
 
+    # Step 2b: Add green ground plane to the playing field mesh
+    # The field STL only has marking lines — add a solid rectangle as the grass base
+    field_verts, field_tris, field_colours = all_meshes[0]
+    field_x_min, field_x_max = field_verts[:, 0].min(), field_verts[:, 0].max()
+    field_y_min, field_y_max = field_verts[:, 1].min(), field_verts[:, 1].max()
+    field_z = field_verts[:, 2].min()  # place at bottom of line markings
+    import numpy as np
+    # 4 corner vertices for the ground rectangle
+    n = len(field_verts)
+    ground_verts = np.array([
+        [field_x_min, field_y_min, field_z],
+        [field_x_max, field_y_min, field_z],
+        [field_x_max, field_y_max, field_z],
+        [field_x_min, field_y_max, field_z],
+    ])
+    new_verts = np.vstack([field_verts, ground_verts])
+    # 2 triangles for the rectangle
+    ground_tris = [(n, n+1, n+2), (n, n+2, n+3)]
+    new_tris = field_tris + ground_tris
+    new_colours = field_colours + [6, 6]  # colour index 6 = white (base_color override to green)
+    all_meshes[0] = (new_verts, new_tris, new_colours)
+    print(f"  Added green ground plane: {field_x_max-field_x_min:.1f}m × {field_y_max-field_y_min:.1f}m at Z={field_z:.2f}")
+
     # Step 3: Create IFC spatial structure
     print("\n=== Creating IFC spatial structure ===")
     model, project, site, building, ground_storey, roof_storey, body_context = (
@@ -1031,12 +1101,50 @@ def main():
         storey = roof_storey if (
             mesh_info["ifc_class"] in roof_classes or mesh_info["name"] in roof_names
         ) else ground_storey
-        print(f"  {mesh_info['name']}: {len(tris)} triangles → {storey.Name}")
-        add_mesh_to_ifc(
-            model, storey, body_context,
-            verts, tris, colours, mesh_info,
-        )
-        total_tris += len(tris)
+
+        # Split logo into "Bay" (black) and "Arena" (red) as separate IFC entities
+        if mesh_info["name"] == "BayArena Logo":
+            red_idx = EXTRUDER_TO_COLOUR_INDEX[3]  # colour index 3 = red
+            red_mask = [c == red_idx for c in colours]
+            black_mask = [not m for m in red_mask]
+
+            for part_name, part_color, mask in [
+                ("Bay", (0.0, 0.0, 0.0), black_mask),
+                ("Arena", (1.0, 0.0, 0.0), red_mask),
+            ]:
+                part_tris = [t for t, m in zip(tris, mask) if m]
+                part_cols = [c for c, m in zip(colours, mask) if m]
+                if not part_tris:
+                    continue
+                # Re-index vertices
+                used = set()
+                for v1, v2, v3 in part_tris:
+                    used.update([v1, v2, v3])
+                old_to_new = {}
+                new_verts = []
+                for old_idx in sorted(used):
+                    old_to_new[old_idx] = len(new_verts)
+                    new_verts.append(verts[old_idx])
+                part_verts = np.array(new_verts, dtype=np.float64)
+                part_tris = [(old_to_new[v1], old_to_new[v2], old_to_new[v3])
+                             for v1, v2, v3 in part_tris]
+                part_info = dict(mesh_info)
+                part_info["name"] = part_name
+                part_info["base_color"] = part_color
+                part_info["use_colour_map"] = False  # uniform color per part
+                print(f"  {part_name}: {len(part_tris)} triangles → {storey.Name}")
+                add_mesh_to_ifc(
+                    model, storey, body_context,
+                    part_verts, part_tris, part_cols, part_info,
+                )
+                total_tris += len(part_tris)
+        else:
+            print(f"  {mesh_info['name']}: {len(tris)} triangles → {storey.Name}")
+            add_mesh_to_ifc(
+                model, storey, body_context,
+                verts, tris, colours, mesh_info,
+            )
+            total_tris += len(tris)
     print(f"  Total: {total_tris} triangles")
 
     # Step 5: Add floodlight panels

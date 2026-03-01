@@ -84,6 +84,8 @@ pub struct EntityColorInfo {
     pub entity_id: u64,
     pub entity_type: String,
     pub original_color: [f32; 4],
+    /// True if color comes from IFC IfcStyledItem (should be preserved across palette changes)
+    pub has_ifc_color: bool,
     pub start_vertex: u32,
     pub vertex_count: u32,
 }
@@ -171,6 +173,8 @@ pub struct IfcMesh {
     pub entity_type: String,
     /// Entity name
     pub name: Option<String>,
+    /// True if color was authored in IFC (IfcStyledItem), should survive palette changes
+    pub has_ifc_color: bool,
 }
 
 /// Legacy serializable format for storage/transfer
@@ -204,6 +208,7 @@ impl From<IfcMeshSerialized> for IfcMesh {
             transform: s.transform,
             entity_type: s.entity_type,
             name: s.name,
+            has_ifc_color: false,
         }
     }
 }
@@ -240,6 +245,7 @@ impl IfcMesh {
             transform,
             entity_type,
             name,
+            has_ifc_color: false,
         }
     }
 
@@ -263,6 +269,7 @@ impl IfcMesh {
             ],
             entity_type,
             name,
+            has_ifc_color: false,
         }
     }
 
@@ -471,12 +478,13 @@ impl BatchBuilder {
             self.triangle_to_entity.push(ifc_mesh.entity_id);
         }
 
-        // Track lightweight entity info for palette switching and selection (no geometry!)
+        // Track lightweight entity info for palette switching and selection.
         #[cfg(feature = "color-palette")]
         self.entity_color_info.push(EntityColorInfo {
             entity_id: ifc_mesh.entity_id,
             entity_type: ifc_mesh.entity_type.clone(),
             original_color: color,
+            has_ifc_color: ifc_mesh.has_ifc_color,
             start_vertex: start_vertex as u32,
             vertex_count: vertex_count as u32,
         });
@@ -495,10 +503,7 @@ impl BatchBuilder {
 
     /// Build final Bevy mesh
     fn build(self) -> Mesh {
-        // Always use MAIN_WORLD | RENDER_WORLD to allow picking to access vertex positions
-        // The picking system needs to read positions for ray-mesh intersection
-        let usage = RenderAssetUsages::default(); // MAIN_WORLD | RENDER_WORLD
-
+        let usage = RenderAssetUsages::default();
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, usage);
 
         // Recompute normals if we didn't have proper ones
@@ -1077,7 +1082,12 @@ fn poll_palette_change_system(
                         {
                             // Update colors based on entity mapping
                             for info in mapping {
-                                let new_color = get_color_for_palette(&info.entity_type, new_palette);
+                                // Preserve IFC-authored colors (e.g. green field, red logo)
+                                let new_color = if info.has_ifc_color {
+                                    info.original_color
+                                } else {
+                                    get_color_for_palette(&info.entity_type, new_palette)
+                                };
                                 let start = info.start_vertex as usize;
                                 let end = start + info.vertex_count as usize;
                                 for i in start..end.min(colors.len()) {
