@@ -12,6 +12,8 @@ pub mod camera;
 pub mod loader;
 pub mod mesh;
 pub mod picking;
+#[cfg(feature = "photometric")]
+pub mod photometric;
 pub mod section;
 pub mod storage;
 
@@ -120,6 +122,10 @@ impl Plugin for IfcViewerPlugin {
         // Add Bevy UI when feature is enabled
         #[cfg(feature = "bevy-ui")]
         app.add_plugins(IfcUiPlugin);
+
+        // Add photometric lighting when feature is enabled
+        #[cfg(feature = "photometric")]
+        app.add_plugins(photometric::PhotometricLightingPlugin);
     }
 }
 

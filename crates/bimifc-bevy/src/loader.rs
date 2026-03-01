@@ -447,7 +447,8 @@ fn load_ifc_file(
     let model = Arc::new(ParsedModel::parse(&content, false, false)?);
 
     // Create geometry router with default processors and unit scale from model
-    let router = GeometryRouter::with_default_processors_and_unit_scale(model.unit_scale());
+    let unit_scale = model.unit_scale();
+    let router = GeometryRouter::with_default_processors_and_unit_scale(unit_scale);
 
     // Get resolver for entity lookups
     let resolver = model.resolver();
@@ -512,7 +513,7 @@ fn load_ifc_file(
         if mesh.is_empty() {
             // For point-placed entities like IfcLightFixture, generate a marker sphere
             if is_point_entity_type(&type_name) {
-                if let Some(pos) = extract_entity_position(&entity, resolver) {
+                if let Some(pos) = extract_entity_position(&entity, resolver, unit_scale) {
                     let marker = create_marker_sphere(pos, 0.5);
                     let ifc_mesh = IfcMesh::from_geometry_mesh(
                         id as u64,
@@ -566,7 +567,8 @@ fn load_ifc_content(
     let model = Arc::new(ParsedModel::parse(content, false, false)?);
 
     // Create geometry router with default processors and unit scale from model
-    let router = GeometryRouter::with_default_processors_and_unit_scale(model.unit_scale());
+    let unit_scale = model.unit_scale();
+    let router = GeometryRouter::with_default_processors_and_unit_scale(unit_scale);
 
     // Get resolver for entity lookups
     let resolver = model.resolver();
@@ -631,7 +633,7 @@ fn load_ifc_content(
         if mesh.is_empty() {
             // For point-placed entities like IfcLightFixture, generate a marker sphere
             if is_point_entity_type(&type_name) {
-                if let Some(pos) = extract_entity_position(&entity, resolver) {
+                if let Some(pos) = extract_entity_position(&entity, resolver, unit_scale) {
                     let marker = create_marker_sphere(pos, 0.5);
                     let ifc_mesh = IfcMesh::from_geometry_mesh(
                         id as u64,
@@ -732,31 +734,20 @@ fn is_point_entity_type(type_name: &str) -> bool {
 
 /// Extract world position from an entity's ObjectPlacement chain.
 ///
-/// Follows: entity[5] (ObjectPlacement) → IfcLocalPlacement[1] (RelativePlacement)
-///        → IfcAxis2Placement3D[0] (Location) → IfcCartesianPoint[0] (Coordinates)
+/// Uses `resolve_placement()` to follow the full PlacementRelTo chain,
+/// producing correct world coordinates even for nested fixtures.
 fn extract_entity_position(
     entity: &bimifc_model::DecodedEntity,
     resolver: &dyn bimifc_model::EntityResolver,
+    unit_scale: f64,
 ) -> Option<[f32; 3]> {
-    // ObjectPlacement is at attribute index 5 for IFC products
-    let placement_id = entity.get_ref(5)?;
-    let placement = resolver.get(placement_id)?;
-
-    // IfcLocalPlacement: RelativePlacement at index 1
-    let relative_id = placement.get_ref(1)?;
-    let axis_placement = resolver.get(relative_id)?;
-
-    // IfcAxis2Placement3D: Location at index 0
-    let location_id = axis_placement.get_ref(0)?;
-    let point = resolver.get(location_id)?;
-
-    // IfcCartesianPoint: Coordinates at index 0 (list of floats)
-    let coords = point.get(0)?.as_list()?;
-    let x = coords.first().and_then(|v| v.as_float()).unwrap_or(0.0) as f32;
-    let y = coords.get(1).and_then(|v| v.as_float()).unwrap_or(0.0) as f32;
-    let z = coords.get(2).and_then(|v| v.as_float()).unwrap_or(0.0) as f32;
-
-    Some([x, y, z])
+    let placement_id = entity.get_ref(5)?; // ObjectPlacement
+    let transform = bimifc_geometry::transform::resolve_placement(placement_id, resolver)?;
+    Some([
+        (transform[(0, 3)] * unit_scale) as f32,
+        (transform[(1, 3)] * unit_scale) as f32,
+        (transform[(2, 3)] * unit_scale) as f32,
+    ])
 }
 
 /// Create a UV sphere mesh at the given position.

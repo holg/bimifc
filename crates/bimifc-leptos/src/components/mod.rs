@@ -1,7 +1,7 @@
 //! UI Components for the BIMIFC viewer
 
 mod hierarchy_panel;
-mod properties_panel;
+pub(crate) mod properties_panel;
 mod status_bar;
 mod toolbar;
 mod viewport;

@@ -1203,6 +1203,44 @@ pub fn parse_and_process_ifc(
         })
         .collect();
 
+    // Collect IFC light fixtures with embedded LDT data and send to Bevy
+    #[cfg(feature = "photometric")]
+    {
+        let pending_lights: Vec<bimifc_bevy::photometric::PendingLight> = entity_infos
+            .iter()
+            .filter(|e| e.entity_type.eq_ignore_ascii_case("IfcLightFixture"))
+            .filter_map(|e| {
+                let ldt_raw = e.photometry_ldt.as_ref()?;
+                // Decode IFC STEP \X2\000A\X0\ sequences → real newlines
+                let ldt_decoded =
+                    crate::components::properties_panel::decode_ifc_string(ldt_raw);
+                let entity = decoder.decode_by_id(EntityId(e.id as u32)).ok()?;
+                let placement_id = entity.get_ref(5)?;
+                let transform =
+                    bimifc_geometry::transform::resolve_placement(placement_id, resolver)?;
+                let s = unit_scale as f64;
+                Some(bimifc_bevy::photometric::PendingLight {
+                    entity_id: e.id,
+                    position: [
+                        (transform[(0, 3)] * s) as f32,
+                        (transform[(1, 3)] * s) as f32,
+                        (transform[(2, 3)] * s) as f32,
+                    ],
+                    ldt_content: ldt_decoded,
+                    beam_type: e.name.clone().unwrap_or_default(),
+                })
+            })
+            .collect();
+
+        if !pending_lights.is_empty() {
+            bridge::log_info(&format!(
+                "[BIMIFC] Sending {} photometric lights to Bevy",
+                pending_lights.len()
+            ));
+            bimifc_bevy::photometric::set_pending_lights(pending_lights);
+        }
+    }
+
     // Build storey infos
     let mut storey_infos: Vec<crate::state::StoreyInfo> = spatial_entities
         .values()

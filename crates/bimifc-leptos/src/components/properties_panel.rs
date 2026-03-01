@@ -316,7 +316,7 @@ fn PhotometricSection(ldt_content: String) -> impl IntoView {
 
 /// Decode IFC STEP encoded string sequences:
 /// \X2\HHHH\X0\ → Unicode char, \S\c → extended char, '' → '
-fn decode_ifc_string(s: &str) -> String {
+pub fn decode_ifc_string(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
 

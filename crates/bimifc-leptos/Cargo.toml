@@ -16,6 +16,8 @@ path = "src/lib.rs"
 default = []
 # Enable unified mode - direct memory sharing with Bevy (no serialization)
 unified = ["bimifc-bevy"]
+# Photometric lighting passthrough
+photometric = ["bimifc-bevy/photometric"]
 
 [dependencies]
 # Core IFC parsing (our own parser)

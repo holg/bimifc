@@ -225,6 +225,11 @@ pub struct CameraAnimationTarget {
 #[derive(Component)]
 pub struct MainCamera;
 
+/// Marker for architectural lighting entities (directional lights)
+/// so they can be toggled by the photometric module.
+#[derive(Component)]
+pub struct ArchitecturalLight;
+
 /// System to poll for camera commands from Yew UI
 #[allow(unused_variables, unused_mut)]
 fn poll_camera_commands_system(
@@ -300,6 +305,7 @@ fn setup_camera(mut commands: Commands, controller: Res<CameraController>) {
             ..default()
         },
         Transform::from_xyz(0.5, 1.0, 0.3).looking_at(Vec3::ZERO, Vec3::Y),
+        ArchitecturalLight,
     ));
 
     // Fill light from opposite side - cooler, softer
@@ -312,6 +318,7 @@ fn setup_camera(mut commands: Commands, controller: Res<CameraController>) {
             ..default()
         },
         Transform::from_xyz(-0.5, 0.3, -0.5).looking_at(Vec3::ZERO, Vec3::Y),
+        ArchitecturalLight,
     ));
 
     // Rim/back light for edge definition
@@ -324,6 +331,7 @@ fn setup_camera(mut commands: Commands, controller: Res<CameraController>) {
             ..default()
         },
         Transform::from_xyz(-0.3, 0.8, -0.8).looking_at(Vec3::ZERO, Vec3::Y),
+        ArchitecturalLight,
     ));
 
     // Bottom fill - subtle uplight to reduce dark undersides
@@ -336,6 +344,7 @@ fn setup_camera(mut commands: Commands, controller: Res<CameraController>) {
             ..default()
         },
         Transform::from_xyz(0.0, -1.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
+        ArchitecturalLight,
     ));
 }
 

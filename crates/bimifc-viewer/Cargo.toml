@@ -36,5 +36,6 @@ features = [
 ]
 
 [features]
-default = ["unified"]
+default = ["unified", "photometric"]
 unified = ["bimifc-leptos/unified"]
+photometric = ["bimifc-bevy/photometric", "bimifc-leptos/photometric"]

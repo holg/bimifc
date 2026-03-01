@@ -27,11 +27,16 @@ external-ui = []
 webgl2 = []
 native-view = []
 color-palette = []
+photometric = ["eulumdat", "eulumdat-bevy"]
 
 [dependencies]
 bimifc-model = { path = "../bimifc-model" }
 bimifc-parser = { path = "../bimifc-parser" }
 bimifc-geometry = { path = "../bimifc-geometry" }
+
+# Photometric lighting (optional, gated behind "photometric" feature)
+eulumdat = { path = "../../../eulumdat-rs/crates/eulumdat", default-features = false, optional = true }
+eulumdat-bevy = { path = "../../../eulumdat-rs/crates/eulumdat-bevy", default-features = false, features = ["photometric"], optional = true }
 
 # Math library
 nalgebra = { version = "0.33", default-features = false, features = ["std"] }
