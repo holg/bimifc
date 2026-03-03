@@ -21,6 +21,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
+      - name: Remove patch section from workspace Cargo.toml
+        shell: python3 {0}
+        run: |
+          import re, pathlib
+          p = pathlib.Path("Cargo.toml")
+          p.write_text(re.sub(r'\n\[patch\.crates-io\].*', '', p.read_text(), flags=re.DOTALL))
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -29,6 +35,12 @@ jobs:
           sccache: 'true'
           manylinux: auto
           before-script-linux: |
+            # Remove patch section inside container too (fresh checkout is mounted)
+            python3 -c "
+            import re, pathlib
+            p = pathlib.Path('Cargo.toml')
+            p.write_text(re.sub(r'\n\[patch\.crates-io\].*', '', p.read_text(), flags=re.DOTALL))
+            "
             pip install maturin
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -44,6 +56,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
+      - name: Remove patch section from workspace Cargo.toml
+        shell: python3 {0}
+        run: |
+          import re, pathlib
+          p = pathlib.Path("Cargo.toml")
+          p.write_text(re.sub(r'\n\[patch\.crates-io\].*', '', p.read_text(), flags=re.DOTALL))
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -52,6 +70,11 @@ jobs:
           sccache: 'true'
           manylinux: auto
           before-script-linux: |
+            python3 -c "
+            import re, pathlib
+            p = pathlib.Path('Cargo.toml')
+            p.write_text(re.sub(r'\n\[patch\.crates-io\].*', '', p.read_text(), flags=re.DOTALL))
+            "
             pip install maturin
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -73,6 +96,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
+      - name: Remove patch section from workspace Cargo.toml
+        shell: python3 {0}
+        run: |
+          import re, pathlib
+          p = pathlib.Path("Cargo.toml")
+          p.write_text(re.sub(r'\n\[patch\.crates-io\].*', '', p.read_text(), flags=re.DOTALL))
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -81,6 +110,11 @@ jobs:
           sccache: 'true'
           manylinux: musllinux_1_2
           before-script-linux: |
+            python3 -c "
+            import re, pathlib
+            p = pathlib.Path('Cargo.toml')
+            p.write_text(re.sub(r'\n\[patch\.crates-io\].*', '', p.read_text(), flags=re.DOTALL))
+            "
             pip install maturin
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -101,6 +135,12 @@ jobs:
         with:
           python-version: 3.x
           architecture: ${{ matrix.platform.target }}
+      - name: Remove patch section from workspace Cargo.toml
+        shell: python3 {0}
+        run: |
+          import re, pathlib
+          p = pathlib.Path("Cargo.toml")
+          p.write_text(re.sub(r'\n\[patch\.crates-io\].*', '', p.read_text(), flags=re.DOTALL))
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -127,6 +167,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
+      - name: Remove patch section from workspace Cargo.toml
+        shell: python3 {0}
+        run: |
+          import re, pathlib
+          p = pathlib.Path("Cargo.toml")
+          p.write_text(re.sub(r'\n\[patch\.crates-io\].*', '', p.read_text(), flags=re.DOTALL))
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -143,6 +189,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Remove patch section from workspace Cargo.toml
+        shell: python3 {0}
+        run: |
+          import re, pathlib
+          p = pathlib.Path("Cargo.toml")
+          p.write_text(re.sub(r'\n\[patch\.crates-io\].*', '', p.read_text(), flags=re.DOTALL))
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
