@@ -25,9 +25,59 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Fast check: are there any crates that actually need publishing?
+  check-versions:
+    name: Check which crates need publishing
+    runs-on: ubuntu-latest
+    outputs:
+      needs_publish: ${{ steps.check.outputs.needs_publish }}
+      publish_list: ${{ steps.check.outputs.publish_list }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check crates.io for already-published versions
+        id: check
+        shell: python3 {0}
+        run: |
+          import json, subprocess, os, tomllib
+
+          crates = [
+              "bimifc-model", "bimifc-parser", "bimifc-geometry",
+              "bimifc-bevy", "bimifc-viewer-tui", "bimifc-leptos", "bimifc-viewer",
+          ]
+
+          to_publish = []
+          for crate in crates:
+              # Read local version from Cargo.toml
+              toml_path = f"crates/{crate}/Cargo.toml"
+              with open(toml_path, "rb") as f:
+                  local_version = tomllib.load(f)["package"]["version"]
+
+              # Check if this exact version exists on crates.io
+              result = subprocess.run(
+                  ["curl", "-sf", f"https://crates.io/api/v1/crates/{crate}/{local_version}"],
+                  capture_output=True, text=True
+              )
+              if result.returncode == 0:
+                  print(f"  {crate} {local_version} — already published, skipping")
+              else:
+                  print(f"  {crate} {local_version} — needs publishing")
+                  to_publish.append(crate)
+
+          needs = "true" if to_publish else "false"
+          publish_list = json.dumps(to_publish)
+          print(f"\nNeeds publish: {needs}")
+          print(f"Publish list: {publish_list}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"needs_publish={needs}\n")
+              f.write(f"publish_list={publish_list}\n")
+
   publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
+    needs: check-versions
+    if: needs.check-versions.outputs.needs_publish == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -58,59 +108,43 @@ jobs:
       - name: Run tests
         run: cargo test --workspace
 
-      # 1. bimifc-model (no internal deps)
-      - name: Publish bimifc-model
+      # Helper to publish only if not already on crates.io
+      - name: Publish crates in dependency order
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p bimifc-model || echo "bimifc-model already published or no changes"
+          PUBLISH_LIST: ${{ needs.check-versions.outputs.publish_list }}
+        shell: python3 {0}
+        run: |
+          import json, subprocess, os, time
 
-      - name: Wait for crates.io index update
-        run: sleep 30
+          publish_list = json.loads(os.environ["PUBLISH_LIST"])
 
-      # 2. bimifc-parser (depends on bimifc-model)
-      - name: Publish bimifc-parser
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p bimifc-parser || echo "bimifc-parser already published or no changes"
+          # Dependency order — only publish crates that need it
+          ordered = [
+              "bimifc-model", "bimifc-parser", "bimifc-geometry",
+              "bimifc-bevy", "bimifc-viewer-tui", "bimifc-leptos", "bimifc-viewer",
+          ]
 
-      - name: Wait for crates.io index update
-        run: sleep 30
+          no_verify = {"bimifc-viewer"}  # WASM cdylib needs --no-verify
 
-      # 3. bimifc-geometry (depends on bimifc-model, bimifc-parser)
-      - name: Publish bimifc-geometry
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p bimifc-geometry || echo "bimifc-geometry already published or no changes"
+          for crate in ordered:
+              if crate not in publish_list:
+                  print(f"\n>>> {crate} — already published, skipping")
+                  continue
 
-      - name: Wait for crates.io index update
-        run: sleep 30
+              print(f"\n>>> Publishing {crate}...")
+              cmd = ["cargo", "publish", "-p", crate]
+              if crate in no_verify:
+                  cmd.append("--no-verify")
 
-      # 4. bimifc-bevy (depends on model, parser, geometry + eulumdat 0.5)
-      - name: Publish bimifc-bevy
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p bimifc-bevy || echo "bimifc-bevy already published or no changes"
+              result = subprocess.run(cmd)
+              if result.returncode != 0:
+                  print(f"    Warning: {crate} publish returned {result.returncode}")
+              else:
+                  print(f"    {crate} published successfully")
 
-      - name: Wait for crates.io index update
-        run: sleep 30
+              # Wait for crates.io index to update before publishing dependents
+              print("    Waiting 30s for crates.io index update...")
+              time.sleep(30)
 
-      # 5. bimifc-viewer-tui (depends on model, parser, geometry)
-      - name: Publish bimifc-viewer-tui
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p bimifc-viewer-tui || echo "bimifc-viewer-tui already published or no changes"
-
-      # 6. bimifc-leptos (depends on model, parser, geometry + eulumdat + optional: bimifc-bevy)
-      - name: Publish bimifc-leptos
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p bimifc-leptos || echo "bimifc-leptos already published or no changes"
-
-      - name: Wait for crates.io index update
-        run: sleep 30
-
-      # 7. bimifc-viewer (depends on all above, WASM cdylib)
-      - name: Publish bimifc-viewer
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p bimifc-viewer --no-verify || echo "bimifc-viewer already published or no changes"
+          print("\nDone!")
