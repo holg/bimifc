@@ -6,9 +6,9 @@ members = [
     "crates/bimifc-leptos",
     "crates/bimifc-model",
     "crates/bimifc-parser",
+    "crates/bimifc-python",
     "crates/bimifc-viewer",
     "crates/bimifc-viewer-tui",
-    "crates/bimifc-python",
 ]
 
 [workspace.package]
@@ -29,7 +29,3 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
-# Use local eulumdat checkout for development; CI/crates.io uses the published version
-[patch.crates-io]
-eulumdat = { path = "../eulumdat-rs/crates/eulumdat" }
-eulumdat-bevy = { path = "../eulumdat-rs/crates/eulumdat-bevy" }

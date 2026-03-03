@@ -69,7 +69,11 @@ impl PySpatialNode {
 
     /// All element IDs in this subtree
     fn element_ids(&self) -> Vec<u32> {
-        self.inner.element_ids().into_iter().map(|id| id.0).collect()
+        self.inner
+            .element_ids()
+            .into_iter()
+            .map(|id| id.0)
+            .collect()
     }
 
     /// Find a node by entity ID (recursive)

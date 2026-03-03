@@ -91,14 +91,20 @@ impl PyIfcModel {
 
     /// Parse with a progress callback fn(phase: str, progress: float)
     #[staticmethod]
-    pub fn parse_with_progress(py: Python<'_>, content: &str, callback: Py<PyAny>) -> PyResult<Self> {
-        let model = py.detach(|| {
-            bimifc_parser::parse_with_progress(content, move |phase, progress| {
-                Python::attach(|py| {
-                    let _ = callback.call1(py, (phase, progress));
-                });
+    pub fn parse_with_progress(
+        py: Python<'_>,
+        content: &str,
+        callback: Py<PyAny>,
+    ) -> PyResult<Self> {
+        let model = py
+            .detach(|| {
+                bimifc_parser::parse_with_progress(content, move |phase, progress| {
+                    Python::attach(|py| {
+                        let _ = callback.call1(py, (phase, progress));
+                    });
+                })
             })
-        }).to_py()?;
+            .to_py()?;
         Ok(Self {
             model,
             geometry: Mutex::new(None),
@@ -129,10 +135,7 @@ impl PyIfcModel {
 
     /// Get entity by ID
     fn get(&self, id: u32) -> Option<Entity> {
-        self.model
-            .resolver()
-            .get(EntityId(id))
-            .map(Entity::new)
+        self.model.resolver().get(EntityId(id)).map(Entity::new)
     }
 
     /// Get all entities of a given type name (e.g. "IfcWall")

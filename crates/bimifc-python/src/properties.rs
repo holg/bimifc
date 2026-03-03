@@ -36,7 +36,10 @@ impl PyProperty {
 
     fn __repr__(&self) -> String {
         match &self.inner.unit {
-            Some(u) => format!("Property('{}', '{}', unit='{}')", self.inner.name, self.inner.value, u),
+            Some(u) => format!(
+                "Property('{}', '{}', unit='{}')",
+                self.inner.name, self.inner.value, u
+            ),
             None => format!("Property('{}', '{}')", self.inner.name, self.inner.value),
         }
     }
