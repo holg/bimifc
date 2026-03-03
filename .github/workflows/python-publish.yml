@@ -1,0 +1,200 @@
+# Python package publishing workflow for bimifc-python
+# Builds wheels for multiple platforms and publishes to PyPI on tag
+name: Python Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'py-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Native x86_64 Linux build
+  linux-x86_64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x86_64
+          args: --release --out dist --manifest-path crates/bimifc-python/Cargo.toml
+          sccache: 'true'
+          manylinux: auto
+          before-script-linux: |
+            pip install maturin
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-x86_64
+          path: dist
+
+  # Cross-compiled aarch64 Linux build
+  linux-aarch64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: aarch64
+          args: --release --out dist --manifest-path crates/bimifc-python/Cargo.toml -i python3.9 python3.10 python3.11 python3.12 python3.13
+          sccache: 'true'
+          manylinux: auto
+          before-script-linux: |
+            pip install maturin
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-aarch64
+          path: dist
+
+  musllinux:
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - runner: ubuntu-latest
+            target: x86_64
+          - runner: ubuntu-latest
+            target: aarch64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist --manifest-path crates/bimifc-python/Cargo.toml -i python3.9 python3.10 python3.11 python3.12 python3.13
+          sccache: 'true'
+          manylinux: musllinux_1_2
+          before-script-linux: |
+            pip install maturin
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-musllinux-${{ matrix.platform.target }}
+          path: dist
+
+  windows:
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - runner: windows-latest
+            target: x64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+          architecture: ${{ matrix.platform.target }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist --manifest-path crates/bimifc-python/Cargo.toml
+          sccache: 'true'
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows-${{ matrix.platform.target }}
+          path: dist
+
+  macos:
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - runner: macos-14
+            target: x86_64
+          - runner: macos-14
+            target: aarch64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist --manifest-path crates/bimifc-python/Cargo.toml
+          sccache: 'true'
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-${{ matrix.platform.target }}
+          path: dist
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist --manifest-path crates/bimifc-python/Cargo.toml
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sdist
+          path: dist
+
+  release:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    needs: [linux-x86_64, linux-aarch64, musllinux, windows, macos, sdist]
+    permissions:
+      id-token: write
+      contents: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: false
+      - name: Merge wheels into single directory
+        run: |
+          mkdir -p dist
+          find wheels-* -name '*.whl' -exec cp {} dist/ \;
+          find wheels-* -name '*.tar.gz' -exec cp {} dist/ \;
+          echo "=== Built wheels ==="
+          ls -la dist/
+      - name: Generate artifact attestation
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: 'dist/*'
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          skip-existing: true
+      - name: Upload wheels to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          append_body: true
+          body: |
+
+            ## Python Package
+
+            ```bash
+            pip install bimifc
+            ```

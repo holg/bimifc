@@ -8,6 +8,7 @@ members = [
     "crates/bimifc-parser",
     "crates/bimifc-viewer",
     "crates/bimifc-viewer-tui",
+    "crates/bimifc-python",
 ]
 
 [workspace.package]

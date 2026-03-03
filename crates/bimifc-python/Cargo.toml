@@ -1,0 +1,17 @@
+[package]
+name = "bimifc-python"
+version = "0.1.0"  # Must be explicit for maturin (workspace inheritance not supported)
+edition = "2021"
+license = "MPL-2.0"
+repository = "https://github.com/holg/bimifc"
+description = "Python bindings for bimifc IFC (BIM) file parser"
+
+[lib]
+name = "bimifc"
+crate-type = ["cdylib"]
+
+[dependencies]
+bimifc-model = { version = "0.1.0", path = "../bimifc-model" }
+bimifc-parser = { version = "0.1.0", path = "../bimifc-parser" }
+bimifc-geometry = { version = "0.1.0", path = "../bimifc-geometry" }
+pyo3 = { version = "0.28", features = ["extension-module"] }
