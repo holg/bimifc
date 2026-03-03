@@ -38,14 +38,12 @@ jobs:
           sudo apt-get install -y libudev-dev libasound2-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev pkg-config
 
       # Remove [patch.crates-io] — only used for local dev with ../eulumdat-rs
-      - name: Remove patch section (Unix)
-        if: runner.os != 'Windows'
-        run: sed -i '/^\[patch\.crates-io\]/,/^$/d' Cargo.toml
-
-      - name: Remove patch section (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: (Get-Content Cargo.toml) -replace '(?ms)\[patch\.crates-io\].*', '' | Set-Content Cargo.toml
+      - name: Remove patch section
+        shell: python3 {0}
+        run: |
+          import re, pathlib
+          p = pathlib.Path("Cargo.toml")
+          p.write_text(re.sub(r'\n\[patch\.crates-io\].*', '', p.read_text(), flags=re.DOTALL))
 
       - name: Run tests
         run: cargo test --workspace --verbose
@@ -99,14 +97,12 @@ jobs:
           key: tui-${{ matrix.target }}
 
       # Remove [patch.crates-io] — only used for local dev with ../eulumdat-rs
-      - name: Remove patch section (Unix)
-        if: runner.os != 'Windows'
-        run: sed -i '/^\[patch\.crates-io\]/,/^$/d' Cargo.toml
-
-      - name: Remove patch section (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: (Get-Content Cargo.toml) -replace '(?ms)\[patch\.crates-io\].*', '' | Set-Content Cargo.toml
+      - name: Remove patch section
+        shell: python3 {0}
+        run: |
+          import re, pathlib
+          p = pathlib.Path("Cargo.toml")
+          p.write_text(re.sub(r'\n\[patch\.crates-io\].*', '', p.read_text(), flags=re.DOTALL))
 
       - name: Build
         run: cargo build --release --package bimifc-viewer-tui --target ${{ matrix.target }}

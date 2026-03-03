@@ -45,10 +45,12 @@ jobs:
 
       # Remove [patch.crates-io] — crates.io rejects crates with patch sections
       - name: Remove patch section from workspace Cargo.toml
+        shell: python3 {0}
         run: |
-          sed -i '/^\[patch\.crates-io\]/,/^$/d' Cargo.toml
-          echo "--- Cargo.toml after patch removal ---"
-          cat Cargo.toml
+          import re, pathlib
+          p = pathlib.Path("Cargo.toml")
+          p.write_text(re.sub(r'\n\[patch\.crates-io\].*', '', p.read_text(), flags=re.DOTALL))
+          print(p.read_text())
 
       - name: Verify crates build
         run: cargo build --workspace --release
