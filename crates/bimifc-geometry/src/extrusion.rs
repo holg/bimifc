@@ -124,7 +124,11 @@ pub fn extrude_profile_with_voids(
 }
 
 /// Create geometry for a partial-depth void
-fn create_partial_void_geometry(void_info: &VoidInfo, total_depth: f64, mesh: &mut Mesh) -> Result<()> {
+fn create_partial_void_geometry(
+    void_info: &VoidInfo,
+    total_depth: f64,
+    mesh: &mut Mesh,
+) -> Result<()> {
     if void_info.contour.len() < 3 {
         return Ok(());
     }
@@ -161,7 +165,12 @@ fn create_partial_void_geometry(void_info: &VoidInfo, total_depth: f64, mesh: &m
     // Create side walls for the void
     let void_depth = void_info.depth_end - void_info.depth_start;
     if void_depth > epsilon {
-        create_void_side_walls(&void_info.contour, void_info.depth_start, void_info.depth_end, mesh);
+        create_void_side_walls(
+            &void_info.contour,
+            void_info.depth_start,
+            void_info.depth_end,
+            mesh,
+        );
     }
 
     Ok(())

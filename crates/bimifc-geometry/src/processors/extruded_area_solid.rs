@@ -488,7 +488,9 @@ impl GeometryProcessor for ExtrudedAreaSolidProcessor {
             let rotation_angle = z_axis.dot(&direction).acos();
 
             if rotation_axis.norm() > 1e-10 {
-                Some(Matrix4::new_rotation(rotation_axis.normalize() * rotation_angle))
+                Some(Matrix4::new_rotation(
+                    rotation_axis.normalize() * rotation_angle,
+                ))
             } else {
                 None
             }

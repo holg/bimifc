@@ -28,9 +28,11 @@ pub fn render_wireframe(
     camera: &OrbitCamera,
     _selected_entity: Option<u64>,
 ) -> WireframeStats {
-    let mut stats = WireframeStats::default();
-    stats.total_triangles = scene.triangles.len();
-    stats.total_edges = scene.edges.len();
+    let mut stats = WireframeStats {
+        total_triangles: scene.triangles.len(),
+        total_edges: scene.edges.len(),
+        ..Default::default()
+    };
 
     framebuffer.clear();
 
@@ -51,8 +53,11 @@ pub fn render_wireframe(
         let ndc0 = clip0.truncate() / clip0.w;
         let ndc1 = clip1.truncate() / clip1.w;
 
-        if (ndc0.x < -1.5 && ndc1.x < -1.5) || (ndc0.x > 1.5 && ndc1.x > 1.5) ||
-           (ndc0.y < -1.5 && ndc1.y < -1.5) || (ndc0.y > 1.5 && ndc1.y > 1.5) {
+        if (ndc0.x < -1.5 && ndc1.x < -1.5)
+            || (ndc0.x > 1.5 && ndc1.x > 1.5)
+            || (ndc0.y < -1.5 && ndc1.y < -1.5)
+            || (ndc0.y > 1.5 && ndc1.y > 1.5)
+        {
             return false;
         }
 
@@ -79,9 +84,18 @@ pub fn render_wireframe(
     ];
     // Draw bounding box edges (12 edges)
     let bb_edges = [
-        (0,1), (1,2), (2,3), (3,0),  // bottom
-        (4,5), (5,6), (6,7), (7,4),  // top
-        (0,4), (1,5), (2,6), (3,7),  // verticals
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 0), // bottom
+        (4, 5),
+        (5, 6),
+        (6, 7),
+        (7, 4), // top
+        (0, 4),
+        (1, 5),
+        (2, 6),
+        (3, 7), // verticals
     ];
     for (i, j) in bb_edges {
         draw_edge(corners[i], corners[j], 0.001);
@@ -158,12 +172,16 @@ fn draw_line(fb: &mut Framebuffer, p0: Vec2, p1: Vec2, depth: f32) -> usize {
 
         let e2 = 2 * err;
         if e2 >= dy {
-            if x == x1 { break; }
+            if x == x1 {
+                break;
+            }
             err += dy;
             x += sx;
         }
         if e2 <= dx {
-            if y == y1 { break; }
+            if y == y1 {
+                break;
+            }
             err += dx;
             y += sy;
         }

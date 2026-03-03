@@ -25,10 +25,7 @@ impl<'a> EntityScanner<'a> {
     /// Create a new scanner for the given content
     pub fn new(content: &'a str) -> Self {
         // Skip header section (find DATA; line)
-        let pos = content
-            .find("DATA;")
-            .map(|p| p + 5)
-            .unwrap_or(0);
+        let pos = content.find("DATA;").map(|p| p + 5).unwrap_or(0);
 
         Self { content, pos }
     }
@@ -278,8 +275,8 @@ fn parse_header_string(s: &str) -> Option<(String, &str)> {
     let s = s.trim_start();
     if !s.starts_with('\'') {
         // Check for empty value
-        if s.starts_with('$') {
-            return Some((String::new(), &s[1..]));
+        if let Some(stripped) = s.strip_prefix('$') {
+            return Some((String::new(), stripped));
         }
         return None;
     }
@@ -313,8 +310,8 @@ fn parse_header_list(s: &str) -> Option<(Vec<String>, &str)> {
 
     loop {
         current = current.trim_start();
-        if current.starts_with(')') {
-            return Some((items, &current[1..]));
+        if let Some(stripped) = current.strip_prefix(')') {
+            return Some((items, stripped));
         }
 
         if let Some((item, rest)) = parse_header_string(current) {
@@ -327,7 +324,7 @@ fn parse_header_list(s: &str) -> Option<(Vec<String>, &str)> {
             }
         } else {
             // Skip unknown content
-            if let Some(pos) = current.find(|c| c == ',' || c == ')') {
+            if let Some(pos) = current.find([',', ')']) {
                 current = &current[pos..];
                 if current.starts_with(',') {
                     current = &current[1..];

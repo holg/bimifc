@@ -7,6 +7,7 @@ use crate::storage::save_camera;
 use crate::storage::CameraStorage;
 use bevy::ecs::message::MessageReader;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
+use bevy::input::touch::Touches;
 use bevy::prelude::*;
 
 /// System set for camera input (for ordering)
@@ -25,6 +26,7 @@ impl Plugin for CameraPlugin {
                 (
                     poll_camera_commands_system,
                     camera_input_system,
+                    camera_touch_system,
                     camera_update_system,
                     camera_keyboard_system,
                 )
@@ -97,6 +99,21 @@ pub struct CameraController {
     pub did_drag: bool,
     /// Was this a click (released without dragging)?
     pub just_clicked: bool,
+    // Touch state
+    /// Number of active touches last frame
+    pub touch_count: usize,
+    /// Last single-touch position (for computing deltas)
+    pub last_touch_pos: Vec2,
+    /// Last distance between two fingers (for pinch zoom)
+    pub last_pinch_distance: f32,
+    /// Last center of two fingers (for pan)
+    pub last_two_touch_center: Vec2,
+    /// Is a single-finger drag active?
+    pub is_touch_dragging: bool,
+    /// Position where touch started (for tap detection)
+    pub touch_drag_start: Vec2,
+    /// Did touch move significantly (not a tap)?
+    pub touch_did_drag: bool,
 }
 
 impl Default for CameraController {
@@ -124,6 +141,13 @@ impl Default for CameraController {
             drag_start_pos: Vec2::ZERO,
             did_drag: false,
             just_clicked: false,
+            touch_count: 0,
+            last_touch_pos: Vec2::ZERO,
+            last_pinch_distance: 0.0,
+            last_two_touch_center: Vec2::ZERO,
+            is_touch_dragging: false,
+            touch_drag_start: Vec2::ZERO,
+            touch_did_drag: false,
         }
     }
 }
@@ -445,6 +469,94 @@ fn camera_input_system(
             controller.distance = (controller.distance * (1.0 - zoom_delta)).clamp(1.0, 500000.0);
         }
     }
+}
+
+/// Handle touch input for camera control (mobile/tablet)
+///
+/// Gesture mapping:
+/// - 1 finger drag → orbit
+/// - 2 finger drag → pan
+/// - 2 finger pinch → zoom
+/// - Tap (no drag) → select entity
+fn camera_touch_system(touches: Res<Touches>, mut controller: ResMut<CameraController>) {
+    let pressed: Vec<Vec2> = touches.iter().map(|t| t.position()).collect();
+    let count = pressed.len();
+    let prev_count = controller.touch_count;
+
+    // === Single touch: orbit / tap ===
+    if count == 1 {
+        let pos = pressed[0];
+
+        if prev_count == 0 {
+            // Touch just started
+            controller.is_touch_dragging = true;
+            controller.touch_did_drag = false;
+            controller.last_touch_pos = pos;
+            controller.touch_drag_start = pos;
+        } else if controller.is_touch_dragging && prev_count == 1 {
+            // Continued single-finger drag → orbit
+            let delta = pos - controller.last_touch_pos;
+
+            if delta.length() > 2.0 {
+                controller.touch_did_drag = true;
+            }
+
+            if controller.touch_did_drag {
+                // Apply orbit (same math as mouse)
+                controller.azimuth -= delta.x * controller.orbit_sensitivity;
+                controller.elevation -= delta.y * controller.orbit_sensitivity;
+                controller.elevation = controller.elevation.clamp(-1.5, 1.5);
+                controller.angular_velocity = delta * controller.orbit_sensitivity;
+            }
+
+            controller.last_touch_pos = pos;
+        }
+    }
+
+    // === Two touches: pan + pinch zoom ===
+    if count == 2 {
+        let center = (pressed[0] + pressed[1]) * 0.5;
+        let distance = (pressed[0] - pressed[1]).length();
+
+        if prev_count < 2 {
+            // Just transitioned to two fingers — record baseline
+            controller.last_two_touch_center = center;
+            controller.last_pinch_distance = distance;
+            // Cancel single-finger orbit
+            controller.is_touch_dragging = false;
+            controller.touch_did_drag = true; // prevent tap
+        } else {
+            // Pan: delta of center point
+            let center_delta = center - controller.last_two_touch_center;
+            let right = Vec3::new(controller.azimuth.cos(), 0.0, -controller.azimuth.sin());
+            let up = Vec3::Y;
+            let pan =
+                right * center_delta.x * controller.pan_sensitivity * controller.distance * 0.01
+                    - up * center_delta.y * controller.pan_sensitivity * controller.distance * 0.01;
+            controller.target += pan;
+
+            // Pinch zoom: ratio of finger distances
+            if controller.last_pinch_distance > 10.0 {
+                let zoom_ratio = distance / controller.last_pinch_distance;
+                controller.distance = (controller.distance / zoom_ratio).clamp(1.0, 500000.0);
+            }
+
+            controller.last_two_touch_center = center;
+            controller.last_pinch_distance = distance;
+        }
+    }
+
+    // === Touch released: detect tap ===
+    if count == 0 && prev_count > 0 {
+        if controller.is_touch_dragging && !controller.touch_did_drag {
+            // This was a tap — trigger picking
+            controller.just_clicked = true;
+            controller.drag_start_pos = controller.touch_drag_start;
+        }
+        controller.is_touch_dragging = false;
+    }
+
+    controller.touch_count = count;
 }
 
 /// Handle keyboard input for camera control

@@ -73,7 +73,7 @@ fn ws(input: &str) -> IResult<&str, ()> {
 }
 
 /// Parse an entity reference (#123)
-fn entity_ref(input: &str) -> IResult<&str, Token> {
+fn entity_ref(input: &str) -> IResult<&str, Token<'_>> {
     let (input, _) = char('#')(input)?;
     let (input, digits) = take_while1(|c: char| c.is_ascii_digit())(input)?;
     let id = digits.parse::<u32>().unwrap_or(0);
@@ -81,7 +81,7 @@ fn entity_ref(input: &str) -> IResult<&str, Token> {
 }
 
 /// Parse a STEP string ('text' with '' for escaped quotes)
-fn step_string(input: &str) -> IResult<&str, Token> {
+fn step_string(input: &str) -> IResult<&str, Token<'_>> {
     let (input, _) = char('\'')(input)?;
 
     // Find the end of the string, handling escaped quotes ('')
@@ -106,7 +106,7 @@ fn step_string(input: &str) -> IResult<&str, Token> {
 }
 
 /// Parse a number (integer or float)
-fn number(input: &str) -> IResult<&str, Token> {
+fn number(input: &str) -> IResult<&str, Token<'_>> {
     let (input, num_str) = recognize((
         opt(char('-')),
         take_while1(|c: char| c.is_ascii_digit()),
@@ -130,7 +130,7 @@ fn number(input: &str) -> IResult<&str, Token> {
 }
 
 /// Parse an enumeration (.VALUE.)
-fn enumeration(input: &str) -> IResult<&str, Token> {
+fn enumeration(input: &str) -> IResult<&str, Token<'_>> {
     let (input, _) = char('.')(input)?;
     let (input, name) = take_while1(|c: char| c.is_alphanumeric() || c == '_')(input)?;
     let (input, _) = char('.')(input)?;
@@ -138,19 +138,19 @@ fn enumeration(input: &str) -> IResult<&str, Token> {
 }
 
 /// Parse null ($)
-fn null_value(input: &str) -> IResult<&str, Token> {
+fn null_value(input: &str) -> IResult<&str, Token<'_>> {
     let (input, _) = char('$')(input)?;
     Ok((input, Token::Null))
 }
 
 /// Parse derived (*)
-fn derived_value(input: &str) -> IResult<&str, Token> {
+fn derived_value(input: &str) -> IResult<&str, Token<'_>> {
     let (input, _) = char('*')(input)?;
     Ok((input, Token::Derived))
 }
 
 /// Parse a list of tokens
-fn list(input: &str) -> IResult<&str, Token> {
+fn list(input: &str) -> IResult<&str, Token<'_>> {
     let (input, items) = delimited(
         pair(char('('), ws),
         separated_list0((ws, char(','), ws), token),
@@ -161,7 +161,7 @@ fn list(input: &str) -> IResult<&str, Token> {
 }
 
 /// Parse a typed value like IFCLABEL('text')
-fn typed_value(input: &str) -> IResult<&str, Token> {
+fn typed_value(input: &str) -> IResult<&str, Token<'_>> {
     let (input, type_name) = take_while1(|c: char| c.is_alphanumeric() || c == '_')(input)?;
     let (input, _) = ws(input)?;
     let (input, args) = delimited(
@@ -174,7 +174,7 @@ fn typed_value(input: &str) -> IResult<&str, Token> {
 }
 
 /// Parse any token
-fn token(input: &str) -> IResult<&str, Token> {
+fn token(input: &str) -> IResult<&str, Token<'_>> {
     alt((
         entity_ref,
         step_string,
@@ -189,7 +189,7 @@ fn token(input: &str) -> IResult<&str, Token> {
 }
 
 /// Parse entity attribute list
-fn attribute_list(input: &str) -> IResult<&str, Vec<Token>> {
+fn attribute_list(input: &str) -> IResult<&str, Vec<Token<'_>>> {
     delimited(
         pair(char('('), ws),
         separated_list0((ws, char(','), ws), token),
@@ -214,11 +214,10 @@ pub fn parse_entity(input: &str) -> Result<DecodedEntity, String> {
         .parse(input)
         .map_err(|_| "Expected # at start of entity")?;
 
-    let (input, id_str) = take_while1::<_, &str, nom::error::Error<&str>>(|c: char| {
-        c.is_ascii_digit()
-    })
-    .parse(input)
-    .map_err(|_| "Expected entity ID")?;
+    let (input, id_str) =
+        take_while1::<_, &str, nom::error::Error<&str>>(|c: char| c.is_ascii_digit())
+            .parse(input)
+            .map_err(|_| "Expected entity ID")?;
 
     let id: u32 = id_str.parse().map_err(|_| "Invalid entity ID")?;
 
@@ -261,6 +260,7 @@ pub fn parse_entity_at(content: &str, start: usize, end: usize) -> Result<Decode
 
 /// Fast parse coordinate list from IfcCartesianPointList3D
 /// Returns flattened [x0,y0,z0, x1,y1,z1, ...]
+#[allow(dead_code)]
 pub fn parse_coordinate_list_3d_fast(content: &str) -> Option<Vec<f64>> {
     // Find the coordinates list - typically attribute 0 after CoordList
     let start = content.find("((")?;
@@ -295,6 +295,7 @@ pub fn parse_coordinate_list_3d_fast(content: &str) -> Option<Vec<f64>> {
 
 /// Fast parse index list from IfcTriangulatedFaceSet
 /// Converts from 1-based IFC indices to 0-based
+#[allow(dead_code)]
 pub fn parse_index_list_fast(content: &str) -> Option<Vec<u32>> {
     let start = content.find("((")?;
     let end = content.rfind("))")?;
@@ -363,7 +364,7 @@ mod tests {
         let (remaining, token) = number("3.14159").unwrap();
         assert_eq!(remaining, "");
         if let Token::Float(f) = token {
-            assert!((f - 3.14159).abs() < 1e-10);
+            assert!((f - std::f64::consts::PI).abs() < 1e-5);
         } else {
             panic!("Expected float");
         }

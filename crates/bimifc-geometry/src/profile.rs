@@ -34,9 +34,7 @@ impl Profile2D {
     /// Returns triangle indices into the flattened vertex array
     pub fn triangulate(&self) -> Result<Triangulation> {
         if self.outer.len() < 3 {
-            return Err(Error::profile(
-                "Profile must have at least 3 vertices",
-            ));
+            return Err(Error::profile("Profile must have at least 3 vertices"));
         }
 
         // Flatten vertices for earcutr
@@ -224,10 +222,20 @@ impl Profile2DWithVoids {
 /// Common profile types
 #[derive(Debug, Clone)]
 pub enum ProfileType {
-    Rectangle { width: f64, height: f64 },
-    Circle { radius: f64 },
-    HollowCircle { outer_radius: f64, inner_radius: f64 },
-    Polygon { points: Vec<Point2<f64>> },
+    Rectangle {
+        width: f64,
+        height: f64,
+    },
+    Circle {
+        radius: f64,
+    },
+    HollowCircle {
+        outer_radius: f64,
+        inner_radius: f64,
+    },
+    Polygon {
+        points: Vec<Point2<f64>>,
+    },
 }
 
 impl ProfileType {
@@ -236,13 +244,19 @@ impl ProfileType {
         match self {
             Self::Rectangle { width, height } => Profile2D::rectangle(*width, *height),
             Self::Circle { radius } => Profile2D::circle(*radius, None),
-            Self::HollowCircle { outer_radius, inner_radius } => {
+            Self::HollowCircle {
+                outer_radius,
+                inner_radius,
+            } => {
                 let mut profile = Profile2D::circle(*outer_radius, None);
                 let hole_segments = calculate_circle_segments(*inner_radius);
                 let mut hole = Vec::with_capacity(hole_segments);
                 for i in 0..hole_segments {
                     let angle = 2.0 * std::f64::consts::PI * (i as f64) / (hole_segments as f64);
-                    hole.push(Point2::new(inner_radius * angle.cos(), inner_radius * angle.sin()));
+                    hole.push(Point2::new(
+                        inner_radius * angle.cos(),
+                        inner_radius * angle.sin(),
+                    ));
                 }
                 hole.reverse(); // Clockwise for hole
                 profile.add_hole(hole);

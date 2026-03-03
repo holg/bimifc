@@ -7,14 +7,14 @@
 //! A 3D IFC model viewer that runs in the terminal using block characters.
 
 use anyhow::{Context, Result};
+use bimifc_model::IfcModel;
+use bimifc_parser::ParsedModel;
 use clap::Parser;
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use bimifc_parser::ParsedModel;
-use bimifc_model::IfcModel;
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io::{self, stdout};
 use std::path::PathBuf;
@@ -79,8 +79,7 @@ fn main() -> Result<()> {
 fn run_debug(args: &Args) -> Result<()> {
     use bimifc_viewer_tui::{camera::OrbitCamera, renderer::culling, scene::Scene};
 
-    let (scene, mut camera) = if args.file.is_some() {
-        let file_path = args.file.as_ref().unwrap();
+    let (scene, mut camera) = if let Some(file_path) = &args.file {
         let content = std::fs::read_to_string(file_path)
             .with_context(|| format!("Failed to read file: {}", file_path.display()))?;
 
@@ -113,15 +112,29 @@ fn run_debug(args: &Args) -> Result<()> {
         }
     }
     println!("Scene: {} triangles", scene.triangles.len());
-    println!("Bounds: ({:.1}, {:.1}, {:.1}) to ({:.1}, {:.1}, {:.1})",
-        scene.bounds_min.x, scene.bounds_min.y, scene.bounds_min.z,
-        scene.bounds_max.x, scene.bounds_max.y, scene.bounds_max.z);
+    println!(
+        "Bounds: ({:.1}, {:.1}, {:.1}) to ({:.1}, {:.1}, {:.1})",
+        scene.bounds_min.x,
+        scene.bounds_min.y,
+        scene.bounds_min.z,
+        scene.bounds_max.x,
+        scene.bounds_max.y,
+        scene.bounds_max.z
+    );
     println!("Diagonal: {:.1}", scene.diagonal());
     println!();
     println!("Camera:");
-    println!("  Target: ({:.1}, {:.1}, {:.1})", camera.target.x, camera.target.y, camera.target.z);
+    println!(
+        "  Target: ({:.1}, {:.1}, {:.1})",
+        camera.target.x, camera.target.y, camera.target.z
+    );
     println!("  Distance: {:.1}", camera.distance);
-    println!("  Position: ({:.1}, {:.1}, {:.1})", camera.position().x, camera.position().y, camera.position().z);
+    println!(
+        "  Position: ({:.1}, {:.1}, {:.1})",
+        camera.position().x,
+        camera.position().y,
+        camera.position().z
+    );
     println!("  Near: {:.2}, Far: {:.2}", camera.near, camera.far);
     println!("  FOV: {:.1}°, Aspect: {:.2}", camera.fov, camera.aspect);
 
@@ -141,29 +154,62 @@ fn run_debug(args: &Args) -> Result<()> {
     println!("Triangle world sizes:");
     println!("  Min area: {:.4} sq units", min_area);
     println!("  Max area: {:.4} sq units", max_area);
-    println!("  Avg area: {:.4} sq units", total_area / scene.triangles.len() as f64);
+    println!(
+        "  Avg area: {:.4} sq units",
+        total_area / scene.triangles.len() as f64
+    );
     println!("  Total area: {:.1} sq units", total_area);
     println!();
 
     let vp = camera.view_projection_matrix();
     println!("View-Projection Matrix:");
-    println!("  [{:>10.4} {:>10.4} {:>10.4} {:>10.4}]", vp.col(0).x, vp.col(1).x, vp.col(2).x, vp.col(3).x);
-    println!("  [{:>10.4} {:>10.4} {:>10.4} {:>10.4}]", vp.col(0).y, vp.col(1).y, vp.col(2).y, vp.col(3).y);
-    println!("  [{:>10.4} {:>10.4} {:>10.4} {:>10.4}]", vp.col(0).z, vp.col(1).z, vp.col(2).z, vp.col(3).z);
-    println!("  [{:>10.4} {:>10.4} {:>10.4} {:>10.4}]", vp.col(0).w, vp.col(1).w, vp.col(2).w, vp.col(3).w);
+    println!(
+        "  [{:>10.4} {:>10.4} {:>10.4} {:>10.4}]",
+        vp.col(0).x,
+        vp.col(1).x,
+        vp.col(2).x,
+        vp.col(3).x
+    );
+    println!(
+        "  [{:>10.4} {:>10.4} {:>10.4} {:>10.4}]",
+        vp.col(0).y,
+        vp.col(1).y,
+        vp.col(2).y,
+        vp.col(3).y
+    );
+    println!(
+        "  [{:>10.4} {:>10.4} {:>10.4} {:>10.4}]",
+        vp.col(0).z,
+        vp.col(1).z,
+        vp.col(2).z,
+        vp.col(3).z
+    );
+    println!(
+        "  [{:>10.4} {:>10.4} {:>10.4} {:>10.4}]",
+        vp.col(0).w,
+        vp.col(1).w,
+        vp.col(2).w,
+        vp.col(3).w
+    );
     println!();
 
     // Test first 5 triangles
     println!("First 5 triangles:");
     for (i, tri) in scene.triangles.iter().take(5).enumerate() {
         println!("  Triangle {}:", i);
-        println!("    World: v0=({:.1},{:.1},{:.1})", tri.v0.x, tri.v0.y, tri.v0.z);
+        println!(
+            "    World: v0=({:.1},{:.1},{:.1})",
+            tri.v0.x, tri.v0.y, tri.v0.z
+        );
 
         let v0_clip = vp * tri.v0.extend(1.0);
         let v1_clip = vp * tri.v1.extend(1.0);
         let v2_clip = vp * tri.v2.extend(1.0);
 
-        println!("    Clip: v0=({:.3},{:.3},{:.3},{:.3})", v0_clip.x, v0_clip.y, v0_clip.z, v0_clip.w);
+        println!(
+            "    Clip: v0=({:.3},{:.3},{:.3},{:.3})",
+            v0_clip.x, v0_clip.y, v0_clip.z, v0_clip.w
+        );
 
         // Check frustum
         let outside = culling::is_triangle_outside_frustum(v0_clip, v1_clip, v2_clip);
@@ -179,13 +225,27 @@ fn run_debug(args: &Args) -> Result<()> {
         let all_behind = v0_clip.w <= 0.0 && v1_clip.w <= 0.0 && v2_clip.w <= 0.0;
 
         if outside {
-            if all_left { println!("      -> All LEFT of frustum"); }
-            if all_right { println!("      -> All RIGHT of frustum"); }
-            if all_bottom { println!("      -> All BOTTOM of frustum"); }
-            if all_top { println!("      -> All TOP of frustum"); }
-            if all_near { println!("      -> All NEAR (in front of near plane)"); }
-            if all_far { println!("      -> All FAR (behind far plane)"); }
-            if all_behind { println!("      -> All BEHIND camera (w <= 0)"); }
+            if all_left {
+                println!("      -> All LEFT of frustum");
+            }
+            if all_right {
+                println!("      -> All RIGHT of frustum");
+            }
+            if all_bottom {
+                println!("      -> All BOTTOM of frustum");
+            }
+            if all_top {
+                println!("      -> All TOP of frustum");
+            }
+            if all_near {
+                println!("      -> All NEAR (in front of near plane)");
+            }
+            if all_far {
+                println!("      -> All FAR (behind far plane)");
+            }
+            if all_behind {
+                println!("      -> All BEHIND camera (w <= 0)");
+            }
         }
     }
 
@@ -199,8 +259,8 @@ fn run_debug(args: &Args) -> Result<()> {
         let v1_ndc = v1_clip.truncate() / v1_clip.w;
         let v2_ndc = v2_clip.truncate() / v2_clip.w;
 
-        let fw = 78.0f32;  // Typical framebuffer width
-        let fh = 22.0f32;  // Typical framebuffer height
+        let fw = 78.0f32; // Typical framebuffer width
+        let fh = 22.0f32; // Typical framebuffer height
 
         let v0_screen = glam::Vec3::new(
             (v0_ndc.x + 1.0) * 0.5 * fw,
@@ -219,10 +279,22 @@ fn run_debug(args: &Args) -> Result<()> {
         );
 
         println!();
-        println!("Screen coordinate test (assuming {}x{} framebuffer):", fw as i32, fh as i32);
-        println!("  v0_screen: ({:.2}, {:.2}, {:.4})", v0_screen.x, v0_screen.y, v0_screen.z);
-        println!("  v1_screen: ({:.2}, {:.2}, {:.4})", v1_screen.x, v1_screen.y, v1_screen.z);
-        println!("  v2_screen: ({:.2}, {:.2}, {:.4})", v2_screen.x, v2_screen.y, v2_screen.z);
+        println!(
+            "Screen coordinate test (assuming {}x{} framebuffer):",
+            fw as i32, fh as i32
+        );
+        println!(
+            "  v0_screen: ({:.2}, {:.2}, {:.4})",
+            v0_screen.x, v0_screen.y, v0_screen.z
+        );
+        println!(
+            "  v1_screen: ({:.2}, {:.2}, {:.4})",
+            v1_screen.x, v1_screen.y, v1_screen.z
+        );
+        println!(
+            "  v2_screen: ({:.2}, {:.2}, {:.4})",
+            v2_screen.x, v2_screen.y, v2_screen.z
+        );
 
         // Calculate 2D area
         let a = glam::Vec2::new(v1_screen.x - v0_screen.x, v1_screen.y - v0_screen.y);
@@ -236,10 +308,12 @@ fn run_debug(args: &Args) -> Result<()> {
         let edge2 = tri.v2 - tri.v0;
         let world_area = edge1.cross(edge2).length() * 0.5;
         println!("  World space area: {:.2} sq units", world_area);
-        println!("  Edge lengths: {:.2}, {:.2}, {:.2}",
+        println!(
+            "  Edge lengths: {:.2}, {:.2}, {:.2}",
             edge1.length(),
             edge2.length(),
-            (tri.v2 - tri.v1).length());
+            (tri.v2 - tri.v1).length()
+        );
     }
 
     // Count subpixel triangles
@@ -277,9 +351,16 @@ fn run_debug(args: &Args) -> Result<()> {
 
     println!();
     println!("Subpixel analysis:");
-    println!("  Subpixel triangles (area < 0.5): {} / {}", subpixel_count, scene.triangles.len());
+    println!(
+        "  Subpixel triangles (area < 0.5): {} / {}",
+        subpixel_count,
+        scene.triangles.len()
+    );
     println!("  Total screen area: {:.2} pixels", total_screen_area);
-    println!("  Average triangle area: {:.4} pixels", total_screen_area / scene.triangles.len() as f64);
+    println!(
+        "  Average triangle area: {:.4} pixels",
+        total_screen_area / scene.triangles.len() as f64
+    );
 
     // Count culling reasons
     let mut left = 0usize;
@@ -330,38 +411,36 @@ fn run_debug(args: &Args) -> Result<()> {
 }
 
 fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, args: Args) -> Result<()> {
-    let app = if args.test || args.file.is_none() {
-        // Test mode with cube
-        App::new()
-    } else {
-        // Load IFC file
-        let file_path = args.file.unwrap();
+    let app = match args.file {
+        _ if args.test => App::new(),
+        None => App::new(),
+        Some(file_path) => {
+            // Show loading message
+            terminal.draw(|frame| {
+                let area = frame.area();
+                let msg = format!("Loading {}...", file_path.display());
+                let paragraph = ratatui::widgets::Paragraph::new(msg)
+                    .alignment(ratatui::layout::Alignment::Center);
+                frame.render_widget(paragraph, area);
+            })?;
 
-        // Show loading message
-        terminal.draw(|frame| {
-            let area = frame.area();
-            let msg = format!("Loading {}...", file_path.display());
-            let paragraph = ratatui::widgets::Paragraph::new(msg)
-                .alignment(ratatui::layout::Alignment::Center);
-            frame.render_widget(paragraph, area);
-        })?;
+            let start = Instant::now();
 
-        let start = Instant::now();
+            // Read file
+            let content = std::fs::read_to_string(&file_path)
+                .with_context(|| format!("Failed to read file: {}", file_path.display()))?;
 
-        // Read file
-        let content = std::fs::read_to_string(&file_path)
-            .with_context(|| format!("Failed to read file: {}", file_path.display()))?;
+            // Parse IFC using ParsedModel directly (same as Bevy viewer)
+            let model =
+                Arc::new(ParsedModel::parse(&content, true, true).with_context(|| {
+                    format!("Failed to parse IFC file: {}", file_path.display())
+                })?);
 
-        // Parse IFC using ParsedModel directly (same as Bevy viewer)
-        let model = Arc::new(
-            ParsedModel::parse(&content, true, true)
-                .with_context(|| format!("Failed to parse IFC file: {}", file_path.display()))?,
-        );
+            let elapsed = start.elapsed();
+            eprintln!("Parsed in {:.2}s", elapsed.as_secs_f32());
 
-        let elapsed = start.elapsed();
-        eprintln!("Parsed in {:.2}s", elapsed.as_secs_f32());
-
-        App::with_content(&content, model)
+            App::with_content(&content, model)
+        }
     };
 
     // Run main loop

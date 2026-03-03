@@ -613,10 +613,16 @@ pub fn compute_file_hash(content: &str) -> String {
     let middle: String = content.chars().skip(mid_start).take(100).collect();
 
     // Create a hash string
-    format!("{:x}_{:x}_{:x}",
-        first.bytes().fold(0u64, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u64)),
-        middle.bytes().fold(0u64, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u64)),
-        last.bytes().fold(0u64, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u64))
+    format!(
+        "{:x}_{:x}_{:x}",
+        first
+            .bytes()
+            .fold(0u64, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u64)),
+        middle
+            .bytes()
+            .fold(0u64, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u64)),
+        last.bytes()
+            .fold(0u64, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u64))
     )
 }
 
@@ -662,11 +668,7 @@ pub fn load_cached_model(file_hash: &str) -> Option<CachedModel> {
 }
 
 /// Save model to cache
-pub fn save_model_to_cache(
-    file_hash: &str,
-    file_name: &str,
-    model: &CachedModel,
-) {
+pub fn save_model_to_cache(file_hash: &str, file_name: &str, model: &CachedModel) {
     let storage = match get_storage() {
         Some(s) => s,
         None => return,
@@ -684,7 +686,10 @@ pub fn save_model_to_cache(
     // Check size - localStorage has ~5MB limit per key, be conservative
     let size_mb = json.len() as f64 / (1024.0 * 1024.0);
     if size_mb > 4.0 {
-        log_warn(&format!("[Cache] Model too large to cache: {:.2}MB", size_mb));
+        log_warn(&format!(
+            "[Cache] Model too large to cache: {:.2}MB",
+            size_mb
+        ));
         return;
     }
 
@@ -717,9 +722,16 @@ pub fn save_model_to_cache(
     // Enforce max cache size
     while index.entries.len() > MAX_CACHE_ENTRIES {
         // Remove oldest entry
-        if let Some(oldest) = index.entries.iter().min_by(|a, b| {
-            a.timestamp.partial_cmp(&b.timestamp).unwrap_or(std::cmp::Ordering::Equal)
-        }).cloned() {
+        if let Some(oldest) = index
+            .entries
+            .iter()
+            .min_by(|a, b| {
+                a.timestamp
+                    .partial_cmp(&b.timestamp)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .cloned()
+        {
             let old_key = format!("{}{}", CACHE_PREFIX, oldest.file_hash);
             let _ = storage.remove_item(&old_key);
             index.entries.retain(|e| e.file_hash != oldest.file_hash);
@@ -727,16 +739,26 @@ pub fn save_model_to_cache(
     }
 
     save_cache_index(&index);
-    log_info(&format!("[Cache] Model cached: {} ({:.2}MB)", file_name, size_mb));
+    log_info(&format!(
+        "[Cache] Model cached: {} ({:.2}MB)",
+        file_name, size_mb
+    ));
 }
 
 /// Clear oldest cache entry to make room
 fn clear_oldest_cache_entry() {
     if let Some(storage) = get_storage() {
         if let Some(mut index) = get_cache_index() {
-            if let Some(oldest) = index.entries.iter().min_by(|a, b| {
-                a.timestamp.partial_cmp(&b.timestamp).unwrap_or(std::cmp::Ordering::Equal)
-            }).cloned() {
+            if let Some(oldest) = index
+                .entries
+                .iter()
+                .min_by(|a, b| {
+                    a.timestamp
+                        .partial_cmp(&b.timestamp)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .cloned()
+            {
                 let key = format!("{}{}", CACHE_PREFIX, oldest.file_hash);
                 let _ = storage.remove_item(&key);
                 index.entries.retain(|e| e.file_hash != oldest.file_hash);

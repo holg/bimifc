@@ -90,8 +90,8 @@ impl Widget for PropertiesPanel<'_> {
 
         let Some(props) = self.properties else {
             // No selection
-            let text = Paragraph::new("No entity selected")
-                .style(Style::default().fg(Color::DarkGray));
+            let text =
+                Paragraph::new("No entity selected").style(Style::default().fg(Color::DarkGray));
             text.render(inner, buf);
             return;
         };

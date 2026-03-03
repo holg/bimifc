@@ -101,6 +101,7 @@ pub fn get_timestamp() -> Option<String> {
 }
 
 /// Binary format magic number (must match bridge.rs)
+#[allow(dead_code)]
 const BINARY_MAGIC: u32 = 0x49464342; // "IFCB"
 
 /// Read f32 values from unaligned byte slice
@@ -259,7 +260,13 @@ fn deserialize_geometry_binary(data: &[u8]) -> Option<Vec<crate::IfcMesh>> {
 pub fn load_geometry() -> Option<Vec<crate::IfcMesh>> {
     let uint8_array = js_get_ifc_geometry_binary()?;
     let data = uint8_array.to_vec();
-    web_sys::console::log_1(&format!("[Bevy] Loading geometry from JS bridge: {} bytes", data.len()).into());
+    web_sys::console::log_1(
+        &format!(
+            "[Bevy] Loading geometry from JS bridge: {} bytes",
+            data.len()
+        )
+        .into(),
+    );
     let meshes = deserialize_geometry_binary(&data)?;
     web_sys::console::log_1(&format!("[Bevy] Deserialized {} meshes", meshes.len()).into());
     // Clear the JS bridge to free memory

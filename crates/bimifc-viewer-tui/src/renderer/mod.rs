@@ -27,8 +27,10 @@ pub fn render(
     camera: &OrbitCamera,
     selected_entity: Option<u64>,
 ) -> RenderStats {
-    let mut stats = RenderStats::default();
-    stats.total_triangles = scene.triangles.len();
+    let mut stats = RenderStats {
+        total_triangles: scene.triangles.len(),
+        ..Default::default()
+    };
 
     // Clear framebuffer
     framebuffer.clear();
@@ -47,9 +49,19 @@ pub fn render(
     // Write camera debug info
     if let Some(ref mut f) = debug_file {
         use std::io::Write;
-        writeln!(f, "Camera pos: ({:.1}, {:.1}, {:.1})", camera_pos.x, camera_pos.y, camera_pos.z).ok();
+        writeln!(
+            f,
+            "Camera pos: ({:.1}, {:.1}, {:.1})",
+            camera_pos.x, camera_pos.y, camera_pos.z
+        )
+        .ok();
         writeln!(f, "VP matrix:\n{:?}", vp).ok();
-        writeln!(f, "Framebuffer: {}x{}", framebuffer.width, framebuffer.height).ok();
+        writeln!(
+            f,
+            "Framebuffer: {}x{}",
+            framebuffer.width, framebuffer.height
+        )
+        .ok();
         writeln!(f, "Total triangles: {}", scene.triangles.len()).ok();
         if let Some(first_tri) = scene.triangles.first() {
             writeln!(f, "First tri world: v0=({:.1},{:.1},{:.1}), v1=({:.1},{:.1},{:.1}), v2=({:.1},{:.1},{:.1})",
@@ -59,29 +71,92 @@ pub fn render(
             let v0c = vp * first_tri.v0.extend(1.0);
             let v1c = vp * first_tri.v1.extend(1.0);
             let v2c = vp * first_tri.v2.extend(1.0);
-            writeln!(f, "First tri clip: v0=({:.3},{:.3},{:.3},{:.3})", v0c.x, v0c.y, v0c.z, v0c.w).ok();
-            writeln!(f, "First tri clip: v1=({:.3},{:.3},{:.3},{:.3})", v1c.x, v1c.y, v1c.z, v1c.w).ok();
-            writeln!(f, "First tri clip: v2=({:.3},{:.3},{:.3},{:.3})", v2c.x, v2c.y, v2c.z, v2c.w).ok();
+            writeln!(
+                f,
+                "First tri clip: v0=({:.3},{:.3},{:.3},{:.3})",
+                v0c.x, v0c.y, v0c.z, v0c.w
+            )
+            .ok();
+            writeln!(
+                f,
+                "First tri clip: v1=({:.3},{:.3},{:.3},{:.3})",
+                v1c.x, v1c.y, v1c.z, v1c.w
+            )
+            .ok();
+            writeln!(
+                f,
+                "First tri clip: v2=({:.3},{:.3},{:.3},{:.3})",
+                v2c.x, v2c.y, v2c.z, v2c.w
+            )
+            .ok();
 
             // Check why frustum culled
             let outside = culling::is_triangle_outside_frustum(v0c, v1c, v2c);
             writeln!(f, "First tri frustum culled: {}", outside).ok();
 
             // Check each plane
-            writeln!(f, "  Left (x < -w): v0={}, v1={}, v2={}", v0c.x < -v0c.w, v1c.x < -v1c.w, v2c.x < -v2c.w).ok();
-            writeln!(f, "  Right (x > w): v0={}, v1={}, v2={}", v0c.x > v0c.w, v1c.x > v1c.w, v2c.x > v2c.w).ok();
-            writeln!(f, "  Bottom (y < -w): v0={}, v1={}, v2={}", v0c.y < -v0c.w, v1c.y < -v1c.w, v2c.y < -v2c.w).ok();
-            writeln!(f, "  Top (y > w): v0={}, v1={}, v2={}", v0c.y > v0c.w, v1c.y > v1c.w, v2c.y > v2c.w).ok();
-            writeln!(f, "  Near (z < -w): v0={}, v1={}, v2={}", v0c.z < -v0c.w, v1c.z < -v1c.w, v2c.z < -v2c.w).ok();
-            writeln!(f, "  Far (z > w): v0={}, v1={}, v2={}", v0c.z > v0c.w, v1c.z > v1c.w, v2c.z > v2c.w).ok();
-            writeln!(f, "  Behind (w <= 0): v0={}, v1={}, v2={}", v0c.w <= 0.0, v1c.w <= 0.0, v2c.w <= 0.0).ok();
+            writeln!(
+                f,
+                "  Left (x < -w): v0={}, v1={}, v2={}",
+                v0c.x < -v0c.w,
+                v1c.x < -v1c.w,
+                v2c.x < -v2c.w
+            )
+            .ok();
+            writeln!(
+                f,
+                "  Right (x > w): v0={}, v1={}, v2={}",
+                v0c.x > v0c.w,
+                v1c.x > v1c.w,
+                v2c.x > v2c.w
+            )
+            .ok();
+            writeln!(
+                f,
+                "  Bottom (y < -w): v0={}, v1={}, v2={}",
+                v0c.y < -v0c.w,
+                v1c.y < -v1c.w,
+                v2c.y < -v2c.w
+            )
+            .ok();
+            writeln!(
+                f,
+                "  Top (y > w): v0={}, v1={}, v2={}",
+                v0c.y > v0c.w,
+                v1c.y > v1c.w,
+                v2c.y > v2c.w
+            )
+            .ok();
+            writeln!(
+                f,
+                "  Near (z < -w): v0={}, v1={}, v2={}",
+                v0c.z < -v0c.w,
+                v1c.z < -v1c.w,
+                v2c.z < -v2c.w
+            )
+            .ok();
+            writeln!(
+                f,
+                "  Far (z > w): v0={}, v1={}, v2={}",
+                v0c.z > v0c.w,
+                v1c.z > v1c.w,
+                v2c.z > v2c.w
+            )
+            .ok();
+            writeln!(
+                f,
+                "  Behind (w <= 0): v0={}, v1={}, v2={}",
+                v0c.w <= 0.0,
+                v1c.w <= 0.0,
+                v2c.w <= 0.0
+            )
+            .ok();
         }
         writeln!(f, "---").ok();
     }
 
     // Process each triangle
     for tri in &scene.triangles {
-
         // Backface culling - disabled for debugging
         // TODO: re-enable once rendering works
         // let view_dir = (camera_pos - tri.center()).normalize();
@@ -101,7 +176,12 @@ pub fn render(
             if debug_count < 5 {
                 if let Some(ref mut f) = debug_file {
                     use std::io::Write;
-                    writeln!(f, "Frustum culled tri: v0_clip=({},{},{},{})", v0_clip.x, v0_clip.y, v0_clip.z, v0_clip.w).ok();
+                    writeln!(
+                        f,
+                        "Frustum culled tri: v0_clip=({},{},{},{})",
+                        v0_clip.x, v0_clip.y, v0_clip.z, v0_clip.w
+                    )
+                    .ok();
                 }
             }
             debug_count += 1;
@@ -114,7 +194,12 @@ pub fn render(
             if debug_count < 5 {
                 if let Some(ref mut f) = debug_file {
                     use std::io::Write;
-                    writeln!(f, "Behind camera: v0_clip.w={}, v1={}, v2={}", v0_clip.w, v1_clip.w, v2_clip.w).ok();
+                    writeln!(
+                        f,
+                        "Behind camera: v0_clip.w={}, v1={}, v2={}",
+                        v0_clip.w, v1_clip.w, v2_clip.w
+                    )
+                    .ok();
                 }
             }
             debug_count += 1;
@@ -150,7 +235,11 @@ pub fn render(
 
         // Skip sub-pixel triangles (very low threshold for terminal rendering)
         // For terminal, we want to render triangles that cover any significant portion of a cell
-        let area = triangle_area_2d(v0_screen.truncate(), v1_screen.truncate(), v2_screen.truncate());
+        let area = triangle_area_2d(
+            v0_screen.truncate(),
+            v1_screen.truncate(),
+            v2_screen.truncate(),
+        );
         if area < 0.001 {
             stats.subpixel_culled += 1;
             continue;

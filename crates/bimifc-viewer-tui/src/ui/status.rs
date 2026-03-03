@@ -76,15 +76,9 @@ impl Widget for StatusBar {
             Style::default().fg(Color::Yellow),
         ));
         spans.push(Span::raw("level "));
-        spans.push(Span::styled(
-            "[+-]",
-            Style::default().fg(Color::Yellow),
-        ));
+        spans.push(Span::styled("[+-]", Style::default().fg(Color::Yellow)));
         spans.push(Span::raw("zoom "));
-        spans.push(Span::styled(
-            "[WASD]",
-            Style::default().fg(Color::Yellow),
-        ));
+        spans.push(Span::styled("[WASD]", Style::default().fg(Color::Yellow)));
         spans.push(Span::raw("pan "));
         spans.push(Span::styled("[Q]", Style::default().fg(Color::Red)));
         spans.push(Span::raw("quit"));

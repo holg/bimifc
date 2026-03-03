@@ -155,6 +155,7 @@ fn extract_measure_value(attr: &AttributeValue) -> Option<f64> {
 }
 
 /// Common unit scales for reference
+#[allow(dead_code)]
 pub mod scales {
     /// Meters to meters (identity)
     pub const METRE: f64 = 1.0;

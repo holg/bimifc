@@ -11,9 +11,9 @@
 pub mod camera;
 pub mod loader;
 pub mod mesh;
-pub mod picking;
 #[cfg(feature = "photometric")]
 pub mod photometric;
+pub mod picking;
 pub mod section;
 pub mod storage;
 
@@ -264,53 +264,55 @@ pub fn poll_scene_changes(
         scene_data.meshes = meshes;
         scene_data.dirty = true;
         auto_fit.has_fit = false;
-        return; // Skip JS bridge check
-    }
+    } else {
+        // SPLIT MODE: Fall back to JS bridge polling
+        #[cfg(target_arch = "wasm32")]
+        {
+            if let Some(new_timestamp) = storage::get_timestamp() {
+                if new_timestamp != last_timestamp.0 {
+                    log(&format!(
+                        "[Bevy] Timestamp changed: {} -> {}",
+                        last_timestamp.0, new_timestamp
+                    ));
 
-    // SPLIT MODE: Fall back to JS bridge polling
-    #[cfg(target_arch = "wasm32")]
-    {
-        if let Some(new_timestamp) = storage::get_timestamp() {
-            if new_timestamp != last_timestamp.0 {
-                log(&format!(
-                    "[Bevy] Timestamp changed: {} -> {}",
-                    last_timestamp.0, new_timestamp
-                ));
+                    // Load geometry from storage (binary deserialization)
+                    if let Some(geometry) = storage::load_geometry() {
+                        log(&format!(
+                            "[Bevy] Loaded {} meshes from JS bridge",
+                            geometry.len()
+                        ));
 
-                // Load geometry from storage (binary deserialization)
-                if let Some(geometry) = storage::load_geometry() {
-                    log(&format!("[Bevy] Loaded {} meshes from JS bridge", geometry.len()));
+                        // Build EntityInfo directly from meshes
+                        scene_data.entities = geometry
+                            .iter()
+                            .map(|m| EntityInfo {
+                                id: m.entity_id,
+                                entity_type: m.entity_type.clone(),
+                                name: m.name.clone(),
+                                storey: None,
+                                storey_elevation: None,
+                            })
+                            .collect();
 
-                    // Build EntityInfo directly from meshes
-                    scene_data.entities = geometry
-                        .iter()
-                        .map(|m| EntityInfo {
-                            id: m.entity_id,
-                            entity_type: m.entity_type.clone(),
-                            name: m.name.clone(),
-                            storey: None,
-                            storey_elevation: None,
-                        })
-                        .collect();
+                        scene_data.meshes = geometry;
+                        scene_data.dirty = true;
+                        auto_fit.has_fit = false;
+                    }
 
-                    scene_data.meshes = geometry;
-                    scene_data.dirty = true;
-                    auto_fit.has_fit = false;
+                    // Load selection state
+                    if let Some(selection) = storage::load_selection() {
+                        // Selection is handled by PickingPlugin
+                    }
+
+                    // Load visibility state
+                    if let Some(visibility) = storage::load_visibility() {
+                        settings.hidden_entities = visibility.hidden.into_iter().collect();
+                        settings.isolated_entities =
+                            visibility.isolated.map(|v| v.into_iter().collect());
+                    }
+
+                    last_timestamp.0 = new_timestamp;
                 }
-
-                // Load selection state
-                if let Some(selection) = storage::load_selection() {
-                    // Selection is handled by PickingPlugin
-                }
-
-                // Load visibility state
-                if let Some(visibility) = storage::load_visibility() {
-                    settings.hidden_entities = visibility.hidden.into_iter().collect();
-                    settings.isolated_entities =
-                        visibility.isolated.map(|v| v.into_iter().collect());
-                }
-
-                last_timestamp.0 = new_timestamp;
             }
         }
     }
@@ -319,7 +321,7 @@ pub fn poll_scene_changes(
 /// System to poll selection changes from localStorage (UI -> Bevy sync)
 /// This allows the UI (Leptos/Yew) to update Bevy's selection via localStorage
 #[allow(unused_variables)]
-pub fn poll_selection_from_storage(mut selection: ResMut<picking::SelectionState>) {
+pub fn poll_selection_from_storage(selection: ResMut<picking::SelectionState>) {
     #[cfg(target_arch = "wasm32")]
     {
         // Check if there's a pending selection from UI
@@ -333,8 +335,7 @@ pub fn poll_selection_from_storage(mut selection: ResMut<picking::SelectionState
             }
 
             // Convert to HashSet for comparison
-            let new_selection: FxHashSet<u64> =
-                stored_selection.selected_ids.into_iter().collect();
+            let new_selection: FxHashSet<u64> = stored_selection.selected_ids.into_iter().collect();
 
             // Only update if actually different
             if selection.selected != new_selection {
@@ -382,7 +383,10 @@ pub fn log_info(msg: &str) {
 pub fn run_on_canvas(canvas_selector: &str) {
     console_error_panic_hook::set_once();
     init_debug_from_url();
-    log_info(&format!("[Bevy] Starting unified viewer on canvas: {}", canvas_selector));
+    log_info(&format!(
+        "[Bevy] Starting unified viewer on canvas: {}",
+        canvas_selector
+    ));
 
     // Start with empty scene - user will load files via UI or drag-and-drop
     let scene_data = IfcSceneData::default();

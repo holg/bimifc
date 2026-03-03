@@ -1,4 +1,5 @@
 //! Main viewer layout - three-panel layout with state management
+#![allow(clippy::unused_unit)]
 
 use crate::bridge::{self, SelectionData, VisibilityData};
 use crate::components::{HierarchyPanel, PropertiesPanel, StatusBar, Toolbar, Viewport};
@@ -25,11 +26,9 @@ pub fn ViewerLayout() -> impl IntoView {
     let state = use_viewer_state();
 
     // Theme class for styling
-    let theme_class = Memo::new(move |_| {
-        match state.ui.theme.get() {
-            Theme::Dark => "viewer-layout theme-dark",
-            Theme::Light => "viewer-layout theme-light",
-        }
+    let theme_class = Memo::new(move |_| match state.ui.theme.get() {
+        Theme::Dark => "viewer-layout theme-dark",
+        Theme::Light => "viewer-layout theme-light",
     });
 
     view! {
@@ -176,7 +175,7 @@ fn UrlLoader() -> impl IntoView {
         }
     });
 
-    view! {}
+    ()
 }
 
 /// State bridge - syncs state between Leptos and Bevy
@@ -248,7 +247,7 @@ fn StateBridge() -> impl IntoView {
         std::mem::forget(poll_interval);
     });
 
-    view! {}
+    ()
 }
 
 /// Keyboard shortcuts dialog

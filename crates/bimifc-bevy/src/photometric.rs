@@ -144,7 +144,11 @@ impl Plugin for PhotometricLightingPlugin {
             .init_resource::<PhotometricState>()
             .add_systems(
                 Update,
-                (poll_pending_lights, toggle_lighting_mode, sync_light_visibility),
+                (
+                    poll_pending_lights,
+                    toggle_lighting_mode,
+                    sync_light_visibility,
+                ),
             );
     }
 }
@@ -202,7 +206,13 @@ fn poll_pending_lights(mut cache: ResMut<LdtCache>, mut state: ResMut<Photometri
     for (i, f) in state.fixtures.iter().enumerate() {
         crate::log(&format!(
             "[Photometric]   Light {}: pos=({:.1}, {:.1}, {:.1}) lumens={:.0} range={:.0} ids={}",
-            i, f.position.x, f.position.y, f.position.z, f.lumens, f.range, f.fixture_ids.len(),
+            i,
+            f.position.x,
+            f.position.y,
+            f.position.z,
+            f.lumens,
+            f.range,
+            f.fixture_ids.len(),
         ));
     }
 }
@@ -224,7 +234,15 @@ fn toggle_lighting_mode(
         crate::storage::clear_lighting_cmd();
     }
 
-    if !(key_pressed || ui_cmd) || state.fixtures.is_empty() {
+    if !(key_pressed || ui_cmd) {
+        return;
+    }
+
+    if state.fixtures.is_empty() {
+        crate::log_info(&format!(
+            "[Photometric] Toggle requested but no fixtures loaded (key={}, ui={})",
+            key_pressed, ui_cmd
+        ));
         return;
     }
 

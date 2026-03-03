@@ -21,7 +21,11 @@ impl RevolvedAreaSolidProcessor {
     }
 
     /// Extract 2D profile points
-    fn extract_profile(&self, profile: &DecodedEntity, resolver: &dyn EntityResolver) -> Result<Vec<Point2<f64>>> {
+    fn extract_profile(
+        &self,
+        profile: &DecodedEntity,
+        resolver: &dyn EntityResolver,
+    ) -> Result<Vec<Point2<f64>>> {
         match profile.ifc_type {
             IfcType::IfcRectangleProfileDef => {
                 let x_dim = profile.get_float(3).unwrap_or(1.0);
@@ -60,7 +64,11 @@ impl RevolvedAreaSolidProcessor {
         }
     }
 
-    fn extract_curve_2d_points(&self, curve: &DecodedEntity, resolver: &dyn EntityResolver) -> Result<Vec<Point2<f64>>> {
+    fn extract_curve_2d_points(
+        &self,
+        curve: &DecodedEntity,
+        resolver: &dyn EntityResolver,
+    ) -> Result<Vec<Point2<f64>>> {
         if curve.ifc_type == IfcType::IfcPolyline {
             let points_list = curve
                 .get(0)
@@ -85,14 +93,22 @@ impl RevolvedAreaSolidProcessor {
         }
     }
 
-    fn parse_axis_location(&self, axis: &DecodedEntity, resolver: &dyn EntityResolver) -> Result<Point3<f64>> {
-        let loc_id = axis.get_ref(0)
+    fn parse_axis_location(
+        &self,
+        axis: &DecodedEntity,
+        resolver: &dyn EntityResolver,
+    ) -> Result<Point3<f64>> {
+        let loc_id = axis
+            .get_ref(0)
             .ok_or_else(|| Error::invalid_attribute(0, "Missing Location"))?;
 
-        let loc = resolver.get(loc_id)
+        let loc = resolver
+            .get(loc_id)
             .ok_or_else(|| Error::entity_not_found(loc_id.0))?;
 
-        let coords = loc.get(0).and_then(|v| v.as_list())
+        let coords = loc
+            .get(0)
+            .and_then(|v| v.as_list())
             .ok_or_else(|| Error::invalid_attribute(0, "Missing coordinates"))?;
 
         Ok(Point3::new(
@@ -102,7 +118,11 @@ impl RevolvedAreaSolidProcessor {
         ))
     }
 
-    fn parse_axis_direction(&self, axis: &DecodedEntity, resolver: &dyn EntityResolver) -> Vector3<f64> {
+    fn parse_axis_direction(
+        &self,
+        axis: &DecodedEntity,
+        resolver: &dyn EntityResolver,
+    ) -> Vector3<f64> {
         if let Some(dir_id) = axis.get_ref(1) {
             if let Some(dir) = resolver.get(dir_id) {
                 if let Some(coords) = dir.get(0).and_then(|v| v.as_list()) {
@@ -110,7 +130,8 @@ impl RevolvedAreaSolidProcessor {
                         coords.first().and_then(|v| v.as_float()).unwrap_or(0.0),
                         coords.get(1).and_then(|v| v.as_float()).unwrap_or(1.0),
                         coords.get(2).and_then(|v| v.as_float()).unwrap_or(0.0),
-                    ).normalize();
+                    )
+                    .normalize();
                 }
             }
         }
@@ -207,7 +228,8 @@ impl GeometryProcessor for RevolvedAreaSolidProcessor {
                 let k_cross_v = k_matrix(v);
                 let k_dot_v = ax * v.x + ay * v.y + az * v.z;
 
-                let v_rot = v * cos_t + k_cross_v * sin_t + axis_direction * k_dot_v * (1.0 - cos_t);
+                let v_rot =
+                    v * cos_t + k_cross_v * sin_t + axis_direction * k_dot_v * (1.0 - cos_t);
 
                 let pos = axis_location + axis_direction * height + v_rot;
 

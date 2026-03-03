@@ -81,10 +81,8 @@ pub fn resolve_axis_placement(
     let x = y.cross(&z).normalize();
 
     Some(Matrix4::new(
-        x.x, y.x, z.x, location.x,
-        x.y, y.y, z.y, location.y,
-        x.z, y.z, z.z, location.z,
-        0.0, 0.0, 0.0, 1.0,
+        x.x, y.x, z.x, location.x, x.y, y.y, z.y, location.y, x.z, y.z, z.z, location.z, 0.0, 0.0,
+        0.0, 1.0,
     ))
 }
 

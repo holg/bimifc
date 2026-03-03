@@ -53,13 +53,11 @@ pub fn compose_nodes(nodes: &[IfcxNode]) -> FxHashMap<String, ComposedNode> {
     // Build inheritance graph first to detect cycles
     let mut inherits_from: FxHashMap<String, Vec<String>> = FxHashMap::default();
     for node in nodes {
-        for (_, parent_path) in &node.inherits {
-            if let Some(parent) = parent_path {
-                inherits_from
-                    .entry(node.path.clone())
-                    .or_default()
-                    .push(parent.clone());
-            }
+        for parent in node.inherits.values().flatten() {
+            inherits_from
+                .entry(node.path.clone())
+                .or_default()
+                .push(parent.clone());
         }
     }
 

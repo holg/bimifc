@@ -6,7 +6,7 @@
 
 use crate::camera::OrbitCamera;
 use crate::input::{map_hierarchy_key, map_key_to_action, Action};
-use crate::renderer::{render_floorplan, Framebuffer, FloorPlanStats, FloorPlanView};
+use crate::renderer::{render_floorplan, FloorPlanStats, FloorPlanView, Framebuffer};
 use crate::scene::Scene;
 use crate::ui::{
     calculate_layout,
@@ -18,8 +18,8 @@ use crate::ui::{
 };
 
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyEvent};
 use bimifc_model::IfcModel;
+use crossterm::event::{self, Event, KeyEvent};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io::Stdout;
 use std::sync::Arc;
@@ -158,8 +158,12 @@ impl App {
         let msg = format!(
             "{} tri, bounds: ({:.1},{:.1},{:.1})-({:.1},{:.1},{:.1}), dist={:.1}",
             tri_count,
-            scene.bounds_min.x, scene.bounds_min.y, scene.bounds_min.z,
-            scene.bounds_max.x, scene.bounds_max.y, scene.bounds_max.z,
+            scene.bounds_min.x,
+            scene.bounds_min.y,
+            scene.bounds_min.z,
+            scene.bounds_max.x,
+            scene.bounds_max.y,
+            scene.bounds_max.z,
             camera.distance
         );
 
@@ -167,10 +171,32 @@ impl App {
         if let Ok(mut f) = std::fs::File::create("/tmp/ifc-tui-debug.log") {
             use std::io::Write;
             writeln!(f, "Scene: {} triangles", tri_count).ok();
-            writeln!(f, "Bounds min: ({}, {}, {})", scene.bounds_min.x, scene.bounds_min.y, scene.bounds_min.z).ok();
-            writeln!(f, "Bounds max: ({}, {}, {})", scene.bounds_max.x, scene.bounds_max.y, scene.bounds_max.z).ok();
-            writeln!(f, "Camera distance: {}, target: ({}, {}, {})", camera.distance, camera.target.x, camera.target.y, camera.target.z).ok();
-            writeln!(f, "Camera pos: ({}, {}, {})", camera.position().x, camera.position().y, camera.position().z).ok();
+            writeln!(
+                f,
+                "Bounds min: ({}, {}, {})",
+                scene.bounds_min.x, scene.bounds_min.y, scene.bounds_min.z
+            )
+            .ok();
+            writeln!(
+                f,
+                "Bounds max: ({}, {}, {})",
+                scene.bounds_max.x, scene.bounds_max.y, scene.bounds_max.z
+            )
+            .ok();
+            writeln!(
+                f,
+                "Camera distance: {}, target: ({}, {}, {})",
+                camera.distance, camera.target.x, camera.target.y, camera.target.z
+            )
+            .ok();
+            writeln!(
+                f,
+                "Camera pos: ({}, {}, {})",
+                camera.position().x,
+                camera.position().y,
+                camera.position().z
+            )
+            .ok();
             writeln!(f, "Camera near: {}, far: {}", camera.near, camera.far).ok();
         }
 
@@ -231,12 +257,15 @@ impl App {
                 if viewport_inner_width > 0 && viewport_inner_height > 0 {
                     self.framebuffer
                         .resize(viewport_inner_width, viewport_inner_height);
-                    self.camera
-                        .set_terminal_aspect(viewport_inner_width as u16, viewport_inner_height as u16);
+                    self.camera.set_terminal_aspect(
+                        viewport_inner_width as u16,
+                        viewport_inner_height as u16,
+                    );
 
                     // Render scene
                     let _selected_id = self.hierarchy.selected_id().map(|id| id.0 as u64);
-                    self.stats = render_floorplan(&mut self.framebuffer, &self.scene, &self.floorplan_view);
+                    self.stats =
+                        render_floorplan(&mut self.framebuffer, &self.scene, &self.floorplan_view);
                 }
 
                 // Render hierarchy panel

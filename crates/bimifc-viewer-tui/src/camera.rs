@@ -31,7 +31,7 @@ impl Default for OrbitCamera {
         Self {
             target: Vec3::ZERO,
             distance: 100.0,
-            azimuth: std::f32::consts::FRAC_PI_4,  // 45 degrees
+            azimuth: std::f32::consts::FRAC_PI_4,   // 45 degrees
             elevation: std::f32::consts::FRAC_PI_6, // 30 degrees
             fov: 60.0,
             aspect: 1.0,

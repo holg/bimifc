@@ -13,13 +13,13 @@ name = "bimifc-tui"
 path = "src/main.rs"
 
 [dependencies]
-bimifc-model = { path = "../bimifc-model" }
-bimifc-parser = { path = "../bimifc-parser" }
-bimifc-geometry = { path = "../bimifc-geometry" }
+bimifc-geometry = { version = "0.1.0", path = "../bimifc-geometry" }
+bimifc-model = { version = "0.1.0", path = "../bimifc-model" }
+bimifc-parser = { version = "0.1.0", path = "../bimifc-parser" }
 
 # TUI
-ratatui = "0.29"
 crossterm = "0.28"
+ratatui = "0.29"
 
 # Math
 glam = "0.29"

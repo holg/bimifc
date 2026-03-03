@@ -99,7 +99,7 @@ impl<'a> EntityDecoder<'a> {
     /// Get raw bytes for an entity (for fast parsing)
     pub fn raw_bytes(&self, id: EntityId) -> Option<&'a [u8]> {
         let (start, end) = self.index.get(&id.0)?;
-        Some(self.content[*start..*end].as_bytes())
+        Some(&self.content.as_bytes()[*start..*end])
     }
 
     /// Get raw string for an entity

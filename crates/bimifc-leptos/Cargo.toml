@@ -20,16 +20,16 @@ unified = ["bimifc-bevy"]
 photometric = ["bimifc-bevy/photometric"]
 
 [dependencies]
+bimifc-geometry = { version = "0.1.0", path = "../bimifc-geometry" }
 # Core IFC parsing (our own parser)
-bimifc-model = { path = "../bimifc-model" }
-bimifc-parser = { path = "../bimifc-parser" }
-bimifc-geometry = { path = "../bimifc-geometry" }
+bimifc-model = { version = "0.1.0", path = "../bimifc-model" }
+bimifc-parser = { version = "0.1.0", path = "../bimifc-parser" }
 
 # Photometric data parsing and SVG diagram generation
-eulumdat = { path = "../../../eulumdat-rs/crates/eulumdat", default-features = false }
+eulumdat = { version = "0.5", default-features = false }
 
 # Bevy types for unified mode (optional)
-bimifc-bevy = { path = "../bimifc-bevy", optional = true, default-features = false }
+bimifc-bevy = { version = "0.1.0", path = "../bimifc-bevy", optional = true, default-features = false }
 
 # Leptos framework
 leptos = { version = "0.7", features = ["csr"] }

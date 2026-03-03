@@ -26,6 +26,7 @@ pub struct TreeItem {
 }
 
 /// Hierarchy tree state
+#[derive(Default)]
 pub struct HierarchyState {
     /// Flattened visible items
     pub items: Vec<TreeItem>,
@@ -37,18 +38,6 @@ pub struct HierarchyState {
     pub filter: String,
     /// List state for ratatui
     pub list_state: ListState,
-}
-
-impl Default for HierarchyState {
-    fn default() -> Self {
-        Self {
-            items: Vec::new(),
-            selected: 0,
-            expanded: HashSet::new(),
-            filter: String::new(),
-            list_state: ListState::default(),
-        }
-    }
 }
 
 impl HierarchyState {

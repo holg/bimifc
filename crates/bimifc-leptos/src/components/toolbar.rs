@@ -2,12 +2,12 @@
 
 use crate::bridge::{self, CameraCommand, EntityData, GeometryData};
 use crate::state::{use_viewer_state, EntityInfo, Progress, SpatialNode, SpatialNodeType, Tool};
-use bimifc_model::{AttributeValue, DecodedEntity, EntityId, EntityResolver, IfcModel, IfcType};
-use bimifc_parser::{EntityDecoder, ParsedModel};
 use bimifc_geometry::GeometryRouter;
-use std::sync::Arc;
+use bimifc_model::{AttributeValue, DecodedEntity, EntityId, IfcModel, IfcType};
+use bimifc_parser::{EntityDecoder, ParsedModel};
 use leptos::prelude::*;
 use std::collections::HashMap;
+use std::sync::Arc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 
@@ -315,7 +315,10 @@ fn extract_properties_and_quantities(
     element_to_type: &std::collections::HashMap<u32, u32>,
     decoder: &mut EntityDecoder,
     unit_scale: f64,
-) -> (Vec<crate::state::PropertySet>, Vec<crate::state::QuantityValue>) {
+) -> (
+    Vec<crate::state::PropertySet>,
+    Vec<crate::state::QuantityValue>,
+) {
     use crate::state::{PropertySet, PropertyValue, QuantityValue};
 
     let mut property_sets = Vec::new();
@@ -420,11 +423,15 @@ fn extract_properties_and_quantities(
                                     (val, "m".to_string(), "Length".to_string())
                                 }
                                 IfcType::IfcQuantityArea => {
-                                    let val = qty.get_float(3).unwrap_or(0.0) * unit_scale * unit_scale;
+                                    let val =
+                                        qty.get_float(3).unwrap_or(0.0) * unit_scale * unit_scale;
                                     (val, "m²".to_string(), "Area".to_string())
                                 }
                                 IfcType::IfcQuantityVolume => {
-                                    let val = qty.get_float(3).unwrap_or(0.0) * unit_scale * unit_scale * unit_scale;
+                                    let val = qty.get_float(3).unwrap_or(0.0)
+                                        * unit_scale
+                                        * unit_scale
+                                        * unit_scale;
                                     (val, "m³".to_string(), "Volume".to_string())
                                 }
                                 IfcType::IfcQuantityCount => {
@@ -469,11 +476,21 @@ fn format_property_value(val: &AttributeValue) -> String {
             // Show cleaner numbers: remove trailing zeros
             let s = format!("{:.4}", f);
             let s = s.trim_end_matches('0').trim_end_matches('.').to_string();
-            if s.is_empty() { "0".to_string() } else { s }
+            if s.is_empty() {
+                "0".to_string()
+            } else {
+                s
+            }
         }
         AttributeValue::Integer(i) => i.to_string(),
         AttributeValue::Enum(e) => e.clone(),
-        AttributeValue::Bool(b) => if *b { "Yes".to_string() } else { "No".to_string() },
+        AttributeValue::Bool(b) => {
+            if *b {
+                "Yes".to_string()
+            } else {
+                "No".to_string()
+            }
+        }
         AttributeValue::TypedValue(type_name, args) => {
             // Extract inner value and add unit suffix from the IFC type name
             let inner = if args.len() == 1 {
@@ -500,8 +517,8 @@ fn format_property_value(val: &AttributeValue) -> String {
                     }
                     "\u{00b0}"
                 }
-                "IFCREAL" | "IFCINTEGER" | "IFCBOOLEAN" | "IFCLABEL"
-                | "IFCIDENTIFIER" | "IFCTEXT" => "",
+                "IFCREAL" | "IFCINTEGER" | "IFCBOOLEAN" | "IFCLABEL" | "IFCIDENTIFIER"
+                | "IFCTEXT" => "",
                 _ => "",
             };
             format!("{}{}", inner, unit)
@@ -599,7 +616,9 @@ pub fn parse_and_process_ifc(
     let file_hash = bridge::compute_file_hash(content);
     if let Some(cached) = bridge::load_cached_model(&file_hash) {
         if cached.geometry.is_empty() {
-            bridge::log_info("[BIMIFC] Cache hit but 0 meshes — treating as stale, re-processing...");
+            bridge::log_info(
+                "[BIMIFC] Cache hit but 0 meshes — treating as stale, re-processing...",
+            );
         } else {
             bridge::log_info(&format!(
                 "[BIMIFC] Cache hit! Loading {} entities, {} meshes from cache",
@@ -632,7 +651,7 @@ pub fn parse_and_process_ifc(
     let mut aggregates: HashMap<u32, Vec<u32>> = HashMap::new();
     let mut contained_in: HashMap<u32, Vec<u32>> = HashMap::new();
     let mut element_to_storey: HashMap<u32, u32> = HashMap::new();
-    let mut project_id: Option<u32> = None;
+    let mut _project_id: Option<u32> = None;
 
     // Property relationships: element -> property definition IDs
     let mut element_properties: HashMap<u32, Vec<u32>> = HashMap::new();
@@ -666,7 +685,7 @@ pub fn parse_and_process_ifc(
 
         match type_upper.as_str() {
             "IFCPROJECT" => {
-                project_id = Some(id);
+                _project_id = Some(id);
                 if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
                     let name = entity
                         .get_string(2)
@@ -833,18 +852,30 @@ pub fn parse_and_process_ifc(
                                     // IfcSurfaceStyle has Styles at index 2 (a set)
                                     if let Some(renderings) = get_ref_list(&style, 2) {
                                         for rendering_id in renderings {
-                                            if let Ok(rendering) = decoder.decode_by_id(EntityId(rendering_id)) {
+                                            if let Ok(rendering) =
+                                                decoder.decode_by_id(EntityId(rendering_id))
+                                            {
                                                 // IfcSurfaceStyleRendering: SurfaceColour at index 0
-                                                if let Some(colour_id) = rendering.get_ref(0).map(|id| id.0) {
-                                                    if let Ok(colour) = decoder.decode_by_id(EntityId(colour_id)) {
+                                                if let Some(colour_id) =
+                                                    rendering.get_ref(0).map(|id| id.0)
+                                                {
+                                                    if let Ok(colour) =
+                                                        decoder.decode_by_id(EntityId(colour_id))
+                                                    {
                                                         // IfcColourRgb: (Name, Red, Green, Blue)
-                                                        let r = colour.get_float(1).unwrap_or(0.7) as f32;
-                                                        let g = colour.get_float(2).unwrap_or(0.7) as f32;
-                                                        let b = colour.get_float(3).unwrap_or(0.7) as f32;
+                                                        let r = colour.get_float(1).unwrap_or(0.7)
+                                                            as f32;
+                                                        let g = colour.get_float(2).unwrap_or(0.7)
+                                                            as f32;
+                                                        let b = colour.get_float(3).unwrap_or(0.7)
+                                                            as f32;
                                                         // Transparency at index 1 in rendering
-                                                        let transparency = rendering.get_float(1).unwrap_or(0.0) as f32;
+                                                        let transparency =
+                                                            rendering.get_float(1).unwrap_or(0.0)
+                                                                as f32;
                                                         let alpha = 1.0 - transparency;
-                                                        styled_item_colors.insert(item_id, [r, g, b, alpha]);
+                                                        styled_item_colors
+                                                            .insert(item_id, [r, g, b, alpha]);
                                                     }
                                                 }
                                             }
@@ -860,9 +891,15 @@ pub fn parse_and_process_ifc(
         }
     }
 
-    bridge::log_info(&format!("[IFC Colors] styled_item_colors has {} entries", styled_item_colors.len()));
+    bridge::log_info(&format!(
+        "[IFC Colors] styled_item_colors has {} entries",
+        styled_item_colors.len()
+    ));
     for (item_id, color) in &styled_item_colors {
-        bridge::log_info(&format!("[IFC Colors]   item #{}: [{:.2}, {:.2}, {:.2}, {:.2}]", item_id, color[0], color[1], color[2], color[3]));
+        bridge::log_info(&format!(
+            "[IFC Colors]   item #{}: [{:.2}, {:.2}, {:.2}, {:.2}]",
+            item_id, color[0], color[1], color[2], color[3]
+        ));
     }
 
     // Extract unit scale from the model (will be set properly after ParsedModel is created)
@@ -918,7 +955,10 @@ pub fn parse_and_process_ifc(
     while let Some((id, type_name, _start, _end)) = scanner.next_entity() {
         let type_upper = type_name.to_uppercase();
         // Include assembly/fixture entities in entity_data for properties display
-        if matches!(type_upper.as_str(), "IFCELEMENTASSEMBLY" | "IFCLIGHTFIXTURE") {
+        if matches!(
+            type_upper.as_str(),
+            "IFCELEMENTASSEMBLY" | "IFCLIGHTFIXTURE"
+        ) {
             if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
                 let global_id = entity.get_string(0).map(|s| s.to_string());
                 let name = entity.get_string(2).map(|s| s.to_string());
@@ -997,10 +1037,18 @@ pub fn parse_and_process_ifc(
                                 }
 
                                 // Use IFC surface style color if available, else palette
-                                let ifc_color = get_styled_color(&entity, &styled_item_colors, &mut decoder);
+                                let ifc_color =
+                                    get_styled_color(&entity, &styled_item_colors, &mut decoder);
                                 let has_ifc_color = ifc_color.is_some();
                                 if type_name.eq_ignore_ascii_case("IfcSlab") || has_ifc_color {
-                                    bridge::log_info(&format!("[Color] #{} {} '{}': ifc_color={:?} has_ifc={}", id, type_name, name.as_deref().unwrap_or("?"), ifc_color, has_ifc_color));
+                                    bridge::log_info(&format!(
+                                        "[Color] #{} {} '{}': ifc_color={:?} has_ifc={}",
+                                        id,
+                                        type_name,
+                                        name.as_deref().unwrap_or("?"),
+                                        ifc_color,
+                                        has_ifc_color
+                                    ));
                                 }
                                 let color = ifc_color
                                     .unwrap_or_else(|| get_element_color(type_name, color_palette));
@@ -1060,8 +1108,7 @@ pub fn parse_and_process_ifc(
 
     // Track entities with geometry
     let geometry_count = geometry_data.len();
-    let entities_with_geometry: HashSet<u64> =
-        geometry_data.iter().map(|g| g.entity_id).collect();
+    let entities_with_geometry: HashSet<u64> = geometry_data.iter().map(|g| g.entity_id).collect();
 
     // Send geometry to Bevy (clone for cache)
     bridge::save_geometry(geometry_data.clone());
@@ -1073,8 +1120,7 @@ pub fn parse_and_process_ifc(
     decoder.clear_cache();
 
     // Build entity lookup for tree building
-    let entity_lookup: HashMap<u64, &EntityData> =
-        entity_data.iter().map(|e| (e.id, e)).collect();
+    let entity_lookup: HashMap<u64, &EntityData> = entity_data.iter().map(|e| (e.id, e)).collect();
 
     // Build spatial tree
     let get_node_type = |entity_type: &str| -> SpatialNodeType {
@@ -1122,8 +1168,13 @@ pub fn parse_and_process_ifc(
             for &elem_id in element_ids {
                 // Try building as a full node first (supports nested aggregation)
                 if let Some(child_node) = build_node(
-                    elem_id, spatial_entities, aggregates, contained_in,
-                    entity_lookup, entities_with_geometry, get_node_type,
+                    elem_id,
+                    spatial_entities,
+                    aggregates,
+                    contained_in,
+                    entity_lookup,
+                    entities_with_geometry,
+                    get_node_type,
                 ) {
                     children.push(child_node);
                 } else if let Some(elem) = entity_lookup.get(&(elem_id as u64)) {
@@ -1204,15 +1255,19 @@ pub fn parse_and_process_ifc(
                 unit_scale as f64,
             );
             // Extract embedded EULUMDAT data from Pset_Photometry if present
-            let photometry_ldt = property_sets.iter()
+            let photometry_ldt = property_sets
+                .iter()
                 .find(|ps| ps.name == "Pset_Photometry")
-                .and_then(|ps| ps.properties.iter()
-                    .find(|p| p.name == "EulumdatData")
-                    .map(|p| p.value.clone())
-                );
+                .and_then(|ps| {
+                    ps.properties
+                        .iter()
+                        .find(|p| p.name == "EulumdatData")
+                        .map(|p| p.value.clone())
+                });
 
             // Remove Pset_Photometry from display (raw LDT content is not user-readable)
-            let property_sets: Vec<_> = property_sets.into_iter()
+            let property_sets: Vec<_> = property_sets
+                .into_iter()
                 .filter(|ps| ps.name != "Pset_Photometry")
                 .collect();
 
@@ -1248,8 +1303,7 @@ pub fn parse_and_process_ifc(
         let mut resolve_pos = |eid: u64| -> Option<[f32; 3]> {
             let entity = decoder.decode_by_id(EntityId(eid as u32)).ok()?;
             let placement_id = entity.get_ref(5)?;
-            let transform =
-                bimifc_geometry::transform::resolve_placement(placement_id, resolver)?;
+            let transform = bimifc_geometry::transform::resolve_placement(placement_id, resolver)?;
             let s = unit_scale as f64;
             Some([
                 (transform[(0, 3)] * s) as f32,
@@ -1279,9 +1333,7 @@ pub fn parse_and_process_ifc(
             let parts: Vec<&str> = panel_name.split('-').collect();
             // FLA-R1-NORTH-P01 → ["FLA", "R1", "NORTH", "P01"]
             // FLA-R1-NE-P01    → ["FLA", "R1", "NE", "P01"]
-            if parts.len() >= 4 {
-                parts[2].to_uppercase()
-            } else if parts.len() >= 3 {
+            if parts.len() >= 3 {
                 parts[2].to_uppercase()
             } else {
                 "UNKNOWN".to_string()
@@ -1317,8 +1369,6 @@ pub fn parse_and_process_ifc(
         for (sector, fixture_ids) in &sector_groups {
             let mut positions: Vec<[f32; 3]> = Vec::new();
             let mut ldt_content = None;
-            let mut beam_type = String::new();
-
             for &fid in fixture_ids {
                 if let Some(pos) = resolve_pos(fid) {
                     positions.push(pos);
@@ -1329,7 +1379,6 @@ pub fn parse_and_process_ifc(
                             ldt_content = Some(
                                 crate::components::properties_panel::decode_ifc_string(ldt_raw),
                             );
-                            beam_type = info.name.clone().unwrap_or_default();
                         }
                     }
                 }
@@ -1345,7 +1394,11 @@ pub fn parse_and_process_ifc(
                     ];
                     bridge::log_info(&format!(
                         "[BIMIFC] Sector {}: {} fixtures, centroid ({:.1}, {:.1}, {:.1})",
-                        sector, fixture_ids.len(), centroid[0], centroid[1], centroid[2],
+                        sector,
+                        fixture_ids.len(),
+                        centroid[0],
+                        centroid[1],
+                        centroid[2],
                     ));
                     pending_lights.push(bimifc_bevy::photometric::PendingLight {
                         entity_id: 0, // sector group, no single entity
@@ -1367,8 +1420,9 @@ pub fn parse_and_process_ifc(
                         pending_lights.push(bimifc_bevy::photometric::PendingLight {
                             entity_id: fid,
                             position: pos,
-                            ldt_content:
-                                crate::components::properties_panel::decode_ifc_string(ldt_raw),
+                            ldt_content: crate::components::properties_panel::decode_ifc_string(
+                                ldt_raw,
+                            ),
                             beam_type: info.name.clone().unwrap_or_default(),
                             fixture_count: 1,
                             fixture_ids: vec![fid],
@@ -1414,9 +1468,11 @@ pub fn parse_and_process_ifc(
     state.scene.set_storeys(storey_infos.clone());
 
     // Save to cache for faster reload next time
-    let spatial_tree_json = state.scene.spatial_tree.get_untracked()
-        .map(|tree| serde_json::to_string(&tree).ok())
-        .flatten();
+    let spatial_tree_json = state
+        .scene
+        .spatial_tree
+        .get_untracked()
+        .and_then(|tree| serde_json::to_string(&tree).ok());
     let storeys_json = serde_json::to_string(&storey_infos).ok();
 
     let file_name = state.scene.file_name.get_untracked().unwrap_or_default();
@@ -1440,7 +1496,7 @@ pub fn parse_and_process_ifc(
 }
 
 /// Look up IFC surface style color for an entity via its representation items.
-/// Follows: entity[6] → IfcProductDefinitionShape[2] → IfcShapeRepresentation[3] → items
+/// Follows: entity\[6\] → IfcProductDefinitionShape\[2\] → IfcShapeRepresentation\[3\] → items
 fn get_styled_color(
     entity: &bimifc_model::DecodedEntity,
     styled_colors: &HashMap<u32, [f32; 4]>,

@@ -20,6 +20,7 @@ impl Rasterizer {
     }
 
     /// Rasterize a triangle to the framebuffer
+    #[allow(clippy::too_many_arguments)]
     pub fn rasterize_triangle(
         &mut self,
         fb: &mut Framebuffer,

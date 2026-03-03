@@ -13,3 +13,5 @@ crates/bimifc-viewer/dist/
 # Local IFC test files
 ifc/
 crates/bimifc-viewer/ifc/
+build-config.toml
+tests/import

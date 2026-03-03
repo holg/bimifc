@@ -5,14 +5,14 @@ use bimifc_parser::ParsedModel;
 
 #[test]
 fn test_process_real_ifc_file() {
-    let content =
-        match std::fs::read_to_string("../../tests/models/First File Office Building.ifc") {
-            Ok(c) => c,
-            Err(_) => {
-                eprintln!("Skipping: test model not found");
-                return;
-            }
-        };
+    let content = match std::fs::read_to_string("../../tests/models/First File Office Building.ifc")
+    {
+        Ok(c) => c,
+        Err(_) => {
+            eprintln!("Skipping: test model not found");
+            return;
+        }
+    };
 
     let model = ParsedModel::parse(&content, false, false).expect("Failed to parse");
     let resolver = model.resolver();

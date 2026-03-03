@@ -47,10 +47,7 @@ mod tests {
     #[test]
     fn test_faceted_brep_processor_creation() {
         let processor = FacetedBrepProcessor::new();
-        assert_eq!(
-            processor.supported_types(),
-            vec![IfcType::IfcFacetedBrep]
-        );
+        assert_eq!(processor.supported_types(), vec![IfcType::IfcFacetedBrep]);
     }
 
     #[test]
@@ -82,7 +79,7 @@ mod tests {
         let (positions, indices) = processor.triangulate_face(&points, &[]);
 
         assert_eq!(positions.len(), 9); // 3 vertices * 3 components
-        assert_eq!(indices.len(), 3);   // 1 triangle * 3 indices
+        assert_eq!(indices.len(), 3); // 1 triangle * 3 indices
     }
 
     #[test]
@@ -97,7 +94,7 @@ mod tests {
         let (positions, indices) = processor.triangulate_face(&points, &[]);
 
         assert_eq!(positions.len(), 12); // 4 vertices * 3 components
-        assert_eq!(indices.len(), 6);    // 2 triangles * 3 indices
+        assert_eq!(indices.len(), 6); // 2 triangles * 3 indices
     }
 
     #[test]

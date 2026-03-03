@@ -88,8 +88,10 @@ pub fn render_floorplan(
     scene: &Scene,
     view: &FloorPlanView,
 ) -> FloorPlanStats {
-    let mut stats = FloorPlanStats::default();
-    stats.total_edges = scene.edges.len();
+    let mut stats = FloorPlanStats {
+        total_edges: scene.edges.len(),
+        ..Default::default()
+    };
 
     framebuffer.clear();
 
@@ -148,8 +150,11 @@ pub fn render_floorplan(
         let p1 = world_to_screen(edge.v1);
 
         // Skip if completely off screen
-        if (p0.x < -10.0 && p1.x < -10.0) || (p0.x > w + 10.0 && p1.x > w + 10.0) ||
-           (p0.y < -10.0 && p1.y < -10.0) || (p0.y > h + 10.0 && p1.y > h + 10.0) {
+        if (p0.x < -10.0 && p1.x < -10.0)
+            || (p0.x > w + 10.0 && p1.x > w + 10.0)
+            || (p0.y < -10.0 && p1.y < -10.0)
+            || (p0.y > h + 10.0 && p1.y > h + 10.0)
+        {
             continue;
         }
 
@@ -195,13 +200,7 @@ pub fn render_floorplan(
 }
 
 /// Draw a 2D line (no depth testing needed)
-fn draw_line_2d(
-    fb: &mut Framebuffer,
-    p0: Vec2,
-    p1: Vec2,
-    color: [u8; 3],
-    ch: char,
-) -> usize {
+fn draw_line_2d(fb: &mut Framebuffer, p0: Vec2, p1: Vec2, color: [u8; 3], ch: char) -> usize {
     let mut pixels = 0;
 
     let x0 = p0.x as i32;
@@ -225,8 +224,10 @@ fn draw_line_2d(
         if x >= 0 && x < w && y >= 0 && y < h {
             let idx = (y as usize) * fb.width + (x as usize);
             // Only draw if cell is empty (background) or we're brighter
-            if fb.chars[idx] == '·' || fb.chars[idx] == ' ' ||
-               (fb.char_colors[idx][0] < color[0] && ch != '·') {
+            if fb.chars[idx] == '·'
+                || fb.chars[idx] == ' '
+                || (fb.char_colors[idx][0] < color[0] && ch != '·')
+            {
                 fb.chars[idx] = ch;
                 fb.char_colors[idx] = color;
                 pixels += 1;
@@ -239,12 +240,16 @@ fn draw_line_2d(
 
         let e2 = 2 * err;
         if e2 >= dy {
-            if x == x1 { break; }
+            if x == x1 {
+                break;
+            }
             err += dy;
             x += sx;
         }
         if e2 <= dx {
-            if y == y1 { break; }
+            if y == y1 {
+                break;
+            }
             err += dx;
             y += sy;
         }

@@ -48,7 +48,9 @@ pub fn Viewport() -> impl IntoView {
                     if error_str.contains("Using exceptions for control flow")
                         || error_str.contains("unreachable")
                     {
-                        bridge::log_info("[Leptos] Bevy viewer running (control flow exception is normal)");
+                        bridge::log_info(
+                            "[Leptos] Bevy viewer running (control flow exception is normal)",
+                        );
                         bevy_state.set(BevyState::Loaded);
                     } else {
                         bridge::log_error(&format!("[Leptos] Failed to start Bevy: {:?}", e));

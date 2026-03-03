@@ -232,8 +232,8 @@ impl<'a> SpatialBuilder<'a> {
             .copied()
             .unwrap_or(false);
 
-        let mut node = SpatialNode::new(entity.id, node_type, name, entity_type)
-            .with_geometry(has_geometry);
+        let mut node =
+            SpatialNode::new(entity.id, node_type, name, entity_type).with_geometry(has_geometry);
 
         // Extract elevation for storeys
         if entity.ifc_type == IfcType::IfcBuildingStorey {
@@ -247,10 +247,7 @@ impl<'a> SpatialBuilder<'a> {
 
     fn add_spatial_children(&mut self, parent: &mut SpatialNode, parent_id: EntityId) {
         // Find IFCRELAGGREGATES where parent is RelatingObject
-        for rel in self
-            .resolver
-            .entities_by_type(&IfcType::IfcRelAggregates)
-        {
+        for rel in self.resolver.entities_by_type(&IfcType::IfcRelAggregates) {
             // RelatingObject at index 4
             if rel.get_ref(4) != Some(parent_id) {
                 continue;

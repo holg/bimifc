@@ -9,12 +9,12 @@ keywords = ["ifc", "bim", "parser", "step", "ifcx"]
 categories = ["parser-implementations", "encoding"]
 
 [dependencies]
-bimifc-model = { path = "../bimifc-model" }
+bimifc-model = { version = "0.1.0", path = "../bimifc-model" }
 
 # Parsing
-nom = "8"
-memchr = "2"
 lexical-core = "1"
+memchr = "2"
+nom = "8"
 
 # Data structures
 rustc-hash = "2"

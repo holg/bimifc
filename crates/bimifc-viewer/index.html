@@ -2,11 +2,38 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IFC-Lite Viewer (Leptos)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>BIMIFC Viewer</title>
     <link data-trunk rel="css" href="static/styles.css">
 </head>
 <body>
+    <script>
+        // =================================================================
+        // Cache busting — clear stale caches/localStorage on new deploy
+        // =================================================================
+        (function() {
+            var APP_VERSION = 'v2';
+            var stored = localStorage.getItem('bimifc_version');
+            if (stored !== APP_VERSION) {
+                console.log('[Cache] Version changed (' + stored + ' -> ' + APP_VERSION + '), clearing caches...');
+                // Clear all Cache API caches (service workers etc.)
+                if (window.caches) {
+                    caches.keys().then(function(keys) {
+                        keys.forEach(function(k) { caches.delete(k); });
+                    });
+                }
+                // Clear stale localStorage keys (preserve nothing — clean slate)
+                localStorage.clear();
+                localStorage.setItem('bimifc_version', APP_VERSION);
+                // Unregister any service workers
+                if (navigator.serviceWorker) {
+                    navigator.serviceWorker.getRegistrations().then(function(regs) {
+                        regs.forEach(function(r) { r.unregister(); });
+                    });
+                }
+            }
+        })();
+    </script>
     <script>
         // =================================================================
         // Unified Mode - Leptos + Bevy in single WASM

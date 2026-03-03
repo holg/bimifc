@@ -1,0 +1,114 @@
+# Crates.io publishing workflow for bimifc
+# Publishes all crates on version tags in dependency order
+#
+# Prerequisites:
+#   1. Create a crates.io API token at https://crates.io/settings/tokens
+#   2. Add it as CARGO_REGISTRY_TOKEN in GitHub repo Settings → Secrets → Actions
+#
+# Publish order (dependency graph):
+#   1. bimifc-model        (no internal deps)
+#   2. bimifc-parser       → model
+#   3. bimifc-geometry     → model, parser
+#   4. bimifc-bevy         → model, parser, geometry + eulumdat 0.5
+#   5. bimifc-viewer-tui   → model, parser, geometry
+#   6. bimifc-leptos       → model, parser, geometry + eulumdat 0.5 + optional: bimifc-bevy
+#   7. bimifc-viewer       → model, parser, geometry, bevy, leptos (WASM cdylib)
+name: Crates.io Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      # Install Linux dependencies for Bevy
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev libasound2-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev pkg-config
+
+      # Remove [patch.crates-io] — crates.io rejects crates with patch sections
+      - name: Remove patch section from workspace Cargo.toml
+        run: |
+          sed -i '/^\[patch\.crates-io\]/,/^$/d' Cargo.toml
+          echo "--- Cargo.toml after patch removal ---"
+          cat Cargo.toml
+
+      - name: Verify crates build
+        run: cargo build --workspace --release
+
+      - name: Run tests
+        run: cargo test --workspace
+
+      # 1. bimifc-model (no internal deps)
+      - name: Publish bimifc-model
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p bimifc-model || echo "bimifc-model already published or no changes"
+
+      - name: Wait for crates.io index update
+        run: sleep 30
+
+      # 2. bimifc-parser (depends on bimifc-model)
+      - name: Publish bimifc-parser
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p bimifc-parser || echo "bimifc-parser already published or no changes"
+
+      - name: Wait for crates.io index update
+        run: sleep 30
+
+      # 3. bimifc-geometry (depends on bimifc-model, bimifc-parser)
+      - name: Publish bimifc-geometry
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p bimifc-geometry || echo "bimifc-geometry already published or no changes"
+
+      - name: Wait for crates.io index update
+        run: sleep 30
+
+      # 4. bimifc-bevy (depends on model, parser, geometry + eulumdat 0.5)
+      - name: Publish bimifc-bevy
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p bimifc-bevy || echo "bimifc-bevy already published or no changes"
+
+      - name: Wait for crates.io index update
+        run: sleep 30
+
+      # 5. bimifc-viewer-tui (depends on model, parser, geometry)
+      - name: Publish bimifc-viewer-tui
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p bimifc-viewer-tui || echo "bimifc-viewer-tui already published or no changes"
+
+      # 6. bimifc-leptos (depends on model, parser, geometry + eulumdat + optional: bimifc-bevy)
+      - name: Publish bimifc-leptos
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p bimifc-leptos || echo "bimifc-leptos already published or no changes"
+
+      - name: Wait for crates.io index update
+        run: sleep 30
+
+      # 7. bimifc-viewer (depends on all above, WASM cdylib)
+      - name: Publish bimifc-viewer
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p bimifc-viewer --no-verify || echo "bimifc-viewer already published or no changes"

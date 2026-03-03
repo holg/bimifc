@@ -10,7 +10,9 @@
 
 use super::model::IfcxModel;
 use super::types::{attr, Transform4x4, UsdMesh};
-use bimifc_model::{get_default_color, EntityGeometry, EntityId, GeometrySource, IfcModel, MeshData};
+use bimifc_model::{
+    get_default_color, EntityGeometry, EntityId, GeometrySource, IfcModel, MeshData,
+};
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
@@ -222,10 +224,7 @@ fn compute_normals(positions: &[f32], indices: &[u32]) -> Vec<f32> {
 }
 
 /// Extract color from node attributes
-fn extract_color(
-    node: &super::types::ComposedNode,
-    model: &IfcxModel,
-) -> [f32; 4] {
+fn extract_color(node: &super::types::ComposedNode, model: &IfcxModel) -> [f32; 4] {
     // Try diffuse color attribute
     if let Some(color_val) = node.attributes.get(attr::DIFFUSE_COLOR) {
         if let Some(arr) = color_val.as_array() {
@@ -247,7 +246,10 @@ fn extract_color(
     }
 
     // Fall back to default color based on type
-    if let Some(entity) = model.resolver().get(model.id_for_path(&node.path).unwrap_or_default()) {
+    if let Some(entity) = model
+        .resolver()
+        .get(model.id_for_path(&node.path).unwrap_or_default())
+    {
         return get_default_color(&entity.ifc_type);
     }
 

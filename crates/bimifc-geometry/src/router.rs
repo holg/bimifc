@@ -217,8 +217,7 @@ impl GeometryRouter {
                     if let Some(rep_id_str) = shape_rep.get_string(1) {
                         if !matches!(
                             rep_id_str,
-                            "Body" | "Facetation" | "Reference"
-                                | "MappedRepresentation"
+                            "Body" | "Facetation" | "Reference" | "MappedRepresentation"
                         ) {
                             continue;
                         }
@@ -234,7 +233,8 @@ impl GeometryRouter {
 
         // Apply object placement transform
         if let Some(placement_id) = element.get_ref(5) {
-            if let Some(mut transform) = crate::transform::resolve_placement(placement_id, resolver) {
+            if let Some(mut transform) = crate::transform::resolve_placement(placement_id, resolver)
+            {
                 // Scale translation components from file units to meters
                 if self.unit_scale != 1.0 {
                     transform[(0, 3)] *= self.unit_scale;

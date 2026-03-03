@@ -4,10 +4,10 @@
 
 //! Scene representation for rendering
 
-use glam::Vec3;
 use bimifc_geometry::{GeometryRouter, Mesh};
 use bimifc_model::{get_default_color, EntityId, IfcModel};
 use bimifc_parser::{EntityScanner, ParsedModel};
+use glam::Vec3;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -64,11 +64,19 @@ impl Scene {
         struct EdgeKey([i32; 3], [i32; 3]);
 
         fn quantize(v: Vec3) -> [i32; 3] {
-            [(v.x * 1000.0) as i32, (v.y * 1000.0) as i32, (v.z * 1000.0) as i32]
+            [
+                (v.x * 1000.0) as i32,
+                (v.y * 1000.0) as i32,
+                (v.z * 1000.0) as i32,
+            ]
         }
 
         fn make_key(a: [i32; 3], b: [i32; 3]) -> EdgeKey {
-            if a < b { EdgeKey(a, b) } else { EdgeKey(b, a) }
+            if a < b {
+                EdgeKey(a, b)
+            } else {
+                EdgeKey(b, a)
+            }
         }
 
         // Collect edges with their face normals
@@ -85,14 +93,17 @@ impl Scene {
                 (q2, q0, tri.v2, tri.v0),
             ] {
                 let key = make_key(qa, qb);
-                edge_map.entry(key)
+                edge_map
+                    .entry(key)
                     .or_insert_with(|| (va, vb, Vec::new()))
-                    .2.push(tri.normal);
+                    .2
+                    .push(tri.normal);
             }
         }
 
         // Convert to SceneEdge
-        self.edges = edge_map.into_values()
+        self.edges = edge_map
+            .into_values()
             .map(|(v0, v1, normals)| SceneEdge {
                 v0,
                 v1,

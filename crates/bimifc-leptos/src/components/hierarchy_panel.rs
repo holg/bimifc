@@ -195,12 +195,17 @@ pub fn HierarchyPanel() -> impl IntoView {
 
     let on_toggle_visibility = move |id: u64| {
         // Collect this node + all descendant IDs so hiding a parent hides its children too
-        let all_ids = state.scene.spatial_tree.get_untracked()
-            .and_then(|tree| tree.find(id).map(|node| {
-                let mut ids = Vec::new();
-                node.collect_all_ids(&mut ids);
-                ids
-            }))
+        let all_ids = state
+            .scene
+            .spatial_tree
+            .get_untracked()
+            .and_then(|tree| {
+                tree.find(id).map(|node| {
+                    let mut ids = Vec::new();
+                    node.collect_all_ids(&mut ids);
+                    ids
+                })
+            })
             .unwrap_or_else(|| vec![id]);
 
         state.visibility.hidden_ids.update(|hidden| {

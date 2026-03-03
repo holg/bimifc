@@ -85,8 +85,8 @@ pub fn triangulate_polygon(points: &[Point2<f64>]) -> Result<Vec<usize>> {
     }
 
     // Triangulate using earcutr
-    let indices = earcutr::earcut(&vertices, &[], 2)
-        .map_err(|e| Error::triangulation(format!("{:?}", e)))?;
+    let indices =
+        earcutr::earcut(&vertices, &[], 2).map_err(|e| Error::triangulation(format!("{:?}", e)))?;
 
     Ok(indices)
 }

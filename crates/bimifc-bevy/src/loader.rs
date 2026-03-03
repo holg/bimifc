@@ -363,10 +363,7 @@ mod wasm_file_input {
                     None => return,
                 };
 
-                crate::log_info(&format!(
-                    "[WASM] File read: {} bytes",
-                    content.len()
-                ));
+                crate::log_info(&format!("[WASM] File read: {} bytes", content.len()));
 
                 // Store in global for Bevy to pick up
                 if let Ok(mut pending) = PENDING_FILE.lock() {
@@ -421,6 +418,7 @@ mod wasm_file_input {
 pub use wasm_file_input::*;
 
 #[cfg(not(target_arch = "wasm32"))]
+#[allow(dead_code)]
 fn setup_wasm_file_input() {
     // No-op on native
 }
@@ -821,13 +819,11 @@ fn create_marker_sphere(center: [f32; 3], radius: f32) -> bimifc_geometry::Mesh 
 /// Build a map from geometry item entity ID → RGBA surface color.
 ///
 /// Scans all IfcStyledItem entities and follows the chain:
-///   IfcStyledItem[0]=Item, [1]=Styles
-///   → IfcSurfaceStyle[2]=Styles
-///   → IfcSurfaceStyleRendering[0]=SurfaceColour
-///   → IfcColourRgb[1]=R, [2]=G, [3]=B
-fn build_styled_item_colors(
-    resolver: &dyn EntityResolver,
-) -> FxHashMap<u32, [f32; 4]> {
+///   IfcStyledItem\[0\]=Item, \[1\]=Styles
+///   → IfcSurfaceStyle\[2\]=Styles
+///   → IfcSurfaceStyleRendering\[0\]=SurfaceColour
+///   → IfcColourRgb\[1\]=R, \[2\]=G, \[3\]=B
+fn build_styled_item_colors(resolver: &dyn EntityResolver) -> FxHashMap<u32, [f32; 4]> {
     let mut color_map = FxHashMap::default();
 
     for styled_item in resolver.entities_by_type(&IfcType::IfcStyledItem) {
@@ -891,8 +887,8 @@ fn build_styled_item_colors(
 
 /// Get the IFC surface style color for a product entity, if any.
 ///
-/// Follows: entity[6]=Representation → IfcProductDefinitionShape[2]=Representations
-/// → IfcShapeRepresentation[3]=Items → check each item against styled_item_colors map.
+/// Follows: entity\[6\]=Representation → IfcProductDefinitionShape\[2\]=Representations
+/// → IfcShapeRepresentation\[3\]=Items → check each item against styled_item_colors map.
 fn get_entity_surface_color(
     entity: &bimifc_model::DecodedEntity,
     resolver: &dyn EntityResolver,

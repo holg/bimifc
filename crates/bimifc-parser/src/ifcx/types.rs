@@ -59,7 +59,7 @@ pub struct IfcxNode {
 pub struct ComposedNode {
     pub path: String,
     pub attributes: rustc_hash::FxHashMap<String, serde_json::Value>,
-    pub children: Vec<String>, // Child paths
+    pub children: Vec<String>,  // Child paths
     pub parent: Option<String>, // Parent path
 }
 
@@ -103,11 +103,7 @@ impl UsdMesh {
         for p in points_arr {
             let arr = p.as_array()?;
             if arr.len() >= 3 {
-                points.push([
-                    arr[0].as_f64()?,
-                    arr[1].as_f64()?,
-                    arr[2].as_f64()?,
-                ]);
+                points.push([arr[0].as_f64()?, arr[1].as_f64()?, arr[2].as_f64()?]);
             }
         }
 
@@ -135,11 +131,7 @@ impl UsdMesh {
             for n in arr {
                 let narr = n.as_array()?;
                 if narr.len() >= 3 {
-                    norms.push([
-                        narr[0].as_f64()?,
-                        narr[1].as_f64()?,
-                        narr[2].as_f64()?,
-                    ]);
+                    norms.push([narr[0].as_f64()?, narr[1].as_f64()?, narr[2].as_f64()?]);
                 }
             }
             Some(norms)
@@ -276,6 +268,7 @@ impl Transform4x4 {
     /// Multiply two matrices
     pub fn multiply(&self, other: &Self) -> Self {
         let mut result = [[0.0; 4]; 4];
+        #[allow(clippy::needless_range_loop)]
         for i in 0..4 {
             for j in 0..4 {
                 for k in 0..4 {

@@ -98,11 +98,7 @@ impl PropertyReaderImpl {
                 // NominalValue at index 2, Unit at index 3
                 let value = self.format_value(prop.get(2)?);
                 let unit = prop.get(3).and_then(|v| self.extract_unit(v));
-                Some(Property {
-                    name,
-                    value,
-                    unit,
-                })
+                Some(Property { name, value, unit })
             }
             IfcType::IfcPropertyEnumeratedValue => {
                 // EnumerationValues at index 2
@@ -161,7 +157,10 @@ impl PropertyReaderImpl {
         match attr {
             AttributeValue::String(s) => s.clone(),
             AttributeValue::Integer(i) => i.to_string(),
-            AttributeValue::Float(f) => format!("{:.6}", f).trim_end_matches('0').trim_end_matches('.').to_string(),
+            AttributeValue::Float(f) => format!("{:.6}", f)
+                .trim_end_matches('0')
+                .trim_end_matches('.')
+                .to_string(),
             AttributeValue::Bool(b) => b.to_string(),
             AttributeValue::Enum(e) => e.clone(),
             AttributeValue::TypedValue(_, args) if !args.is_empty() => self.format_value(&args[0]),

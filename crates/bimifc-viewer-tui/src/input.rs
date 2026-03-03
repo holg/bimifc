@@ -51,7 +51,9 @@ pub fn map_key_to_action(key: KeyEvent) -> Option<Action> {
     match (key.code, key.modifiers) {
         // Level navigation (PgUp/PgDn or K/J)
         (KeyCode::PageUp, _) | (KeyCode::Char('k'), KeyModifiers::NONE) => Some(Action::LevelUp),
-        (KeyCode::PageDown, _) | (KeyCode::Char('j'), KeyModifiers::NONE) => Some(Action::LevelDown),
+        (KeyCode::PageDown, _) | (KeyCode::Char('j'), KeyModifiers::NONE) => {
+            Some(Action::LevelDown)
+        }
 
         // Arrow keys for level navigation
         (KeyCode::Up, KeyModifiers::NONE) => Some(Action::LevelUp),

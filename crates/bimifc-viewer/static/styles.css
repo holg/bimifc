@@ -67,6 +67,10 @@ html, body {
     line-height: 1.4;
     color: var(--text-primary);
     background: var(--bg-primary);
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    overscroll-behavior: none;
 }
 
 /* Main Layout */
@@ -74,8 +78,14 @@ html, body {
     display: grid;
     grid-template-columns: auto 1fr auto;
     height: 100vh;
+    height: 100dvh; /* dynamic viewport height — excludes iOS Safari address bar */
     width: 100vw;
     overflow: hidden;
+    /* Safe area insets for notch/dynamic island */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
 }
 
 /* Panels */
@@ -85,6 +95,9 @@ html, body {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     overflow: hidden;
+    -webkit-user-select: text;
+    user-select: text;
+    touch-action: pan-y;
 }
 
 .panel-left {
@@ -174,6 +187,8 @@ html, body {
     align-items: center;
     gap: 4px;
     height: var(--toolbar-height);
+    min-height: var(--toolbar-height);
+    flex-shrink: 0;
     padding: 0 8px;
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-color);
@@ -896,11 +911,41 @@ html, body {
     background: var(--border-light);
 }
 
+/* Touch press feedback */
+@media (pointer: coarse) {
+    .tool-btn:active,
+    .panel-expand-btn:active,
+    .panel-collapse-btn:active {
+        transform: scale(0.92);
+        transition: transform 0.1s;
+    }
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
     .viewer-layout {
         grid-template-columns: 1fr;
         grid-template-rows: 1fr;
+    }
+
+    .toolbar {
+        gap: 6px;
+        padding: 0 6px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .tool-btn {
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        font-size: 20px;
+    }
+
+    .panel-collapse-btn {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
     }
 
     .panel-left,
@@ -927,8 +972,8 @@ html, body {
     .panel-expand-btn {
         position: fixed;
         bottom: calc(var(--status-bar-height) + 8px);
-        width: 40px;
-        height: 40px;
+        width: 48px;
+        height: 48px;
         border-radius: 50%;
         box-shadow: var(--shadow);
     }
@@ -939,5 +984,12 @@ html, body {
 
     .panel-expand-right {
         right: 12px;
+    }
+
+    /* Bigger tree row action buttons */
+    .tree-row-actions button {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
     }
 }

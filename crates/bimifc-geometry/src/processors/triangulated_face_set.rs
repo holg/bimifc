@@ -49,7 +49,11 @@ impl TriangulatedFaceSetProcessor {
             current = &current[paren_end + 1..];
         }
 
-        if coords.is_empty() { None } else { Some(coords) }
+        if coords.is_empty() {
+            None
+        } else {
+            Some(coords)
+        }
     }
 
     /// Fast-path: parse index list directly from raw STEP bytes.
@@ -86,14 +90,15 @@ impl TriangulatedFaceSetProcessor {
             current = &current[paren_end + 1..];
         }
 
-        if indices.is_empty() { None } else { Some(indices) }
+        if indices.is_empty() {
+            None
+        } else {
+            Some(indices)
+        }
     }
 
     /// Generic path: parse coordinates from decoded AttributeValues
-    fn parse_coords_generic(
-        coord_id: EntityId,
-        resolver: &dyn EntityResolver,
-    ) -> Result<Vec<f32>> {
+    fn parse_coords_generic(coord_id: EntityId, resolver: &dyn EntityResolver) -> Result<Vec<f32>> {
         let coord_entity = resolver
             .get(coord_id)
             .ok_or_else(|| Error::entity_not_found(coord_id.0))?;
@@ -196,8 +201,9 @@ impl GeometryProcessor for TriangulatedFaceSetProcessor {
 
         // Try fast-path for coordinates: parse raw STEP bytes directly
         let positions = if let Some(raw) = resolver.raw_bytes(coord_id) {
-            Self::parse_coords_fast(raw)
-                .unwrap_or_else(|| Self::parse_coords_generic(coord_id, resolver).unwrap_or_default())
+            Self::parse_coords_fast(raw).unwrap_or_else(|| {
+                Self::parse_coords_generic(coord_id, resolver).unwrap_or_default()
+            })
         } else {
             Self::parse_coords_generic(coord_id, resolver)?
         };

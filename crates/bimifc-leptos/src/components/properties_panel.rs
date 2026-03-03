@@ -391,13 +391,12 @@ pub fn decode_ifc_string(s: &str) -> String {
 
 /// Parse embedded LDT content and generate photometric data
 fn parse_ldt_data(content: &str) -> Result<PhotometryData, String> {
-    use eulumdat::{Eulumdat, PhotometricSummary};
     use eulumdat::diagram::{PolarDiagram, SvgTheme};
+    use eulumdat::{Eulumdat, PhotometricSummary};
 
     // Decode IFC STEP string encoding (e.g. \X2\000A\X0\ → newline)
     let decoded = decode_ifc_string(content);
-    let ldt = Eulumdat::parse(&decoded)
-        .map_err(|e| format!("{}", e))?;
+    let ldt = Eulumdat::parse(&decoded).map_err(|e| format!("{}", e))?;
 
     let polar = PolarDiagram::from_eulumdat(&ldt);
     let theme = SvgTheme::dark();
@@ -405,10 +404,14 @@ fn parse_ldt_data(content: &str) -> Result<PhotometryData, String> {
 
     let summary = PhotometricSummary::from_eulumdat(&ldt);
 
-    let colour_temp = ldt.lamp_sets.first()
+    let colour_temp = ldt
+        .lamp_sets
+        .first()
         .map(|ls| ls.color_appearance.clone())
         .unwrap_or_default();
-    let cri = ldt.lamp_sets.first()
+    let cri = ldt
+        .lamp_sets
+        .first()
         .map(|ls| ls.color_rendering_group.clone())
         .unwrap_or_default();
 

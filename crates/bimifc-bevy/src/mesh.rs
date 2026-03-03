@@ -19,9 +19,9 @@
 
 use crate::{log, IfcSceneData, SceneBounds};
 use bevy::asset::RenderAssetUsages;
-use bevy::mesh::{Indices, PrimitiveTopology};
 #[cfg(feature = "color-palette")]
 use bevy::mesh::VertexAttributeValues;
+use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -550,6 +550,7 @@ fn now_ms() -> f64 {
 }
 
 /// System to spawn batched meshes when scene data changes
+#[allow(clippy::too_many_arguments)]
 fn spawn_meshes_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -728,8 +729,16 @@ fn spawn_meshes_system(
     }
 
     // Calculate totals for logging
-    let total_vertices = scene_data.meshes.iter().map(|m| m.geometry.vertex_count()).sum::<usize>();
-    let total_triangles = scene_data.meshes.iter().map(|m| m.geometry.triangle_count()).sum::<usize>();
+    let total_vertices = scene_data
+        .meshes
+        .iter()
+        .map(|m| m.geometry.vertex_count())
+        .sum::<usize>();
+    let total_triangles = scene_data
+        .meshes
+        .iter()
+        .map(|m| m.geometry.triangle_count())
+        .sum::<usize>();
     let geometry_size: usize = scene_data
         .meshes
         .iter()
@@ -806,11 +815,12 @@ fn auto_fit_camera_system(
 /// Polls visibility state from localStorage and hides/isolates entities by
 /// setting their vertex alpha to 0.0 (same approach as selection highlighting).
 #[cfg(feature = "color-palette")]
+#[allow(unused_variables)]
 fn update_mesh_visibility_system(
-    mut previous_visibility: ResMut<PreviousVisibility>,
+    previous_visibility: ResMut<PreviousVisibility>,
     selection: Res<crate::picking::SelectionState>,
     color_mapping: Res<EntityColorMapping>,
-    mut mesh_assets: ResMut<Assets<Mesh>>,
+    mesh_assets: ResMut<Assets<Mesh>>,
     batched_meshes: Query<(&Mesh3d, &BatchedMesh)>,
 ) {
     #[cfg(target_arch = "wasm32")]
@@ -820,14 +830,16 @@ fn update_mesh_visibility_system(
         let (new_hidden, new_isolated) = match &vis {
             Some(v) => {
                 let hidden: rustc_hash::FxHashSet<u64> = v.hidden.iter().copied().collect();
-                let isolated: Option<rustc_hash::FxHashSet<u64>> = v.isolated.as_ref().map(|i| i.iter().copied().collect());
+                let isolated: Option<rustc_hash::FxHashSet<u64>> =
+                    v.isolated.as_ref().map(|i| i.iter().copied().collect());
                 (hidden, isolated)
             }
             None => (rustc_hash::FxHashSet::default(), None),
         };
 
         // Check if visibility actually changed
-        if new_hidden == previous_visibility.hidden && new_isolated == previous_visibility.isolated {
+        if new_hidden == previous_visibility.hidden && new_isolated == previous_visibility.isolated
+        {
             return;
         }
 
@@ -845,7 +857,9 @@ fn update_mesh_visibility_system(
                 continue;
             };
 
-            let Some(VertexAttributeValues::Float32x4(colors)) = mesh.attribute_mut(Mesh::ATTRIBUTE_COLOR) else {
+            let Some(VertexAttributeValues::Float32x4(colors)) =
+                mesh.attribute_mut(Mesh::ATTRIBUTE_COLOR)
+            else {
                 continue;
             };
 
@@ -935,7 +949,8 @@ fn update_mesh_selection_system(
         .difference(&previous_selection.selected_ids)
         .copied()
         .collect();
-    let newly_deselected: Vec<u64> = previous_selection.selected_ids
+    let newly_deselected: Vec<u64> = previous_selection
+        .selected_ids
         .difference(current_selection)
         .copied()
         .collect();
@@ -950,7 +965,9 @@ fn update_mesh_selection_system(
             continue;
         };
 
-        let Some(VertexAttributeValues::Float32x4(colors)) = mesh.attribute_mut(Mesh::ATTRIBUTE_COLOR) else {
+        let Some(VertexAttributeValues::Float32x4(colors)) =
+            mesh.attribute_mut(Mesh::ATTRIBUTE_COLOR)
+        else {
             continue;
         };
 
@@ -988,9 +1005,7 @@ fn update_mesh_selection_system(
 }
 
 #[cfg(not(feature = "color-palette"))]
-fn update_mesh_selection_system(
-    _selection: Res<crate::picking::SelectionState>,
-) {
+fn update_mesh_selection_system(_selection: Res<crate::picking::SelectionState>) {
     // Selection highlighting requires color-palette feature for vertex color updates
 }
 
@@ -1097,7 +1112,11 @@ fn poll_palette_change_system(
                             log(&format!(
                                 "[Bevy] Updated {} entity colors in {} batch",
                                 mapping.len(),
-                                if batched.is_transparent { "transparent" } else { "opaque" }
+                                if batched.is_transparent {
+                                    "transparent"
+                                } else {
+                                    "opaque"
+                                }
                             ));
                         }
                     }

@@ -45,10 +45,7 @@ impl ParsedModel {
         let mut scanner = EntityScanner::new(content);
         while let Some((id, type_name, _, _)) = scanner.next_entity() {
             let ifc_type = IfcType::parse(type_name);
-            type_index
-                .entry(ifc_type)
-                .or_default()
-                .push(EntityId(id));
+            type_index.entry(ifc_type).or_default().push(EntityId(id));
         }
 
         // Create resolver
@@ -111,10 +108,7 @@ impl ParsedModel {
         let mut scanner = EntityScanner::new(content);
         while let Some((id, type_name, _, _)) = scanner.next_entity() {
             let ifc_type = IfcType::parse(type_name);
-            type_index
-                .entry(ifc_type)
-                .or_default()
-                .push(EntityId(id));
+            type_index.entry(ifc_type).or_default().push(EntityId(id));
         }
         on_progress("Indexing types", 40.0);
 

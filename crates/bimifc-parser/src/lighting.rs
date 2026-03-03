@@ -162,7 +162,10 @@ pub fn extract_lighting_data(resolver: &dyn EntityResolver) -> LightingExport {
     // Extract storeys
     let storeys = resolver.entities_by_type(&IfcType::IfcBuildingStorey);
     for storey in storeys {
-        let name = storey.get_string(2).map(|s| s.to_string()).unwrap_or_default();
+        let name = storey
+            .get_string(2)
+            .map(|s| s.to_string())
+            .unwrap_or_default();
         let elevation = storey.get_float(9).unwrap_or(0.0);
         export.storeys.push(StoreyData {
             id: storey.id.0 as u64,
@@ -188,7 +191,11 @@ pub fn extract_lighting_data(resolver: &dyn EntityResolver) -> LightingExport {
 
         // Update summary
         if let Some(ref storey) = fixture_data.storey {
-            *export.summary.fixtures_per_storey.entry(storey.clone()).or_insert(0) += 1;
+            *export
+                .summary
+                .fixtures_per_storey
+                .entry(storey.clone())
+                .or_insert(0) += 1;
         }
 
         for source in &fixture_data.light_sources {
@@ -243,7 +250,9 @@ fn extract_fixture(entity: &DecodedEntity, resolver: &dyn EntityResolver) -> Lig
 
     // Get fixture type
     let fixture_type = entity.get_ref(5).and_then(|type_ref| {
-        resolver.get(type_ref).map(|type_entity| extract_fixture_type(&type_entity))
+        resolver
+            .get(type_ref)
+            .map(|type_entity| extract_fixture_type(&type_entity))
     });
 
     // Extract light sources associated with this fixture
@@ -291,7 +300,10 @@ fn extract_position(entity: &DecodedEntity, resolver: &dyn EntityResolver) -> (f
 }
 
 /// Extract coordinates from axis placement
-fn extract_cartesian_point(axis_placement: &DecodedEntity, resolver: &dyn EntityResolver) -> (f64, f64, f64) {
+fn extract_cartesian_point(
+    axis_placement: &DecodedEntity,
+    resolver: &dyn EntityResolver,
+) -> (f64, f64, f64) {
     // IfcAxis2Placement3D has Location at index 0
     let point_ref = match axis_placement.get_ref(0) {
         Some(id) => id,
@@ -306,7 +318,7 @@ fn extract_cartesian_point(axis_placement: &DecodedEntity, resolver: &dyn Entity
     if point.ifc_type == IfcType::IfcCartesianPoint {
         // Coordinates are in a list at index 0
         if let Some(coords) = point.get_list(0) {
-            let x = coords.get(0).and_then(|v| v.as_float()).unwrap_or(0.0);
+            let x = coords.first().and_then(|v| v.as_float()).unwrap_or(0.0);
             let y = coords.get(1).and_then(|v| v.as_float()).unwrap_or(0.0);
             let z = coords.get(2).and_then(|v| v.as_float()).unwrap_or(0.0);
             return (x, y, z);
@@ -317,7 +329,10 @@ fn extract_cartesian_point(axis_placement: &DecodedEntity, resolver: &dyn Entity
 }
 
 /// Extract light sources from a fixture
-fn extract_light_sources(_fixture: &DecodedEntity, resolver: &dyn EntityResolver) -> Vec<LightSourceData> {
+fn extract_light_sources(
+    _fixture: &DecodedEntity,
+    resolver: &dyn EntityResolver,
+) -> Vec<LightSourceData> {
     let mut sources = Vec::new();
 
     // Light sources can be found in various ways:
@@ -336,7 +351,10 @@ fn extract_light_sources(_fixture: &DecodedEntity, resolver: &dyn EntityResolver
 }
 
 /// Extract data from a goniometric light source
-fn extract_goniometric_source(entity: &DecodedEntity, resolver: &dyn EntityResolver) -> LightSourceData {
+fn extract_goniometric_source(
+    entity: &DecodedEntity,
+    resolver: &dyn EntityResolver,
+) -> LightSourceData {
     // IfcLightSourceGoniometric attributes:
     // 0: Name
     // 1: LightColour (IfcColourRgb)
@@ -366,7 +384,9 @@ fn extract_goniometric_source(entity: &DecodedEntity, resolver: &dyn EntityResol
 
     // Extract distribution data
     let distribution = entity.get_ref(9).and_then(|dist_ref| {
-        resolver.get(dist_ref).map(|dist| extract_distribution(&dist, resolver))
+        resolver
+            .get(dist_ref)
+            .map(|dist| extract_distribution(&dist, resolver))
     });
 
     LightSourceData {
@@ -382,12 +402,16 @@ fn extract_goniometric_source(entity: &DecodedEntity, resolver: &dyn EntityResol
 }
 
 /// Extract light intensity distribution data
-fn extract_distribution(entity: &DecodedEntity, resolver: &dyn EntityResolver) -> LightDistributionData {
+fn extract_distribution(
+    entity: &DecodedEntity,
+    resolver: &dyn EntityResolver,
+) -> LightDistributionData {
     // IfcLightIntensityDistribution attributes:
     // 0: LightDistributionCurve (enum: TYPE_A, TYPE_B, TYPE_C)
     // 1: DistributionData (list of IfcLightDistributionData)
 
-    let distribution_type = entity.get_enum(0)
+    let distribution_type = entity
+        .get_enum(0)
         .map(|s| s.to_string())
         .unwrap_or_else(|| "TYPE_C".to_string());
 
@@ -406,7 +430,8 @@ fn extract_distribution(entity: &DecodedEntity, resolver: &dyn EntityResolver) -
                     let mut intensities = Vec::new();
 
                     if let (Some(angles), Some(values)) =
-                        (data_entity.get_list(1), data_entity.get_list(2)) {
+                        (data_entity.get_list(1), data_entity.get_list(2))
+                    {
                         for (angle, value) in angles.iter().zip(values.iter()) {
                             let a = angle.as_float().unwrap_or(0.0);
                             let v = value.as_float().unwrap_or(0.0);

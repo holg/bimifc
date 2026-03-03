@@ -10,13 +10,35 @@ pub mod utils;
 
 // Re-exports
 pub use bridge::{
-    init_debug_from_url, is_bevy_loaded, is_bevy_loading, is_unified_mode, load_bevy_viewer,
-    save_camera_cmd, save_focus, save_geometry, save_palette, save_section, save_selection,
-    save_visibility, CameraCommand, ColorPalette, EntityData, FocusData, GeometryData,
-    SectionData, SelectionData, VisibilityData,
+    clear_model_cache,
     // Cache exports
-    compute_file_hash, is_model_cached, load_cached_model, save_model_to_cache,
-    clear_model_cache, CachedModel, CacheEntry, CacheIndex,
+    compute_file_hash,
+    init_debug_from_url,
+    is_bevy_loaded,
+    is_bevy_loading,
+    is_model_cached,
+    is_unified_mode,
+    load_bevy_viewer,
+    load_cached_model,
+    save_camera_cmd,
+    save_focus,
+    save_geometry,
+    save_model_to_cache,
+    save_palette,
+    save_section,
+    save_selection,
+    save_visibility,
+    CacheEntry,
+    CacheIndex,
+    CachedModel,
+    CameraCommand,
+    ColorPalette,
+    EntityData,
+    FocusData,
+    GeometryData,
+    SectionData,
+    SelectionData,
+    VisibilityData,
 };
 pub use components::{App, ViewerLayout};
 pub use state::{

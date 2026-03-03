@@ -136,7 +136,7 @@ impl EntityResolver for ResolverImpl {
 
     fn raw_bytes(&self, id: EntityId) -> Option<&[u8]> {
         let (start, end) = self.index.get(&id.0)?;
-        Some(self.content[*start..*end].as_bytes())
+        Some(&self.content.as_bytes()[*start..*end])
     }
 }
 
