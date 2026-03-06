@@ -1,6 +1,6 @@
 [package]
 name = "bimifc-python"
-version = "0.1.0"  # Must be explicit for maturin (workspace inheritance not supported)
+version = "0.2.0"  # Must be explicit for maturin (workspace inheritance not supported)
 edition = "2021"
 license = "MPL-2.0"
 repository = "https://github.com/holg/bimifc"
@@ -11,7 +11,7 @@ name = "bimifc"
 crate-type = ["cdylib"]
 
 [dependencies]
-bimifc-geometry = { version = "0.1.0", path = "../bimifc-geometry" }
-bimifc-model = { version = "0.1.0", path = "../bimifc-model" }
-bimifc-parser = { version = "0.1.0", path = "../bimifc-parser" }
+bimifc-geometry = { version = "0.2.0", path = "../bimifc-geometry" }
+bimifc-model = { version = "0.2.0", path = "../bimifc-model" }
+bimifc-parser = { version = "0.2.0", path = "../bimifc-parser" }
 pyo3 = { version = "0.28", features = ["extension-module"] }

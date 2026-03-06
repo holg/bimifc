@@ -1,6 +1,6 @@
 [package]
 name = "bimifc-viewer-tui"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Terminal-based IFC viewer with floor plan rendering"
 license = "MPL-2.0"
@@ -13,9 +13,9 @@ name = "bimifc-tui"
 path = "src/main.rs"
 
 [dependencies]
-bimifc-geometry = { version = "0.1.0", path = "../bimifc-geometry" }
-bimifc-model = { version = "0.1.0", path = "../bimifc-model" }
-bimifc-parser = { version = "0.1.0", path = "../bimifc-parser" }
+bimifc-geometry = { version = "0.2.0", path = "../bimifc-geometry" }
+bimifc-model = { version = "0.2.0", path = "../bimifc-model" }
+bimifc-parser = { version = "0.2.0", path = "../bimifc-parser" }
 
 # TUI
 crossterm = "0.28"

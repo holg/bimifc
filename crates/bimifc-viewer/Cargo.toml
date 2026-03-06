@@ -1,6 +1,6 @@
 [package]
 name = "bimifc-viewer"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "BIM IFC web viewer - Leptos UI + Bevy 3D"
 license = "MPL-2.0"
@@ -18,11 +18,11 @@ unified = ["bimifc-leptos/unified"]
 photometric = ["bimifc-bevy/photometric", "bimifc-leptos/photometric"]
 
 [dependencies]
-bimifc-bevy = { version = "0.1.0", path = "../bimifc-bevy", default-features = false }
-bimifc-geometry = { version = "0.1.0", path = "../bimifc-geometry" }
-bimifc-leptos = { version = "0.1.0", path = "../bimifc-leptos", features = ["unified"] }
-bimifc-model = { version = "0.1.0", path = "../bimifc-model" }
-bimifc-parser = { version = "0.1.0", path = "../bimifc-parser" }
+bimifc-bevy = { version = "0.2.0", path = "../bimifc-bevy", default-features = false }
+bimifc-geometry = { version = "0.2.0", path = "../bimifc-geometry" }
+bimifc-leptos = { version = "0.2.0", path = "../bimifc-leptos", features = ["unified"] }
+bimifc-model = { version = "0.2.0", path = "../bimifc-model" }
+bimifc-parser = { version = "0.2.0", path = "../bimifc-parser" }
 
 console_error_panic_hook = "0.1"
 js-sys = "0.3"

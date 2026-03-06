@@ -1,6 +1,6 @@
 [package]
 name = "bimifc-model"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Trait definitions and shared types for BIM IFC parsing"
 license = "MPL-2.0"
