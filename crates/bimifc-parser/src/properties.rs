@@ -436,11 +436,7 @@ impl PropertyReaderImpl {
     }
 
     /// Find IfcLightSourceGoniometric in a RepresentationMap
-    fn find_goniometric_in_rep_map(
-        &self,
-        map_id: EntityId,
-        results: &mut Vec<GoniometricData>,
-    ) {
+    fn find_goniometric_in_rep_map(&self, map_id: EntityId, results: &mut Vec<GoniometricData>) {
         let map = match self.resolver.get(map_id) {
             Some(e) if e.ifc_type == IfcType::IfcRepresentationMap => e,
             _ => return,
@@ -496,7 +492,11 @@ impl PropertyReaderImpl {
         }
 
         // Sort by C-plane angle
-        planes.sort_by(|a, b| a.c_angle.partial_cmp(&b.c_angle).unwrap_or(std::cmp::Ordering::Equal));
+        planes.sort_by(|a, b| {
+            a.c_angle
+                .partial_cmp(&b.c_angle)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         Some(GoniometricData {
             name,

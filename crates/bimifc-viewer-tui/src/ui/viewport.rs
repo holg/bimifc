@@ -65,8 +65,8 @@ pub struct OrbitAngles {
 impl Default for OrbitAngles {
     fn default() -> Self {
         Self {
-            azimuth: std::f64::consts::FRAC_PI_6,    // 30° — classic isometric
-            elevation: std::f64::consts::FRAC_PI_6,   // 30° elevation
+            azimuth: std::f64::consts::FRAC_PI_6, // 30° — classic isometric
+            elevation: std::f64::consts::FRAC_PI_6, // 30° elevation
         }
     }
 }
@@ -244,11 +244,7 @@ fn render_iso3d(scene: &Scene, orbit: &OrbitAngles, focused: bool, area: Rect, b
         Vec::new()
     };
 
-    let all_edges = if edges.is_empty() {
-        &tri_edges
-    } else {
-        &edges
-    };
+    let all_edges = if edges.is_empty() { &tri_edges } else { &edges };
 
     let edge_count = all_edges.len();
     let az_deg = orbit.azimuth.to_degrees();
@@ -332,11 +328,7 @@ fn render_floorplan_braille(
         })
         .collect();
 
-    let level_info = format!(
-        "Y={:.1}m, {} edges",
-        view.slice_y,
-        visible_edges.len()
-    );
+    let level_info = format!("Y={:.1}m, {} edges", view.slice_y, visible_edges.len());
 
     let canvas = Canvas::default()
         .block(
@@ -378,12 +370,7 @@ fn render_floorplan_braille(
 }
 
 /// Render polar photometric diagram using braille Canvas
-fn render_polar_diagram(
-    ldt_content: Option<&str>,
-    focused: bool,
-    area: Rect,
-    buf: &mut Buffer,
-) {
+fn render_polar_diagram(ldt_content: Option<&str>, focused: bool, area: Rect, buf: &mut Buffer) {
     use eulumdat::diagram::PolarDiagram;
     use eulumdat::Eulumdat;
 

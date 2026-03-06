@@ -393,9 +393,9 @@ fn extract_light_sources(
         let type_rels = resolver.entities_by_type(&IfcType::IfcRelDefinesByType);
         for rel in &type_rels {
             if let Some(related_list) = rel.get_list(4) {
-                let is_related = related_list.iter().any(|v| {
-                    v.as_entity_ref().map_or(false, |id| id == fixture_id)
-                });
+                let is_related = related_list
+                    .iter()
+                    .any(|v| v.as_entity_ref() == Some(fixture_id));
                 if is_related {
                     if let Some(type_id) = rel.get_ref(5) {
                         if let Some(type_entity) = resolver.get(type_id) {
@@ -406,7 +406,11 @@ fn extract_light_sources(
                                         // RepresentationMap.MappedRepresentation at index 1
                                         if let Some(mapped_rep_id) = map.get_ref(1) {
                                             if let Some(mapped_rep) = resolver.get(mapped_rep_id) {
-                                                find_goniometric_in_items(&mapped_rep, resolver, &mut sources);
+                                                find_goniometric_in_items(
+                                                    &mapped_rep,
+                                                    resolver,
+                                                    &mut sources,
+                                                );
                                             }
                                         }
                                     }
@@ -559,6 +563,143 @@ fn extract_distribution(
         distribution_type,
         planes,
     }
+}
+
+/// Convert a `LightSourceData` (from IFC goniometric extraction) to an `Eulumdat` struct.
+///
+/// Returns `None` if the source has no distribution data or no distribution planes.
+pub fn light_source_to_eulumdat(source: &LightSourceData) -> Option<eulumdat::Eulumdat> {
+    let dist = source.distribution.as_ref()?;
+    if dist.planes.is_empty() {
+        return None;
+    }
+
+    let c_angles: Vec<f64> = dist.planes.iter().map(|p| p.main_angle).collect();
+    let g_angles: Vec<f64> = dist.planes[0].intensities.iter().map(|(a, _)| *a).collect();
+    let flux = source.luminous_flux.unwrap_or(0.0);
+    let temp = source.color_temperature.unwrap_or(0.0);
+    let emitter = source.emission_source.clone().unwrap_or_default();
+
+    let intensities: Vec<Vec<f64>> = dist
+        .planes
+        .iter()
+        .map(|p| p.intensities.iter().map(|(_, v)| *v).collect())
+        .collect();
+
+    Some(build_eulumdat(
+        String::new(),
+        &c_angles,
+        &g_angles,
+        flux,
+        temp,
+        &emitter,
+        &intensities,
+    ))
+}
+
+/// Convenience wrapper: convert `LightSourceData` → LDT string.
+///
+/// Returns `None` if the source has no distribution data.
+pub fn light_source_to_ldt(source: &LightSourceData) -> Option<String> {
+    light_source_to_eulumdat(source).map(|ldt| ldt.to_ldt())
+}
+
+/// Convert a `GoniometricData` (from `PropertyReader::goniometric_sources()`) to `Eulumdat`.
+pub fn goniometric_to_eulumdat(src: &bimifc_model::GoniometricData) -> eulumdat::Eulumdat {
+    let c_angles: Vec<f64> = src.planes.iter().map(|p| p.c_angle).collect();
+    let g_angles: Vec<f64> = if src.planes.is_empty() {
+        Vec::new()
+    } else {
+        src.planes[0].gamma_angles.clone()
+    };
+
+    let intensities: Vec<Vec<f64>> = src.planes.iter().map(|p| p.intensities.clone()).collect();
+
+    build_eulumdat(
+        src.name.clone(),
+        &c_angles,
+        &g_angles,
+        src.luminous_flux,
+        src.colour_temperature,
+        &src.emitter_type,
+        &intensities,
+    )
+}
+
+/// Convenience wrapper: convert `GoniometricData` → LDT string.
+pub fn goniometric_to_ldt(src: &bimifc_model::GoniometricData) -> String {
+    goniometric_to_eulumdat(src).to_ldt()
+}
+
+/// Shared helper that builds an `Eulumdat` struct from raw photometric parameters.
+fn build_eulumdat(
+    name: String,
+    c_angles: &[f64],
+    g_angles: &[f64],
+    luminous_flux: f64,
+    colour_temperature: f64,
+    emitter_type: &str,
+    intensities_cd: &[Vec<f64>],
+) -> eulumdat::Eulumdat {
+    use eulumdat::{Eulumdat, LampSet, Symmetry};
+
+    let mut ldt = Eulumdat::new();
+    ldt.luminaire_name = name;
+
+    ldt.c_angles = c_angles.to_vec();
+    ldt.g_angles = g_angles.to_vec();
+    ldt.num_c_planes = ldt.c_angles.len();
+    ldt.num_g_planes = ldt.g_angles.len();
+
+    if ldt.num_c_planes > 1 {
+        ldt.c_plane_distance = ldt.c_angles[1] - ldt.c_angles[0];
+    }
+    if ldt.num_g_planes > 1 {
+        ldt.g_plane_distance = ldt.g_angles[1] - ldt.g_angles[0];
+    }
+
+    // Determine symmetry from C-plane coverage
+    let max_c = ldt.c_angles.last().copied().unwrap_or(0.0);
+    ldt.symmetry = if max_c <= 1.0 {
+        Symmetry::VerticalAxis
+    } else if max_c <= 91.0 {
+        Symmetry::BothPlanes
+    } else if max_c <= 181.0 {
+        Symmetry::PlaneC0C180
+    } else {
+        Symmetry::None
+    };
+
+    // Convert absolute cd → cd/klm by dividing by (flux/1000)
+    let flux_factor = if luminous_flux > 0.0 {
+        luminous_flux / 1000.0
+    } else {
+        1.0
+    };
+
+    ldt.intensities = intensities_cd
+        .iter()
+        .map(|plane| plane.iter().map(|&v| v / flux_factor).collect())
+        .collect();
+
+    // Lamp set
+    let cct_str = if colour_temperature > 0.0 {
+        format!("{:.0}K", colour_temperature)
+    } else {
+        String::new()
+    };
+    ldt.lamp_sets.push(LampSet {
+        num_lamps: 1,
+        lamp_type: emitter_type.to_string(),
+        total_luminous_flux: luminous_flux,
+        color_appearance: cct_str,
+        color_rendering_group: String::new(),
+        wattage_with_ballast: 0.0,
+    });
+
+    ldt.conversion_factor = flux_factor;
+
+    ldt
 }
 
 /// Export lighting data to JSON format compatible with gldf-ifc-viewer

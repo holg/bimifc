@@ -43,7 +43,8 @@ mod units;
 pub use decoder::EntityDecoder;
 pub use ifcx::{is_ifcx_format, IfcxGeometry, IfcxModel};
 pub use lighting::{
-    export_to_json, extract_lighting_data, DistributionPlane, LightDistributionData,
+    export_to_json, extract_lighting_data, goniometric_to_eulumdat, goniometric_to_ldt,
+    light_source_to_eulumdat, light_source_to_ldt, DistributionPlane, LightDistributionData,
     LightFixtureData, LightSourceData, LightingExport,
 };
 pub use model::ParsedModel;

@@ -143,8 +143,7 @@ impl GeometryRouter {
             if let Some(source_id) = self.extract_mapping_source_id(entity, resolver) {
                 if let Some(cached) = self.get_cached_mapped_item(source_id) {
                     let mut mesh = (*cached).clone();
-                    if let Some(transform) =
-                        self.extract_mapping_target_transform(entity, resolver)
+                    if let Some(transform) = self.extract_mapping_target_transform(entity, resolver)
                     {
                         crate::extrusion::apply_transform(&mut mesh, &transform);
                     }
@@ -164,8 +163,7 @@ impl GeometryRouter {
                                 self.process_shape_representation(&shape_rep, resolver)?
                             {
                                 // Cache the source geometry for future MappedItems
-                                let source_id =
-                                    self.extract_mapping_source_id(entity, resolver);
+                                let source_id = self.extract_mapping_source_id(entity, resolver);
                                 if let Some(sid) = source_id {
                                     self.cache_mapped_item(sid, Arc::new(mesh.clone()));
                                 }

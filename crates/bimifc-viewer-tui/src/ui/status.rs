@@ -80,12 +80,18 @@ impl Widget for StatusBar {
         spans.push(Span::styled("[+-]", Style::default().fg(Color::Yellow)));
         spans.push(Span::raw("zoom "));
         spans.push(Span::styled(
-            if self.view_mode == ViewMode::Iso3D { "[\u{2190}\u{2191}\u{2192}\u{2193}]" } else { "[WASD]" },
+            if self.view_mode == ViewMode::Iso3D {
+                "[\u{2190}\u{2191}\u{2192}\u{2193}]"
+            } else {
+                "[WASD]"
+            },
             Style::default().fg(Color::Yellow),
         ));
-        spans.push(Span::raw(
-            if self.view_mode == ViewMode::Iso3D { "orbit " } else { "pan " },
-        ));
+        spans.push(Span::raw(if self.view_mode == ViewMode::Iso3D {
+            "orbit "
+        } else {
+            "pan "
+        }));
         spans.push(Span::styled("[Tab]", Style::default().fg(Color::Yellow)));
         spans.push(Span::raw("focus "));
         spans.push(Span::styled("[Q]", Style::default().fg(Color::Red)));

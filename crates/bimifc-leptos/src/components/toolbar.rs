@@ -1275,9 +1275,7 @@ pub fn parse_and_process_ifc(
 
             // Extract base64-encoded LDT from Pset_GLDF_LDTRawContent (GLDF exports)
             // These contain LDT_1_Content, LDT_2_Content, etc. as base64-encoded EULUMDAT
-            if photometry_ldt.is_none()
-                && e.entity_type.eq_ignore_ascii_case("IfcLightFixture")
-            {
+            if photometry_ldt.is_none() && e.entity_type.eq_ignore_ascii_case("IfcLightFixture") {
                 use base64::Engine;
                 let mut ldt_contents: Vec<String> = Vec::new();
                 for ps in &property_sets {
@@ -1332,46 +1330,38 @@ pub fn parse_and_process_ifc(
             }
 
             // For light fixtures without LDT but with goniometric distribution data,
-            // generate polar diagrams from IFC distribution curves (GLDF files).
-            // A fixture can have multiple light sources (multi-emitter luminaires).
-            if photometry_ldt.is_none()
-                && e.entity_type.eq_ignore_ascii_case("IfcLightFixture")
-            {
-                if let Some(fixture) = lighting_export
-                    .light_fixtures
-                    .iter()
-                    .find(|f| f.id == e.id)
+            // convert IFC distribution curves to LDT via shared conversion so they
+            // get full photometric metrics (beam/field angles, LOR, efficacy).
+            if photometry_ldt.is_none() && e.entity_type.eq_ignore_ascii_case("IfcLightFixture") {
+                if let Some(fixture) = lighting_export.light_fixtures.iter().find(|f| f.id == e.id)
                 {
-                    let sources_with_dist: Vec<_> = fixture
+                    let ldt_sources: Vec<String> = fixture
                         .light_sources
                         .iter()
-                        .filter(|s| s.distribution.is_some())
+                        .filter_map(bimifc_parser::light_source_to_ldt)
                         .collect();
 
-                    if !sources_with_dist.is_empty() {
-                        let sources_json: Vec<serde_json::Value> = sources_with_dist
+                    if ldt_sources.len() == 1 {
+                        photometry_ldt = Some(ldt_sources.into_iter().next().unwrap());
+                    } else if ldt_sources.len() > 1 {
+                        let first_raw = ldt_sources[0].clone();
+                        let sources_json: Vec<serde_json::Value> = ldt_sources
                             .iter()
-                            .map(|source| {
-                                let dist = source.distribution.as_ref().unwrap();
-                                let svg = crate::components::properties_panel::generate_ifc_distribution_svg(dist);
-                                let max_cd = dist.planes.iter()
-                                    .flat_map(|p| p.intensities.iter().map(|(_, v)| *v))
-                                    .fold(0.0_f64, f64::max);
-                                serde_json::json!({
-                                    "name": source.source_type.clone(),
-                                    "svg": svg,
-                                    "luminous_flux": source.luminous_flux,
-                                    "color_temperature": source.color_temperature,
-                                    "max_intensity": max_cd,
-                                    "emission_source": source.emission_source,
-                                })
+                            .enumerate()
+                            .filter_map(|(i, ldt_str)| {
+                                crate::components::properties_panel::parse_ldt_to_json(
+                                    ldt_str,
+                                    &format!("Emitter {}", i + 1),
+                                )
                             })
                             .collect();
-
-                        let json = serde_json::json!({
-                            "sources": sources_json,
-                        });
-                        photometry_ldt = Some(json.to_string());
+                        if !sources_json.is_empty() {
+                            let json = serde_json::json!({
+                                "sources": sources_json,
+                                "ldt_raw": first_raw,
+                            });
+                            photometry_ldt = Some(json.to_string());
+                        }
                     }
                 }
             }
@@ -1512,7 +1502,9 @@ pub fn parse_and_process_ifc(
                                     .ok()
                                     .and_then(|v| v.get("ldt_raw")?.as_str().map(String::from))
                             } else {
-                                Some(crate::components::properties_panel::decode_ifc_string(ldt_raw))
+                                Some(crate::components::properties_panel::decode_ifc_string(
+                                    ldt_raw,
+                                ))
                             };
                         }
                     }
@@ -1562,7 +1554,9 @@ pub fn parse_and_process_ifc(
                                 .ok()
                                 .and_then(|v| v.get("ldt_raw")?.as_str().map(String::from))
                         } else {
-                            Some(crate::components::properties_panel::decode_ifc_string(ldt_raw))
+                            Some(crate::components::properties_panel::decode_ifc_string(
+                                ldt_raw,
+                            ))
                         };
 
                         if let Some(ldt) = ldt_for_lighting {

@@ -28,8 +28,8 @@ glam = "0.29"
 clap = { version = "4", features = ["derive"] }
 
 # Photometry
-eulumdat = { version = "0.5", default-features = false }
 base64 = "0.22"
+eulumdat = { version = "0.5", default-features = false }
 
 # Error handling
 anyhow = "1.0"

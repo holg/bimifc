@@ -57,7 +57,7 @@ impl EntityProperties {
 
         // Fallback: try IFC-native goniometric light sources (Relux style)
         if photometry.is_empty() {
-            photometry = extract_goniometric(id, &*props);
+            photometry = extract_goniometric(id, props);
         }
 
         // Filter out raw GLDF/photometry property sets from display
@@ -166,7 +166,7 @@ fn parse_ldt_summary(content: &str) -> Option<PhotometrySummary> {
 
 /// Extract photometric summaries from IFC-native IfcLightSourceGoniometric entities
 fn extract_goniometric(id: EntityId, props: &dyn PropertyReader) -> Vec<PhotometrySummary> {
-    use eulumdat::{Eulumdat, LampSet, PhotometricSummary, Symmetry};
+    use eulumdat::PhotometricSummary;
 
     let sources = props.goniometric_sources(id);
     let mut results = Vec::new();
@@ -176,73 +176,8 @@ fn extract_goniometric(id: EntityId, props: &dyn PropertyReader) -> Vec<Photomet
             continue;
         }
 
-        // Build a Eulumdat struct from IFC goniometric data
-        let mut ldt = Eulumdat::new();
-        ldt.luminaire_name = src.name.clone();
-
-        // C-plane angles and gamma angles
-        ldt.c_angles = src.planes.iter().map(|p| p.c_angle).collect();
-        // Use gamma angles from first plane (all planes should have the same)
-        ldt.g_angles = src.planes[0].gamma_angles.clone();
-
-        ldt.num_c_planes = ldt.c_angles.len();
-        ldt.num_g_planes = ldt.g_angles.len();
-
-        if ldt.num_c_planes > 1 {
-            ldt.c_plane_distance = ldt.c_angles[1] - ldt.c_angles[0];
-        }
-        if ldt.num_g_planes > 1 {
-            ldt.g_plane_distance = ldt.g_angles[1] - ldt.g_angles[0];
-        }
-
-        // Determine symmetry from C-plane coverage
-        let max_c = ldt.c_angles.last().copied().unwrap_or(0.0);
-        ldt.symmetry = if max_c <= 1.0 {
-            Symmetry::VerticalAxis
-        } else if max_c <= 91.0 {
-            Symmetry::BothPlanes
-        } else if max_c <= 181.0 {
-            Symmetry::PlaneC0C180
-        } else {
-            Symmetry::None
-        };
-
-        // Intensity data (cd values — IFC stores absolute cd, Eulumdat expects cd/klm)
-        // Convert absolute cd → cd/klm by dividing by (flux/1000)
-        let flux_factor = if src.luminous_flux > 0.0 {
-            src.luminous_flux / 1000.0
-        } else {
-            1.0
-        };
-
-        ldt.intensities = src
-            .planes
-            .iter()
-            .map(|p| p.intensities.iter().map(|&v| v / flux_factor).collect())
-            .collect();
-
-        // Lamp set
-        let cct_str = if src.colour_temperature > 0.0 {
-            format!("{:.0}K", src.colour_temperature)
-        } else {
-            String::new()
-        };
-        ldt.lamp_sets.push(LampSet {
-            num_lamps: 1,
-            lamp_type: src.emitter_type.clone(),
-            total_luminous_flux: src.luminous_flux,
-            color_appearance: cct_str,
-            color_rendering_group: String::new(),
-            wattage_with_ballast: 0.0,
-        });
-
-        // Conversion factor = flux/1000 (to convert cd/klm back to absolute cd)
-        ldt.conversion_factor = flux_factor;
-
-        // Generate LDT string for polar diagram
+        let ldt = bimifc_parser::goniometric_to_eulumdat(src);
         let ldt_content = ldt.to_ldt();
-
-        // Compute photometric summary
         let summary = PhotometricSummary::from_eulumdat(&ldt);
 
         results.push(PhotometrySummary {
@@ -309,15 +244,9 @@ fn decode_ifc_string(s: &str) -> String {
                         }
                         // Decode hex pairs as UTF-16
                         let mut i = 0;
-                        let hex_bytes: Vec<u8> =
-                            hex.bytes().collect();
+                        let hex_bytes: Vec<u8> = hex.bytes().collect();
                         while i + 3 < hex_bytes.len() {
-                            if let Ok(code) =
-                                u16::from_str_radix(
-                                    &hex[i..i + 4],
-                                    16,
-                                )
-                            {
+                            if let Ok(code) = u16::from_str_radix(&hex[i..i + 4], 16) {
                                 if let Some(ch) = char::from_u32(code as u32) {
                                     result.push(ch);
                                 }

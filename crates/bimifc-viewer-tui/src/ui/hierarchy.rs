@@ -163,13 +163,14 @@ impl HierarchyState {
 }
 
 /// Hierarchy panel widget
+#[derive(Default)]
 pub struct HierarchyPanel {
     focused: bool,
 }
 
 impl HierarchyPanel {
     pub fn new() -> Self {
-        Self { focused: false }
+        Self::default()
     }
 
     pub fn focused(mut self, focused: bool) -> Self {

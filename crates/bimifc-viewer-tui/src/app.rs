@@ -241,8 +241,7 @@ impl App {
                     let vp_h = layout.viewport.height.saturating_sub(2) as usize;
                     if vp_w > 0 && vp_h > 0 {
                         self.framebuffer.resize(vp_w, vp_h);
-                        self.camera
-                            .set_terminal_aspect(vp_w as u16, vp_h as u16);
+                        self.camera.set_terminal_aspect(vp_w as u16, vp_h as u16);
                         self.stats = render_floorplan(
                             &mut self.framebuffer,
                             &self.scene,
@@ -253,8 +252,7 @@ impl App {
 
                 // Hierarchy panel
                 if let Some(hier_area) = layout.hierarchy {
-                    let panel = HierarchyPanel::new()
-                        .focused(self.focus == Focus::Hierarchy);
+                    let panel = HierarchyPanel::new().focused(self.focus == Focus::Hierarchy);
                     frame.render_stateful_widget(panel, hier_area, &mut self.hierarchy);
                 }
 
@@ -287,8 +285,7 @@ impl App {
 
                 // Status bar
                 let fps = self.calculate_fps();
-                let mut status =
-                    StatusBar::new(fps, self.stats.clone(), self.view_mode);
+                let mut status = StatusBar::new(fps, self.stats.clone(), self.view_mode);
                 // Tooltip takes priority over message
                 if let Some(ref tip) = self.tooltip {
                     status = status.with_message(tip.clone());
@@ -331,11 +328,11 @@ impl App {
         // Determine which panel the mouse is over
         let over_hierarchy = layout
             .hierarchy
-            .map_or(false, |r| r.contains((col, row).into()));
+            .is_some_and(|r| r.contains((col, row).into()));
         let over_viewport = layout.viewport.contains((col, row).into());
         let over_properties = layout
             .properties
-            .map_or(false, |r| r.contains((col, row).into()));
+            .is_some_and(|r| r.contains((col, row).into()));
 
         match mouse.kind {
             // Left click — focus panel + select hierarchy item
@@ -419,12 +416,10 @@ impl App {
                         let inner_top = hier_area.y + 1;
                         if row >= inner_top {
                             let list_row = (row - inner_top) as usize;
-                            let item_index =
-                                list_row + self.hierarchy.scroll_offset();
+                            let item_index = list_row + self.hierarchy.scroll_offset();
                             if let Some(item) = self.hierarchy.items.get(item_index) {
                                 let inner_w = hier_area.width.saturating_sub(2) as usize;
-                                let display_w =
-                                    inner_w.saturating_sub(item.depth * 2 + 6);
+                                let display_w = inner_w.saturating_sub(item.depth * 2 + 6);
                                 // Show tooltip if name is truncated
                                 if item.name.len() > display_w {
                                     self.tooltip = Some(item.name.clone());
@@ -466,8 +461,7 @@ impl App {
             }
             Action::LevelDown => {
                 self.floorplan_view.prev_level(&self.scene);
-                self.message =
-                    Some(format!("Level down: Y={:.1}m", self.floorplan_view.slice_y));
+                self.message = Some(format!("Level down: Y={:.1}m", self.floorplan_view.slice_y));
             }
             Action::ZoomIn => self.floorplan_view.zoom_in(),
             Action::ZoomOut => self.floorplan_view.zoom_out(),
