@@ -5,6 +5,7 @@
 //! Status bar
 
 use crate::renderer::FloorPlanStats;
+use crate::ui::viewport::ViewMode;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -17,14 +18,16 @@ use ratatui::{
 pub struct StatusBar {
     pub fps: f32,
     pub stats: FloorPlanStats,
+    pub view_mode: ViewMode,
     pub message: Option<String>,
 }
 
 impl StatusBar {
-    pub fn new(fps: f32, stats: FloorPlanStats) -> Self {
+    pub fn new(fps: f32, stats: FloorPlanStats, view_mode: ViewMode) -> Self {
         Self {
             fps,
             stats,
+            view_mode,
             message: None,
         }
     }
@@ -44,46 +47,50 @@ impl Widget for StatusBar {
                 .set_bg(Color::Rgb(30, 30, 45));
         }
 
-        // Build status line
         let mut spans = vec![
             Span::styled(
-                format!(" FPS: {:.0}", self.fps),
-                Style::default().fg(Color::Green),
+                format!(" [{}]", self.view_mode.label()),
+                Style::default().fg(Color::Cyan),
             ),
             Span::styled(" | ", Style::default().fg(Color::DarkGray)),
             Span::styled(
+                format!("FPS: {:.0}", self.fps),
+                Style::default().fg(Color::Green),
+            ),
+        ];
+
+        // Show level info for floor plan modes
+        if self.view_mode != ViewMode::Iso3D {
+            spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
+            spans.push(Span::styled(
                 format!(
                     "Level {}/{}",
                     self.stats.current_level + 1,
                     self.stats.level_count.max(1)
                 ),
-                Style::default().fg(Color::Cyan),
-            ),
-            Span::styled(
-                format!(
-                    " ({} edges, {} px)",
-                    format_number(self.stats.visible_edges),
-                    format_number(self.stats.pixels_drawn),
-                ),
-                Style::default().fg(Color::DarkGray),
-            ),
-            Span::styled(" | ", Style::default().fg(Color::DarkGray)),
-        ];
+                Style::default().fg(Color::Yellow),
+            ));
+        }
+
+        spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
 
         // Controls help
-        spans.push(Span::styled(
-            "[PgUp/Dn]",
-            Style::default().fg(Color::Yellow),
-        ));
-        spans.push(Span::raw("level "));
+        spans.push(Span::styled("[V]", Style::default().fg(Color::Yellow)));
+        spans.push(Span::raw("view "));
         spans.push(Span::styled("[+-]", Style::default().fg(Color::Yellow)));
         spans.push(Span::raw("zoom "));
-        spans.push(Span::styled("[WASD]", Style::default().fg(Color::Yellow)));
-        spans.push(Span::raw("pan "));
+        spans.push(Span::styled(
+            if self.view_mode == ViewMode::Iso3D { "[\u{2190}\u{2191}\u{2192}\u{2193}]" } else { "[WASD]" },
+            Style::default().fg(Color::Yellow),
+        ));
+        spans.push(Span::raw(
+            if self.view_mode == ViewMode::Iso3D { "orbit " } else { "pan " },
+        ));
+        spans.push(Span::styled("[Tab]", Style::default().fg(Color::Yellow)));
+        spans.push(Span::raw("focus "));
         spans.push(Span::styled("[Q]", Style::default().fg(Color::Red)));
         spans.push(Span::raw("quit"));
 
-        // Message if any
         if let Some(msg) = self.message {
             spans.push(Span::styled(" | ", Style::default().fg(Color::DarkGray)));
             spans.push(Span::styled(msg, Style::default().fg(Color::Magenta)));
@@ -91,16 +98,5 @@ impl Widget for StatusBar {
 
         let line = Line::from(spans);
         buf.set_line(area.x, area.y, &line, area.width);
-    }
-}
-
-/// Format a number with K/M suffix
-fn format_number(n: usize) -> String {
-    if n >= 1_000_000 {
-        format!("{:.1}M", n as f64 / 1_000_000.0)
-    } else if n >= 1_000 {
-        format!("{:.1}k", n as f64 / 1_000.0)
-    } else {
-        n.to_string()
     }
 }

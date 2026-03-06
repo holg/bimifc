@@ -10,7 +10,7 @@ use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState, Widget},
+    widgets::{Block, Borders, List, ListItem, ListState, StatefulWidget, Widget},
 };
 use std::collections::HashSet;
 
@@ -143,6 +143,19 @@ impl HierarchyState {
         self.items.get(self.selected).map(|item| item.id)
     }
 
+    /// Select item at specific index
+    pub fn select_at(&mut self, index: usize) {
+        if index < self.items.len() {
+            self.selected = index;
+            self.list_state.select(Some(self.selected));
+        }
+    }
+
+    /// Get the scroll offset of the list
+    pub fn scroll_offset(&self) -> usize {
+        self.list_state.offset()
+    }
+
     /// Set filter string
     pub fn set_filter(&mut self, filter: String) {
         self.filter = filter;
@@ -150,17 +163,13 @@ impl HierarchyState {
 }
 
 /// Hierarchy panel widget
-pub struct HierarchyPanel<'a> {
-    state: &'a HierarchyState,
+pub struct HierarchyPanel {
     focused: bool,
 }
 
-impl<'a> HierarchyPanel<'a> {
-    pub fn new(state: &'a HierarchyState) -> Self {
-        Self {
-            state,
-            focused: false,
-        }
+impl HierarchyPanel {
+    pub fn new() -> Self {
+        Self { focused: false }
     }
 
     pub fn focused(mut self, focused: bool) -> Self {
@@ -169,8 +178,10 @@ impl<'a> HierarchyPanel<'a> {
     }
 }
 
-impl Widget for HierarchyPanel<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
+impl StatefulWidget for HierarchyPanel {
+    type State = HierarchyState;
+
+    fn render(self, area: Rect, buf: &mut Buffer, state: &mut HierarchyState) {
         let border_style = if self.focused {
             Style::default().fg(Color::Cyan)
         } else {
@@ -186,8 +197,7 @@ impl Widget for HierarchyPanel<'_> {
         block.render(area, buf);
 
         // Create list items
-        let items: Vec<ListItem> = self
-            .state
+        let items: Vec<ListItem> = state
             .items
             .iter()
             .enumerate()
@@ -239,7 +249,7 @@ impl Widget for HierarchyPanel<'_> {
                     Span::raw(name),
                 ]);
 
-                let style = if i == self.state.selected {
+                let style = if i == state.selected {
                     Style::default()
                         .bg(Color::Rgb(40, 40, 60))
                         .add_modifier(Modifier::BOLD)
@@ -251,12 +261,9 @@ impl Widget for HierarchyPanel<'_> {
             })
             .collect();
 
-        // Render list
+        // Render list — StatefulWidget render updates list_state offset
         let list = List::new(items);
-
-        // Use StatefulWidget to render with scroll position
-        let mut state = self.state.list_state.clone();
-        ratatui::widgets::StatefulWidget::render(list, inner, buf, &mut state);
+        StatefulWidget::render(list, inner, buf, &mut state.list_state);
     }
 }
 

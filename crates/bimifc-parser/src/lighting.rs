@@ -328,26 +328,133 @@ fn extract_cartesian_point(
     (0.0, 0.0, 0.0)
 }
 
-/// Extract light sources from a fixture
+/// Extract light sources from a fixture via IFCRELASSIGNSTOGROUP
+///
+/// GLDF-exported IFC files use IFCRELASSIGNSTOGROUP to link light sources
+/// to their parent fixture. The relationship has:
+/// - Attribute 5: RelatedObjects (list of light sources)
+/// - Attribute 6: RelatingGroup (the fixture entity)
 fn extract_light_sources(
-    _fixture: &DecodedEntity,
+    fixture: &DecodedEntity,
     resolver: &dyn EntityResolver,
 ) -> Vec<LightSourceData> {
+    let fixture_id = fixture.id;
+
+    // Find IFCRELASSIGNSTOGROUP where RelatingGroup (attr 6) points to this fixture
+    let group_rels = resolver.entities_by_type(&IfcType::IfcRelAssignsToGroup);
+    for rel in &group_rels {
+        if let Some(group_ref) = rel.get_ref(6) {
+            if group_ref == fixture_id {
+                // Found the group assignment for this fixture
+                if let Some(related_list) = rel.get_list(5) {
+                    return related_list
+                        .iter()
+                        .filter_map(|item| {
+                            if let AttributeValue::EntityRef(source_id) = item {
+                                resolver.get(*source_id).and_then(|source| {
+                                    if source.ifc_type == IfcType::IfcLightSourceGoniometric {
+                                        Some(extract_goniometric_source(&source, resolver))
+                                    } else {
+                                        None
+                                    }
+                                })
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                }
+            }
+        }
+    }
+
+    // Fallback: walk fixture's Representation → ShapeRepresentations to find
+    // IfcLightSourceGoniometric (used by Relux-exported IFC files which embed
+    // goniometric sources directly in the fixture's representation geometry).
     let mut sources = Vec::new();
 
-    // Light sources can be found in various ways:
-    // 1. Through IFCRELASSOCIATESMATERIAL relationships
-    // 2. Through representation items
-    // 3. Direct references
+    // IfcProduct.Representation is at index 6
+    if let Some(pds_id) = fixture.get_ref(6) {
+        if let Some(pds) = resolver.get(pds_id) {
+            // IfcProductDefinitionShape.Representations at index 2
+            if let Some(rep_refs) = pds.get_refs(2) {
+                for rep_id in rep_refs {
+                    if let Some(rep) = resolver.get(rep_id) {
+                        // ShapeRepresentation.Items at index 3
+                        find_goniometric_in_items(&rep, resolver, &mut sources);
+                    }
+                }
+            }
+        }
+    }
 
-    // For now, search all goniometric light sources and match by containment
-    let goniometric_sources = resolver.entities_by_type(&IfcType::IfcLightSourceGoniometric);
-
-    for source in goniometric_sources {
-        sources.push(extract_goniometric_source(&source, resolver));
+    // Also check type's RepresentationMaps (for instanced fixtures)
+    if sources.is_empty() {
+        let type_rels = resolver.entities_by_type(&IfcType::IfcRelDefinesByType);
+        for rel in &type_rels {
+            if let Some(related_list) = rel.get_list(4) {
+                let is_related = related_list.iter().any(|v| {
+                    v.as_entity_ref().map_or(false, |id| id == fixture_id)
+                });
+                if is_related {
+                    if let Some(type_id) = rel.get_ref(5) {
+                        if let Some(type_entity) = resolver.get(type_id) {
+                            // IfcTypeProduct.RepresentationMaps at index 6
+                            if let Some(map_refs) = type_entity.get_refs(6) {
+                                for map_id in map_refs {
+                                    if let Some(map) = resolver.get(map_id) {
+                                        // RepresentationMap.MappedRepresentation at index 1
+                                        if let Some(mapped_rep_id) = map.get_ref(1) {
+                                            if let Some(mapped_rep) = resolver.get(mapped_rep_id) {
+                                                find_goniometric_in_items(&mapped_rep, resolver, &mut sources);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     sources
+}
+
+/// Recursively find IfcLightSourceGoniometric in representation items (direct or via MappedItem)
+fn find_goniometric_in_items(
+    rep: &DecodedEntity,
+    resolver: &dyn EntityResolver,
+    sources: &mut Vec<LightSourceData>,
+) {
+    let item_refs = match rep.get_refs(3) {
+        Some(refs) => refs,
+        None => return,
+    };
+
+    for item_id in item_refs {
+        if let Some(item) = resolver.get(item_id) {
+            match item.ifc_type {
+                IfcType::IfcLightSourceGoniometric => {
+                    sources.push(extract_goniometric_source(&item, resolver));
+                }
+                IfcType::IfcMappedItem => {
+                    // Follow MappedItem → RepresentationMap → ShapeRepresentation
+                    if let Some(map_id) = item.get_ref(0) {
+                        if let Some(map) = resolver.get(map_id) {
+                            if let Some(mapped_rep_id) = map.get_ref(1) {
+                                if let Some(mapped_rep) = resolver.get(mapped_rep_id) {
+                                    find_goniometric_in_items(&mapped_rep, resolver, sources);
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 /// Extract data from a goniometric light source
@@ -462,6 +569,7 @@ pub fn export_to_json(export: &LightingExport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bimifc_model::IfcParser;
 
     #[test]
     fn test_light_fixture_data_serialization() {
@@ -482,5 +590,116 @@ mod tests {
         let json = serde_json::to_string(&fixture).unwrap();
         assert!(json.contains("Test Fixture"));
         assert!(json.contains("123"));
+    }
+
+    #[test]
+    fn test_gldf_light_sources_per_fixture() {
+        // Test that extract_light_sources correctly uses IFCRELASSIGNSTOGROUP
+        // to assign sources to their specific fixture (not all sources to all fixtures)
+        let gldf_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("ifc/gldf-exported.ifc");
+
+        if !gldf_path.exists() {
+            // Skip if file not available
+            return;
+        }
+
+        let content = std::fs::read_to_string(&gldf_path).unwrap();
+        let parser = crate::StepParser::new();
+        let model = parser.parse(&content).unwrap();
+        let export = extract_lighting_data(model.resolver());
+
+        // GLDF file has 3 fixtures, each with exactly 2 light sources
+        assert_eq!(export.light_fixtures.len(), 3);
+        for fixture in &export.light_fixtures {
+            eprintln!(
+                "Fixture #{} '{}': {} sources",
+                fixture.id,
+                fixture.name.as_deref().unwrap_or("?"),
+                fixture.light_sources.len()
+            );
+            for s in &fixture.light_sources {
+                eprintln!(
+                    "  Source #{}: flux={:?} dist={}",
+                    s.id,
+                    s.luminous_flux,
+                    s.distribution
+                        .as_ref()
+                        .map(|d| format!("{} planes", d.planes.len()))
+                        .unwrap_or_else(|| "none".to_string())
+                );
+            }
+            assert_eq!(
+                fixture.light_sources.len(),
+                2,
+                "Fixture '{}' (#{}) should have 2 sources, got {}",
+                fixture.name.as_deref().unwrap_or("?"),
+                fixture.id,
+                fixture.light_sources.len()
+            );
+        }
+        // Total: 6 sources (not 18 from the old bug)
+        assert_eq!(export.summary.total_light_sources, 6);
+    }
+
+    #[test]
+    fn test_relux_light_sources_via_representation() {
+        // Test that extract_light_sources falls back to representation walking
+        // for Relux-exported IFC files (no IfcRelAssignsToGroup)
+        let relux_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("ifc/relux-test.ifc");
+
+        if !relux_path.exists() {
+            return;
+        }
+
+        let content = std::fs::read_to_string(&relux_path).unwrap();
+        let parser = crate::StepParser::new();
+        let model = parser.parse(&content).unwrap();
+        let export = extract_lighting_data(model.resolver());
+
+        eprintln!("Relux fixtures: {}", export.light_fixtures.len());
+        for fixture in &export.light_fixtures {
+            eprintln!(
+                "Fixture #{} '{}': {} sources",
+                fixture.id,
+                fixture.name.as_deref().unwrap_or("?"),
+                fixture.light_sources.len()
+            );
+            for s in &fixture.light_sources {
+                eprintln!(
+                    "  Source #{}: flux={:?} dist={}",
+                    s.id,
+                    s.luminous_flux,
+                    s.distribution
+                        .as_ref()
+                        .map(|d| format!("{} ({} planes)", d.distribution_type, d.planes.len()))
+                        .unwrap_or_else(|| "none".to_string())
+                );
+            }
+        }
+
+        // Relux file should have fixtures with light sources found via representation
+        assert!(
+            !export.light_fixtures.is_empty(),
+            "Expected light fixtures in relux-test.ifc"
+        );
+        let total_sources: usize = export
+            .light_fixtures
+            .iter()
+            .map(|f| f.light_sources.len())
+            .sum();
+        assert!(
+            total_sources > 0,
+            "Expected light sources in relux-test.ifc fixtures"
+        );
     }
 }

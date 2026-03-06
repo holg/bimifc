@@ -817,10 +817,10 @@ fn auto_fit_camera_system(
 #[cfg(feature = "color-palette")]
 #[allow(unused_variables)]
 fn update_mesh_visibility_system(
-    previous_visibility: ResMut<PreviousVisibility>,
+    mut previous_visibility: ResMut<PreviousVisibility>,
     selection: Res<crate::picking::SelectionState>,
     color_mapping: Res<EntityColorMapping>,
-    mesh_assets: ResMut<Assets<Mesh>>,
+    mut mesh_assets: ResMut<Assets<Mesh>>,
     batched_meshes: Query<(&Mesh3d, &BatchedMesh)>,
 ) {
     #[cfg(target_arch = "wasm32")]

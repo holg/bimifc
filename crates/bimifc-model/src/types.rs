@@ -255,6 +255,7 @@ pub enum IfcType {
     IfcRelFillsElement,
     IfcRelConnectsPathElements,
     IfcRelSpaceBoundary,
+    IfcRelAssignsToGroup,
 
     // ========================================================================
     // Properties
@@ -571,6 +572,7 @@ impl IfcType {
             "IFCRELFILLSELEMENT" => IfcType::IfcRelFillsElement,
             "IFCRELCONNECTSPATHELEMENTS" => IfcType::IfcRelConnectsPathElements,
             "IFCRELSPACEBOUNDARY" => IfcType::IfcRelSpaceBoundary,
+            "IFCRELASSIGNSTOGROUP" => IfcType::IfcRelAssignsToGroup,
 
             // Properties
             "IFCPROPERTYSET" => IfcType::IfcPropertySet,
@@ -720,7 +722,21 @@ impl IfcType {
                     IfcType::IfcTriangulatedFaceSet => "IFCTRIANGULATEDFACESET",
                     IfcType::IfcMappedItem => "IFCMAPPEDITEM",
                     IfcType::IfcBooleanClippingResult => "IFCBOOLEANCLIPPINGRESULT",
-                    // Add more as needed, or use a macro for all variants
+                    IfcType::IfcFurnishingElement => "IFCFURNISHINGELEMENT",
+                    IfcType::IfcFurniture => "IFCFURNITURE",
+                    IfcType::IfcFlowTerminal => "IFCFLOWTERMINAL",
+                    IfcType::IfcFlowSegment => "IFCFLOWSEGMENT",
+                    IfcType::IfcFlowFitting => "IFCFLOWFITTING",
+                    IfcType::IfcFlowController => "IFCFLOWCONTROLLER",
+                    IfcType::IfcDistributionElement => "IFCDISTRIBUTIONELEMENT",
+                    IfcType::IfcOpeningElement => "IFCOPENINGELEMENT",
+                    IfcType::IfcLightFixture => "IFCLIGHTFIXTURE",
+                    IfcType::IfcLightFixtureType => "IFCLIGHTFIXTURETYPE",
+                    IfcType::IfcLightSourceGoniometric => "IFCLIGHTSOURCEGONIOMETRIC",
+                    IfcType::IfcLightSourcePositional => "IFCLIGHTSOURCEPOSITIONAL",
+                    IfcType::IfcLightSourceSpot => "IFCLIGHTSOURCESPOT",
+                    IfcType::IfcLightSourceDirectional => "IFCLIGHTSOURCEDIRECTIONAL",
+                    IfcType::IfcLightSourceAmbient => "IFCLIGHTSOURCEAMBIENT",
                     _ => "UNKNOWN",
                 }
             }

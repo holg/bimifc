@@ -380,6 +380,7 @@ fn has_geometry_type_name(type_name: &str) -> bool {
             | "IFCFLOWFITTING"
             | "IFCFLOWCONTROLLER"
             | "IFCSPACE"
+            | "IFCLIGHTFIXTURE"
     )
 }
 
@@ -397,6 +398,7 @@ fn get_color_for_type(type_name: &str) -> [f32; 4] {
         "IFCSTAIR" | "IFCSTAIRFLIGHT" | "IFCRAMP" | "IFCRAMPFLIGHT" => [0.6, 0.6, 0.55, 1.0],
         "IFCRAILING" => [0.4, 0.4, 0.45, 1.0],
         "IFCSPACE" => [0.3, 0.5, 0.7, 0.2],
+        "IFCLIGHTFIXTURE" => [1.0, 0.9, 0.3, 1.0],
         _ => [0.7, 0.7, 0.7, 1.0],
     }
 }

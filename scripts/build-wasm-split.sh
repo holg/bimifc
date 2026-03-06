@@ -425,6 +425,12 @@ if [[ "$BUILD_LEPTOS" == "true" ]]; then
             echo "  Restored bevy/ after trunk build"
         fi
 
+        # Symlink ifc/ directory into dist (trunk wipes dist/ on each build)
+        if [[ -d "$WASM_DIR/ifc" && ! -e "$DIST_DIR/ifc" ]]; then
+            ln -sfn "$WASM_DIR/ifc" "$DIST_DIR/ifc"
+            echo "  Restored ifc/ symlink"
+        fi
+
         # Save hash after successful build
         save_hash "leptos" "$(calculate_source_hash "$WASM_DIR")"
         for i in "${!WATCH_DIRS[@]}"; do

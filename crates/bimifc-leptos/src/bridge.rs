@@ -365,7 +365,7 @@ pub fn save_geometry(geometry: Vec<GeometryData>) {
     #[cfg(feature = "unified")]
     {
         // UNIFIED MODE: Direct memory transfer - no serialization!
-        // Convert GeometryData -> IfcMesh and pass directly
+        // Both Leptos and Bevy share the same WASM binary + memory space.
         use bimifc_bevy::{IfcMesh, MeshGeometry};
         use std::sync::Arc;
 
@@ -400,11 +400,6 @@ pub fn save_geometry(geometry: Vec<GeometryData>) {
         let serialize_time = js_sys::Date::now() - serialize_start;
         let size = binary.len();
 
-        log_info(&format!(
-            "[Leptos] Geometry serialized: {} bytes ({} meshes) in {:.0}ms",
-            size, mesh_count, serialize_time
-        ));
-
         // Create Uint8Array and copy data
         let copy_start = js_sys::Date::now();
         let array = Uint8Array::new_with_length(size as u32);
@@ -418,8 +413,8 @@ pub fn save_geometry(geometry: Vec<GeometryData>) {
 
         let total_time = js_sys::Date::now() - start;
         log_info(&format!(
-            "[Leptos] Geometry bridge: {:.0}ms total (serialize: {:.0}ms, copy: {:.0}ms, bridge: {:.0}ms) | {:.1} MB",
-            total_time, serialize_time, copy_time, bridge_time,
+            "[Leptos] Geometry bridge: {} meshes, {:.0}ms total (serialize: {:.0}ms, copy: {:.0}ms, bridge: {:.0}ms) | {:.1} MB",
+            mesh_count, total_time, serialize_time, copy_time, bridge_time,
             size as f64 / (1024.0 * 1024.0)
         ));
     }

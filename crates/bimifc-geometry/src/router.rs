@@ -137,17 +137,53 @@ impl GeometryRouter {
         entity: &DecodedEntity,
         resolver: &dyn EntityResolver,
     ) -> Result<Mesh> {
-        // Check for cached mapped item
+        // Handle IfcMappedItem: resolve MappingSource → RepresentationMap → ShapeRepresentation
         if entity.ifc_type == IfcType::IfcMappedItem {
-            if let Some(cached) = self.get_cached_mapped_item(entity.id.0) {
-                let mut mesh = (*cached).clone();
-                // Apply MappingTarget transform
-                if let Some(transform) = self.extract_mapping_target_transform(entity, resolver) {
-                    crate::extrusion::apply_transform(&mut mesh, &transform);
+            // Check cache first
+            if let Some(source_id) = self.extract_mapping_source_id(entity, resolver) {
+                if let Some(cached) = self.get_cached_mapped_item(source_id) {
+                    let mut mesh = (*cached).clone();
+                    if let Some(transform) =
+                        self.extract_mapping_target_transform(entity, resolver)
+                    {
+                        crate::extrusion::apply_transform(&mut mesh, &transform);
+                    }
+                    self.scale_mesh(&mut mesh);
+                    return Ok(mesh);
                 }
-                self.scale_mesh(&mut mesh);
-                return Ok(mesh);
             }
+
+            // Not cached — resolve the source representation and process its items
+            // MappingSource (index 0) → IfcRepresentationMap
+            if let Some(map_id) = entity.get_ref(0) {
+                if let Some(rep_map) = resolver.get(map_id) {
+                    // IfcRepresentationMap: 0=MappingOrigin, 1=MappedRepresentation
+                    if let Some(shape_rep_id) = rep_map.get_ref(1) {
+                        if let Some(shape_rep) = resolver.get(shape_rep_id) {
+                            if let Some(mut mesh) =
+                                self.process_shape_representation(&shape_rep, resolver)?
+                            {
+                                // Cache the source geometry for future MappedItems
+                                let source_id =
+                                    self.extract_mapping_source_id(entity, resolver);
+                                if let Some(sid) = source_id {
+                                    self.cache_mapped_item(sid, Arc::new(mesh.clone()));
+                                }
+                                // Apply MappingTarget transform
+                                if let Some(transform) =
+                                    self.extract_mapping_target_transform(entity, resolver)
+                                {
+                                    crate::extrusion::apply_transform(&mut mesh, &transform);
+                                }
+                                self.scale_mesh(&mut mesh);
+                                return Ok(mesh);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return Ok(Mesh::new());
         }
 
         // Check for cached faceted brep
@@ -167,14 +203,6 @@ impl GeometryRouter {
 
         let mut mesh = processor.process(entity, resolver, self.unit_scale)?;
         self.scale_mesh(&mut mesh);
-
-        // Cache mapped item source geometry
-        if entity.ifc_type == IfcType::IfcMappedItem {
-            // Extract and cache the source geometry
-            if let Some(source_id) = self.extract_mapping_source_id(entity, resolver) {
-                self.cache_mapped_item(source_id, Arc::new(mesh.clone()));
-            }
-        }
 
         Ok(mesh)
     }

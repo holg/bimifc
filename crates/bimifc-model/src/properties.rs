@@ -151,6 +151,34 @@ impl Quantity {
     }
 }
 
+/// A single C-plane of light distribution data
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct LightDistributionPlane {
+    /// C-plane angle in degrees (0, 5, 10, ..., 355)
+    pub c_angle: f64,
+    /// Gamma angles in degrees (typically 0-180)
+    pub gamma_angles: Vec<f64>,
+    /// Luminous intensity values in candela at each gamma angle
+    pub intensities: Vec<f64>,
+}
+
+/// IFC-native goniometric light source data (from IfcLightSourceGoniometric)
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct GoniometricData {
+    /// Light source name
+    pub name: String,
+    /// Colour temperature in Kelvin
+    pub colour_temperature: f64,
+    /// Total luminous flux in lumens
+    pub luminous_flux: f64,
+    /// Light emitter type (e.g., "LIGHTEMITTINGDIODE", "FLUORESCENT")
+    pub emitter_type: String,
+    /// Distribution type (e.g., "TYPE_C", "TYPE_B", "TYPE_A")
+    pub distribution_type: String,
+    /// Light distribution data per C-plane
+    pub planes: Vec<LightDistributionPlane>,
+}
+
 /// Property and quantity reader trait
 ///
 /// Provides access to property sets and quantities associated with IFC entities.
@@ -288,5 +316,20 @@ pub trait PropertyReader: Send + Sync {
     /// The tag string if available
     fn tag(&self, _id: EntityId) -> Option<String> {
         None
+    }
+
+    /// Get goniometric light source data associated with an entity
+    ///
+    /// Finds IfcLightSourceGoniometric entities connected to this entity
+    /// through IfcRelDefinesByType → representation maps, or through
+    /// the entity's own representations.
+    ///
+    /// # Arguments
+    /// * `id` - The entity ID (typically an IfcLightFixture instance)
+    ///
+    /// # Returns
+    /// A vector of goniometric data (empty if none found)
+    fn goniometric_sources(&self, _id: EntityId) -> Vec<GoniometricData> {
+        Vec::new()
     }
 }

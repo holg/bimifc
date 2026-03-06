@@ -21,6 +21,12 @@ pub enum Action {
     ResetView,
     FitAll,
 
+    // 3D orbit rotation
+    RotateLeft,
+    RotateRight,
+    RotateUp,
+    RotateDown,
+
     // UI navigation
     CycleFocus,
     FocusViewport,
@@ -37,6 +43,9 @@ pub enum Action {
     // Panel visibility
     ToggleHierarchy,
     ToggleProperties,
+
+    // View mode
+    ToggleViewMode,
 
     // Search
     StartSearch,
@@ -55,21 +64,21 @@ pub fn map_key_to_action(key: KeyEvent) -> Option<Action> {
             Some(Action::LevelDown)
         }
 
-        // Arrow keys for level navigation
-        (KeyCode::Up, KeyModifiers::NONE) => Some(Action::LevelUp),
-        (KeyCode::Down, KeyModifiers::NONE) => Some(Action::LevelDown),
+        // Arrow keys for 3D orbit rotation
+        (KeyCode::Up, KeyModifiers::NONE) => Some(Action::RotateUp),
+        (KeyCode::Down, KeyModifiers::NONE) => Some(Action::RotateDown),
+        (KeyCode::Left, KeyModifiers::NONE) => Some(Action::RotateLeft),
+        (KeyCode::Right, KeyModifiers::NONE) => Some(Action::RotateRight),
 
         // Zoom
         (KeyCode::Char('+'), _) | (KeyCode::Char('='), KeyModifiers::NONE) => Some(Action::ZoomIn),
         (KeyCode::Char('-'), KeyModifiers::NONE) => Some(Action::ZoomOut),
 
-        // Pan (WASD or arrow keys with shift)
+        // Pan (WASD)
         (KeyCode::Char('w'), KeyModifiers::NONE) => Some(Action::PanUp),
         (KeyCode::Char('s'), KeyModifiers::NONE) => Some(Action::PanDown),
         (KeyCode::Char('a'), KeyModifiers::NONE) => Some(Action::PanLeft),
         (KeyCode::Char('d'), KeyModifiers::NONE) => Some(Action::PanRight),
-        (KeyCode::Left, KeyModifiers::SHIFT) => Some(Action::PanLeft),
-        (KeyCode::Right, KeyModifiers::SHIFT) => Some(Action::PanRight),
 
         // View controls
         (KeyCode::Char('r'), KeyModifiers::NONE) => Some(Action::ResetView),
@@ -81,6 +90,9 @@ pub fn map_key_to_action(key: KeyEvent) -> Option<Action> {
         // Panel visibility
         (KeyCode::Char('1'), KeyModifiers::NONE) => Some(Action::ToggleHierarchy),
         (KeyCode::Char('2'), KeyModifiers::NONE) => Some(Action::ToggleProperties),
+
+        // View mode
+        (KeyCode::Char('v'), KeyModifiers::NONE) => Some(Action::ToggleViewMode),
 
         // Hierarchy navigation (when focused)
         (KeyCode::Enter, KeyModifiers::NONE) => Some(Action::TreeSelect),

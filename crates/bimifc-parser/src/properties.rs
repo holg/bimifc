@@ -5,8 +5,8 @@
 //! PropertyReader trait implementation
 
 use bimifc_model::{
-    AttributeValue, DecodedEntity, EntityId, EntityResolver, IfcType, Property, PropertyReader,
-    PropertySet, Quantity, QuantityType,
+    AttributeValue, DecodedEntity, EntityId, EntityResolver, GoniometricData, IfcType,
+    LightDistributionPlane, Property, PropertyReader, PropertySet, Quantity, QuantityType,
 };
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
@@ -19,6 +19,8 @@ pub struct PropertyReaderImpl {
     pset_cache: FxHashMap<u32, Vec<EntityId>>,
     /// Cache: entity ID -> quantity set IDs
     qset_cache: FxHashMap<u32, Vec<EntityId>>,
+    /// Cache: instance entity ID -> type entity ID (from IfcRelDefinesByType)
+    type_cache: FxHashMap<u32, EntityId>,
 }
 
 impl PropertyReaderImpl {
@@ -27,6 +29,7 @@ impl PropertyReaderImpl {
         // Build property relationship cache
         let mut pset_cache: FxHashMap<u32, Vec<EntityId>> = FxHashMap::default();
         let mut qset_cache: FxHashMap<u32, Vec<EntityId>> = FxHashMap::default();
+        let mut type_cache: FxHashMap<u32, EntityId> = FxHashMap::default();
 
         // Find all IFCRELDEFINESBYPROPERTIES relationships
         for rel in resolver.entities_by_type(&IfcType::IfcRelDefinesByProperties) {
@@ -58,10 +61,30 @@ impl PropertyReaderImpl {
             }
         }
 
+        // Build IfcRelDefinesByType cache: instance -> type
+        for rel in resolver.entities_by_type(&IfcType::IfcRelDefinesByType) {
+            // RelatedObjects at index 4, RelatingType at index 5
+            let related_ids = match rel.get(4) {
+                Some(AttributeValue::List(list)) => list
+                    .iter()
+                    .filter_map(|v| v.as_entity_ref())
+                    .collect::<Vec<_>>(),
+                _ => continue,
+            };
+            let type_id = match rel.get_ref(5) {
+                Some(id) => id,
+                None => continue,
+            };
+            for related_id in related_ids {
+                type_cache.insert(related_id.0, type_id);
+            }
+        }
+
         Self {
             resolver,
             pset_cache,
             qset_cache,
+            type_cache,
         }
     }
 
@@ -249,19 +272,24 @@ impl PropertyReaderImpl {
 
 impl PropertyReader for PropertyReaderImpl {
     fn property_sets(&self, id: EntityId) -> Vec<PropertySet> {
-        let pset_ids = match self.pset_cache.get(&id.0) {
-            Some(ids) => ids,
-            None => return Vec::new(),
-        };
-
         let mut result = Vec::new();
+        let mut seen = std::collections::HashSet::new();
 
-        for pset_id in pset_ids {
+        // Collect pset IDs from instance and its type
+        let empty = Vec::new();
+        let instance_ids = self.pset_cache.get(&id.0).unwrap_or(&empty);
+        let type_ids = self
+            .type_cache
+            .get(&id.0)
+            .and_then(|tid| self.pset_cache.get(&tid.0));
+
+        for pset_id in instance_ids.iter().chain(type_ids.into_iter().flatten()) {
+            if !seen.insert(pset_id.0) {
+                continue;
+            }
             if let Some(pset) = self.resolver.get(*pset_id) {
-                // Name at index 2
                 let name = pset.get_string(2).unwrap_or("Unknown").to_string();
                 let properties = self.extract_properties(&pset);
-
                 if !properties.is_empty() {
                     result.push(PropertySet { name, properties });
                 }
@@ -272,14 +300,16 @@ impl PropertyReader for PropertyReaderImpl {
     }
 
     fn quantities(&self, id: EntityId) -> Vec<Quantity> {
-        let qset_ids = match self.qset_cache.get(&id.0) {
-            Some(ids) => ids,
-            None => return Vec::new(),
-        };
-
         let mut result = Vec::new();
 
-        for qset_id in qset_ids {
+        let empty = Vec::new();
+        let instance_ids = self.qset_cache.get(&id.0).unwrap_or(&empty);
+        let type_ids = self
+            .type_cache
+            .get(&id.0)
+            .and_then(|tid| self.qset_cache.get(&tid.0));
+
+        for qset_id in instance_ids.iter().chain(type_ids.into_iter().flatten()) {
             if let Some(qset) = self.resolver.get(*qset_id) {
                 result.extend(self.extract_quantities(&qset));
             }
@@ -316,5 +346,195 @@ impl PropertyReader for PropertyReaderImpl {
         let entity = self.resolver.get(id)?;
         // Tag varies by entity type, usually at index 7 for building elements
         entity.get_string(7).map(|s| s.to_string())
+    }
+
+    fn goniometric_sources(&self, id: EntityId) -> Vec<GoniometricData> {
+        let entity = match self.resolver.get(id) {
+            Some(e) => e,
+            None => return Vec::new(),
+        };
+
+        let mut results = Vec::new();
+
+        // For fixture instances: walk ProductDefinitionShape → ShapeRepresentations
+        // IfcLightFixture inherits IfcProduct: attr 5 = ObjectPlacement, attr 6 = Representation
+        if let Some(pds_id) = entity.get_ref(6) {
+            self.find_goniometric_in_pds(pds_id, &mut results);
+        }
+
+        // Also try the type's RepresentationMaps (attr 6 on IfcTypeProduct)
+        if results.is_empty() {
+            if let Some(type_id) = self.type_cache.get(&id.0) {
+                if let Some(type_entity) = self.resolver.get(*type_id) {
+                    // IfcTypeProduct.RepresentationMaps is at index 6
+                    if let Some(map_refs) = type_entity.get_refs(6) {
+                        for map_id in map_refs {
+                            self.find_goniometric_in_rep_map(map_id, &mut results);
+                        }
+                    }
+                }
+            }
+        }
+
+        results
+    }
+}
+
+impl PropertyReaderImpl {
+    /// Find IfcLightSourceGoniometric in a ProductDefinitionShape
+    fn find_goniometric_in_pds(&self, pds_id: EntityId, results: &mut Vec<GoniometricData>) {
+        let pds = match self.resolver.get(pds_id) {
+            Some(e) if e.ifc_type == IfcType::IfcProductDefinitionShape => e,
+            _ => return,
+        };
+
+        // Representations at index 2
+        let rep_refs = match pds.get_refs(2) {
+            Some(refs) => refs,
+            None => return,
+        };
+
+        for rep_id in rep_refs {
+            if let Some(rep) = self.resolver.get(rep_id) {
+                if rep.ifc_type == IfcType::IfcShapeRepresentation {
+                    self.find_goniometric_in_shape_rep(&rep, results);
+                }
+            }
+        }
+    }
+
+    /// Find IfcLightSourceGoniometric in a ShapeRepresentation (direct or via MappedItem)
+    fn find_goniometric_in_shape_rep(
+        &self,
+        rep: &DecodedEntity,
+        results: &mut Vec<GoniometricData>,
+    ) {
+        // Items at index 3
+        let item_refs = match rep.get_refs(3) {
+            Some(refs) => refs,
+            None => return,
+        };
+
+        for item_id in item_refs {
+            if let Some(item) = self.resolver.get(item_id) {
+                match item.ifc_type {
+                    IfcType::IfcLightSourceGoniometric => {
+                        if let Some(data) = self.extract_goniometric(&item) {
+                            results.push(data);
+                        }
+                    }
+                    IfcType::IfcMappedItem => {
+                        // IfcMappedItem: attr 0 = MappingSource (IfcRepresentationMap)
+                        if let Some(map_id) = item.get_ref(0) {
+                            self.find_goniometric_in_rep_map(map_id, results);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    /// Find IfcLightSourceGoniometric in a RepresentationMap
+    fn find_goniometric_in_rep_map(
+        &self,
+        map_id: EntityId,
+        results: &mut Vec<GoniometricData>,
+    ) {
+        let map = match self.resolver.get(map_id) {
+            Some(e) if e.ifc_type == IfcType::IfcRepresentationMap => e,
+            _ => return,
+        };
+
+        // IfcRepresentationMap: attr 0 = MappingOrigin, attr 1 = MappedRepresentation
+        if let Some(mapped_rep_id) = map.get_ref(1) {
+            if let Some(mapped_rep) = self.resolver.get(mapped_rep_id) {
+                if mapped_rep.ifc_type == IfcType::IfcShapeRepresentation {
+                    self.find_goniometric_in_shape_rep(&mapped_rep, results);
+                }
+            }
+        }
+    }
+
+    /// Extract GoniometricData from an IfcLightSourceGoniometric entity
+    fn extract_goniometric(&self, entity: &DecodedEntity) -> Option<GoniometricData> {
+        // IfcLightSourceGoniometric attributes:
+        // 0: Name
+        // 1: LightColour (IfcColourRgb)
+        // 2: AmbientIntensity
+        // 3: Intensity
+        // 4: Position (IfcAxis2Placement3D)
+        // 5: ColourAppearance
+        // 6: ColourTemperature
+        // 7: LuminousFlux
+        // 8: LightEmitterType (.LIGHTEMITTINGDIODE. etc)
+        // 9: LightDistributionDataSource (IfcLightIntensityDistribution)
+        let name = entity.get_string(0).unwrap_or("").to_string();
+        let colour_temperature = entity.get_float(6).unwrap_or(0.0);
+        let luminous_flux = entity.get_float(7).unwrap_or(0.0);
+        let emitter_type = entity.get_enum(8).unwrap_or("UNKNOWN").to_string();
+
+        let distribution_id = entity.get_ref(9)?;
+        let distribution = self.resolver.get(distribution_id)?;
+
+        // IfcLightIntensityDistribution:
+        // 0: LightDistributionCurve (.TYPE_C. etc)
+        // 1: DistributionData (list of IfcLightDistributionData refs)
+        let distribution_type = distribution.get_enum(0).unwrap_or("TYPE_C").to_string();
+
+        let data_refs = distribution.get_refs(1).unwrap_or_default();
+        let mut planes = Vec::with_capacity(data_refs.len());
+
+        for data_id in data_refs {
+            if let Some(data_entity) = self.resolver.get(data_id) {
+                if data_entity.ifc_type == IfcType::IfcLightDistributionData {
+                    if let Some(plane) = self.extract_distribution_plane(&data_entity) {
+                        planes.push(plane);
+                    }
+                }
+            }
+        }
+
+        // Sort by C-plane angle
+        planes.sort_by(|a, b| a.c_angle.partial_cmp(&b.c_angle).unwrap_or(std::cmp::Ordering::Equal));
+
+        Some(GoniometricData {
+            name,
+            colour_temperature,
+            luminous_flux,
+            emitter_type,
+            distribution_type,
+            planes,
+        })
+    }
+
+    /// Extract a single distribution plane from IfcLightDistributionData
+    fn extract_distribution_plane(&self, entity: &DecodedEntity) -> Option<LightDistributionPlane> {
+        // IfcLightDistributionData:
+        // 0: MainPlaneAngle (C-plane angle)
+        // 1: SecondaryPlaneAngle (list of gamma angles)
+        // 2: LuminousIntensity (list of cd values)
+        let c_angle = entity.get_float(0)?;
+
+        let gamma_angles = extract_float_list(entity.get(1)?);
+        let intensities = extract_float_list(entity.get(2)?);
+
+        if gamma_angles.is_empty() || intensities.is_empty() {
+            return None;
+        }
+
+        Some(LightDistributionPlane {
+            c_angle,
+            gamma_angles,
+            intensities,
+        })
+    }
+}
+
+/// Extract a list of floats from an AttributeValue
+fn extract_float_list(attr: &AttributeValue) -> Vec<f64> {
+    match attr {
+        AttributeValue::List(list) => list.iter().filter_map(|v| v.as_float()).collect(),
+        _ => Vec::new(),
     }
 }

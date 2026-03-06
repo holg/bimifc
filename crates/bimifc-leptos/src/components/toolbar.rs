@@ -954,11 +954,8 @@ pub fn parse_and_process_ifc(
 
     while let Some((id, type_name, _start, _end)) = scanner.next_entity() {
         let type_upper = type_name.to_uppercase();
-        // Include assembly/fixture entities in entity_data for properties display
-        if matches!(
-            type_upper.as_str(),
-            "IFCELEMENTASSEMBLY" | "IFCLIGHTFIXTURE"
-        ) {
+        // Include assembly entities in entity_data for properties display (no geometry)
+        if type_upper == "IFCELEMENTASSEMBLY" {
             if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
                 let global_id = entity.get_string(0).map(|s| s.to_string());
                 let name = entity.get_string(2).map(|s| s.to_string());
@@ -983,7 +980,7 @@ pub fn parse_and_process_ifc(
                     global_id: global_id.clone(),
                     storey: storey_name,
                     storey_elevation,
-                    photometry_ldt: None, // populated later from Pset_Photometry
+                    photometry_ldt: None,
                 });
             }
             continue;
@@ -1075,12 +1072,20 @@ pub fn parse_and_process_ifc(
                                 processed += 1;
                             }
                         }
-                        Err(_) => {
+                        Err(e) => {
+                            bridge::log_info(&format!(
+                                "[BIMIFC] Geometry error #{} {}: {}",
+                                id, type_name, e
+                            ));
                             _errors += 1;
                         }
                     }
                 }
-                Err(_) => {
+                Err(e) => {
+                    bridge::log_info(&format!(
+                        "[BIMIFC] Decode error #{} {}: {}",
+                        id, type_name, e
+                    ));
                     _errors += 1;
                 }
             }
@@ -1097,8 +1102,8 @@ pub fn parse_and_process_ifc(
 
     let geometry_time = now_ms() - geometry_start;
     bridge::log_info(&format!(
-        "[BIMIFC] Geometry: {} meshes, {} vertices, {} triangles in {:.0}ms",
-        processed, total_vertices, total_triangles, geometry_time
+        "[BIMIFC] Geometry: {} meshes, {} vertices, {} triangles, {} errors in {:.0}ms",
+        processed, total_vertices, total_triangles, _errors, geometry_time
     ));
 
     state.loading.set_progress(Progress {
@@ -1243,6 +1248,9 @@ pub fn parse_and_process_ifc(
         }
     }
 
+    // Extract IFC lighting data (for GLDF-style goniometric distributions)
+    let lighting_export = bimifc_parser::extract_lighting_data(resolver);
+
     // Build entity infos with property extraction
     let entity_infos: Vec<EntityInfo> = entity_data
         .iter()
@@ -1255,7 +1263,7 @@ pub fn parse_and_process_ifc(
                 unit_scale as f64,
             );
             // Extract embedded EULUMDAT data from Pset_Photometry if present
-            let photometry_ldt = property_sets
+            let mut photometry_ldt = property_sets
                 .iter()
                 .find(|ps| ps.name == "Pset_Photometry")
                 .and_then(|ps| {
@@ -1265,10 +1273,118 @@ pub fn parse_and_process_ifc(
                         .map(|p| p.value.clone())
                 });
 
-            // Remove Pset_Photometry from display (raw LDT content is not user-readable)
+            // Extract base64-encoded LDT from Pset_GLDF_LDTRawContent (GLDF exports)
+            // These contain LDT_1_Content, LDT_2_Content, etc. as base64-encoded EULUMDAT
+            if photometry_ldt.is_none()
+                && e.entity_type.eq_ignore_ascii_case("IfcLightFixture")
+            {
+                use base64::Engine;
+                let mut ldt_contents: Vec<String> = Vec::new();
+                for ps in &property_sets {
+                    if ps.name == "Pset_GLDF_LDTRawContent" {
+                        let mut content_props: Vec<_> = ps
+                            .properties
+                            .iter()
+                            .filter(|p| p.name.contains("Content"))
+                            .collect();
+                        content_props.sort_by(|a, b| a.name.cmp(&b.name));
+                        for prop in content_props {
+                            if let Ok(decoded) =
+                                base64::engine::general_purpose::STANDARD.decode(prop.value.trim())
+                            {
+                                if let Ok(ldt_str) = String::from_utf8(decoded) {
+                                    ldt_contents.push(ldt_str);
+                                }
+                            }
+                        }
+                    }
+                }
+                if !ldt_contents.is_empty() {
+                    // Always use the first LDT as raw string — this works for
+                    // both SVG rendering (single emitter) and lighting simulation.
+                    // For multi-emitter display, we generate multi-source JSON.
+                    if ldt_contents.len() == 1 {
+                        photometry_ldt = Some(ldt_contents.into_iter().next().unwrap());
+                    } else {
+                        // Multiple LDTs — render all as multi-source JSON for the panel,
+                        // but also keep first raw LDT accessible for lighting via
+                        // a "ldt_raw" field in the JSON.
+                        let first_raw = ldt_contents[0].clone();
+                        let sources_json: Vec<serde_json::Value> = ldt_contents
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(i, ldt_str)| {
+                                crate::components::properties_panel::parse_ldt_to_json(
+                                    ldt_str,
+                                    &format!("Emitter {}", i + 1),
+                                )
+                            })
+                            .collect();
+                        if !sources_json.is_empty() {
+                            let json = serde_json::json!({
+                                "sources": sources_json,
+                                "ldt_raw": first_raw,
+                            });
+                            photometry_ldt = Some(json.to_string());
+                        }
+                    }
+                }
+            }
+
+            // For light fixtures without LDT but with goniometric distribution data,
+            // generate polar diagrams from IFC distribution curves (GLDF files).
+            // A fixture can have multiple light sources (multi-emitter luminaires).
+            if photometry_ldt.is_none()
+                && e.entity_type.eq_ignore_ascii_case("IfcLightFixture")
+            {
+                if let Some(fixture) = lighting_export
+                    .light_fixtures
+                    .iter()
+                    .find(|f| f.id == e.id)
+                {
+                    let sources_with_dist: Vec<_> = fixture
+                        .light_sources
+                        .iter()
+                        .filter(|s| s.distribution.is_some())
+                        .collect();
+
+                    if !sources_with_dist.is_empty() {
+                        let sources_json: Vec<serde_json::Value> = sources_with_dist
+                            .iter()
+                            .map(|source| {
+                                let dist = source.distribution.as_ref().unwrap();
+                                let svg = crate::components::properties_panel::generate_ifc_distribution_svg(dist);
+                                let max_cd = dist.planes.iter()
+                                    .flat_map(|p| p.intensities.iter().map(|(_, v)| *v))
+                                    .fold(0.0_f64, f64::max);
+                                serde_json::json!({
+                                    "name": source.source_type.clone(),
+                                    "svg": svg,
+                                    "luminous_flux": source.luminous_flux,
+                                    "color_temperature": source.color_temperature,
+                                    "max_intensity": max_cd,
+                                    "emission_source": source.emission_source,
+                                })
+                            })
+                            .collect();
+
+                        let json = serde_json::json!({
+                            "sources": sources_json,
+                        });
+                        photometry_ldt = Some(json.to_string());
+                    }
+                }
+            }
+
+            // Remove photometry-related property sets from display
+            // (raw LDT content / base64 / metadata are not user-readable)
             let property_sets: Vec<_> = property_sets
                 .into_iter()
-                .filter(|ps| ps.name != "Pset_Photometry")
+                .filter(|ps| {
+                    ps.name != "Pset_Photometry"
+                        && !ps.name.starts_with("Pset_GLDF_LDT")
+                        && ps.name != "Pset_GLDF_PhotometryFiles"
+                })
                 .collect();
 
             EntityInfo {
@@ -1285,6 +1401,21 @@ pub fn parse_and_process_ifc(
             }
         })
         .collect();
+
+    // Write extracted photometry_ldt back into entity_data so it gets cached
+    {
+        let ldt_map: HashMap<u64, String> = entity_infos
+            .iter()
+            .filter_map(|e| e.photometry_ldt.as_ref().map(|ldt| (e.id, ldt.clone())))
+            .collect();
+        if !ldt_map.is_empty() {
+            for ed in &mut entity_data {
+                if let Some(ldt) = ldt_map.get(&ed.id) {
+                    ed.photometry_ldt = Some(ldt.clone());
+                }
+            }
+        }
+    }
 
     // Collect IFC light fixtures with embedded LDT data, bundle by panel, send to Bevy
     #[cfg(feature = "photometric")]
@@ -1376,9 +1507,13 @@ pub fn parse_and_process_ifc(
                 if ldt_content.is_none() {
                     if let Some(info) = entity_info_map.get(&fid) {
                         if let Some(ldt_raw) = &info.photometry_ldt {
-                            ldt_content = Some(
-                                crate::components::properties_panel::decode_ifc_string(ldt_raw),
-                            );
+                            ldt_content = if ldt_raw.starts_with('{') {
+                                serde_json::from_str::<serde_json::Value>(ldt_raw)
+                                    .ok()
+                                    .and_then(|v| v.get("ldt_raw")?.as_str().map(String::from))
+                            } else {
+                                Some(crate::components::properties_panel::decode_ifc_string(ldt_raw))
+                            };
                         }
                     }
                 }
@@ -1417,16 +1552,29 @@ pub fn parse_and_process_ifc(
             if let Some(info) = entity_info_map.get(&fid) {
                 if let Some(ldt_raw) = &info.photometry_ldt {
                     if let Some(pos) = resolve_pos(fid) {
-                        pending_lights.push(bimifc_bevy::photometric::PendingLight {
-                            entity_id: fid,
-                            position: pos,
-                            ldt_content: crate::components::properties_panel::decode_ifc_string(
-                                ldt_raw,
-                            ),
-                            beam_type: info.name.clone().unwrap_or_default(),
-                            fixture_count: 1,
-                            fixture_ids: vec![fid],
-                        });
+                        // photometry_ldt can be:
+                        // 1. Raw EULUMDAT string (bayarena — IFC STEP encoded)
+                        // 2. JSON {"sources":[...], "ldt_raw":"..."} (GLDF multi-emitter)
+                        // 3. Raw decoded EULUMDAT (GLDF single LDT — already decoded)
+                        let ldt_for_lighting = if ldt_raw.starts_with('{') {
+                            // JSON multi-source — extract embedded ldt_raw
+                            serde_json::from_str::<serde_json::Value>(ldt_raw)
+                                .ok()
+                                .and_then(|v| v.get("ldt_raw")?.as_str().map(String::from))
+                        } else {
+                            Some(crate::components::properties_panel::decode_ifc_string(ldt_raw))
+                        };
+
+                        if let Some(ldt) = ldt_for_lighting {
+                            pending_lights.push(bimifc_bevy::photometric::PendingLight {
+                                entity_id: fid,
+                                position: pos,
+                                ldt_content: ldt,
+                                beam_type: info.name.clone().unwrap_or_default(),
+                                fixture_count: 1,
+                                fixture_ids: vec![fid],
+                            });
+                        }
                     }
                 }
             }
