@@ -1,0 +1,39 @@
+name: BimIFC
+options:
+  bundleIdPrefix: com.bimifc
+  deploymentTarget:
+    macOS: "14.0"
+    iOS: "17.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    SWIFT_INCLUDE_PATHS: "$(SRCROOT)/BimIFC/Generated"
+    LIBRARY_SEARCH_PATHS: "$(SRCROOT)/Libraries"
+    OTHER_LDFLAGS: ["-lbimifc_ffi"]
+    HEADER_SEARCH_PATHS: "$(SRCROOT)/BimIFC/Generated"
+
+targets:
+  BimIFC:
+    type: application
+    platform: [macOS, iOS]
+    sources:
+      - path: BimIFC
+        excludes:
+          - "Generated/bimifc_ffiFFI.h"
+          - "Generated/bimifc_ffiFFI.modulemap"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bimifc.viewer
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.2.0"
+        CURRENT_PROJECT_VERSION: 1
+        PRODUCT_NAME: BimIFC
+        SWIFT_OBJC_BRIDGING_HEADER: "BimIFC/Generated/bimifc_ffiFFI.h"
+    entitlements:
+      path: BimIFC/BimIFC.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-only: true

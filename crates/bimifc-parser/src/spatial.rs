@@ -191,6 +191,13 @@ impl<'a> SpatialBuilder<'a> {
             IfcType::IfcFlowTerminal,
             IfcType::IfcFlowSegment,
             IfcType::IfcFlowFitting,
+            IfcType::IfcCableSegment,
+            IfcType::IfcCableCarrierSegment,
+            IfcType::IfcCableCarrierFitting,
+            IfcType::IfcPipeSegment,
+            IfcType::IfcPipeFitting,
+            IfcType::IfcSpaceHeater,
+            IfcType::IfcAirTerminal,
             IfcType::IfcLightFixture,
         ];
 

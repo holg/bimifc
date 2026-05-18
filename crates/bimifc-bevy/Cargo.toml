@@ -124,10 +124,10 @@ bevy = { version = "0.18", default-features = false, features = [
 ] }
 console_error_panic_hook = "0.1"
 getrandom = { version = "0.3", features = ["wasm_js"] }
-js-sys = "0.3"
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = [
+js-sys = "0.3.91"
+wasm-bindgen = "0.2.114"
+wasm-bindgen-futures = "0.4.64"
+web-sys = { version = "0.3.91", features = [
     "console",
     "Document",
     "Element",
@@ -181,7 +181,9 @@ bevy = { version = "0.18", default-features = false, features = [
     "multi_threaded",
     "tonemapping_luts",
     "png",
+    "webgpu",
     "zstd_rust",
 ] }
 core-graphics = "0.24"
 objc = "0.2"
+rfd = "0.15"

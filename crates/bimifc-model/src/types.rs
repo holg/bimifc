@@ -96,6 +96,18 @@ pub enum IfcType {
     IfcEnergyConversionDevice,
     IfcDistributionControlElement,
 
+    // Concrete MEP subtypes
+    // Electrical
+    IfcCableSegment,
+    IfcCableCarrierSegment,
+    IfcCableCarrierFitting,
+    // Plumbing
+    IfcPipeSegment,
+    IfcPipeFitting,
+    // HVAC
+    IfcSpaceHeater,
+    IfcAirTerminal,
+
     // ========================================================================
     // Furnishing and Equipment
     // ========================================================================
@@ -434,6 +446,15 @@ impl IfcType {
             "IFCENERGYCONVERSIONDEVICE" => IfcType::IfcEnergyConversionDevice,
             "IFCDISTRIBUTIONCONTROLELEMENT" => IfcType::IfcDistributionControlElement,
 
+            // Concrete MEP subtypes
+            "IFCCABLESEGMENT" => IfcType::IfcCableSegment,
+            "IFCCABLECARRIERSEGMENT" => IfcType::IfcCableCarrierSegment,
+            "IFCCABLECARRIERFITTING" => IfcType::IfcCableCarrierFitting,
+            "IFCPIPESEGMENT" => IfcType::IfcPipeSegment,
+            "IFCPIPEFITTING" => IfcType::IfcPipeFitting,
+            "IFCSPACEHEATER" => IfcType::IfcSpaceHeater,
+            "IFCAIRTERMINAL" => IfcType::IfcAirTerminal,
+
             // Furnishing
             "IFCFURNISHINGELEMENT" => IfcType::IfcFurnishingElement,
             "IFCFURNITURE" => IfcType::IfcFurniture,
@@ -728,6 +749,13 @@ impl IfcType {
                     IfcType::IfcFlowSegment => "IFCFLOWSEGMENT",
                     IfcType::IfcFlowFitting => "IFCFLOWFITTING",
                     IfcType::IfcFlowController => "IFCFLOWCONTROLLER",
+                    IfcType::IfcCableSegment => "IFCCABLESEGMENT",
+                    IfcType::IfcCableCarrierSegment => "IFCCABLECARRIERSEGMENT",
+                    IfcType::IfcCableCarrierFitting => "IFCCABLECARRIERFITTING",
+                    IfcType::IfcPipeSegment => "IFCPIPESEGMENT",
+                    IfcType::IfcPipeFitting => "IFCPIPEFITTING",
+                    IfcType::IfcSpaceHeater => "IFCSPACEHEATER",
+                    IfcType::IfcAirTerminal => "IFCAIRTERMINAL",
                     IfcType::IfcDistributionElement => "IFCDISTRIBUTIONELEMENT",
                     IfcType::IfcOpeningElement => "IFCOPENINGELEMENT",
                     IfcType::IfcLightFixture => "IFCLIGHTFIXTURE",
@@ -774,6 +802,13 @@ impl IfcType {
                 | IfcType::IfcFlowTerminal
                 | IfcType::IfcFlowSegment
                 | IfcType::IfcFlowFitting
+                | IfcType::IfcCableSegment
+                | IfcType::IfcCableCarrierSegment
+                | IfcType::IfcCableCarrierFitting
+                | IfcType::IfcPipeSegment
+                | IfcType::IfcPipeFitting
+                | IfcType::IfcSpaceHeater
+                | IfcType::IfcAirTerminal
                 | IfcType::IfcOpeningElement
         )
     }

@@ -54,6 +54,79 @@ pub enum Theme {
     Dark,
 }
 
+/// MEP discipline view filter.
+/// When set to anything other than `All`, only entities of the matching category
+/// remain visible — every other geometry is hidden via the existing visibility
+/// channel, so this composes with manual hide/isolate as well as selection.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub enum MepView {
+    #[default]
+    All,
+    Electrical,
+    Plumbing,
+    Hvac,
+    Lighting,
+}
+
+impl MepView {
+    /// True if this entity type belongs to the active MEP category.
+    pub fn matches(self, entity_type: &str) -> bool {
+        let upper = entity_type.to_ascii_uppercase();
+        match self {
+            MepView::All => true,
+            MepView::Electrical => matches!(
+                upper.as_str(),
+                "IFCCABLESEGMENT"
+                    | "IFCCABLECARRIERSEGMENT"
+                    | "IFCCABLECARRIERFITTING"
+                    | "IFCELECTRICAPPLIANCE"
+                    | "IFCELECTRICDISTRIBUTIONBOARD"
+                    | "IFCJUNCTIONBOX"
+                    | "IFCOUTLET"
+                    | "IFCSWITCHINGDEVICE"
+            ),
+            MepView::Plumbing => matches!(
+                upper.as_str(),
+                "IFCPIPESEGMENT"
+                    | "IFCPIPEFITTING"
+                    | "IFCSANITARYTERMINAL"
+                    | "IFCVALVE"
+                    | "IFCWASTETERMINAL"
+            ),
+            MepView::Hvac => matches!(
+                upper.as_str(),
+                "IFCAIRTERMINAL"
+                    | "IFCAIRTERMINALBOX"
+                    | "IFCSPACEHEATER"
+                    | "IFCDUCTSEGMENT"
+                    | "IFCDUCTFITTING"
+                    | "IFCFAN"
+            ),
+            MepView::Lighting => matches!(upper.as_str(), "IFCLIGHTFIXTURE"),
+        }
+    }
+
+    pub fn icon(self) -> &'static str {
+        match self {
+            MepView::All => "🏗️",
+            MepView::Electrical => "⚡",
+            MepView::Plumbing => "🔧",
+            MepView::Hvac => "💨",
+            MepView::Lighting => "💡",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            MepView::All => "All disciplines",
+            MepView::Electrical => "Electrical only",
+            MepView::Plumbing => "Plumbing only",
+            MepView::Hvac => "HVAC only",
+            MepView::Lighting => "Lighting only",
+        }
+    }
+}
+
 /// Section plane axis
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
 pub enum SectionAxis {
@@ -394,6 +467,8 @@ pub struct UiState {
     pub show_shortcuts_dialog: RwSignal<bool>,
     pub search_query: RwSignal<String>,
     pub color_palette: RwSignal<ColorPalette>,
+    pub lisp_panel_visible: RwSignal<bool>,
+    pub mep_view: RwSignal<MepView>,
 }
 
 impl UiState {
@@ -406,11 +481,40 @@ impl UiState {
             show_shortcuts_dialog: RwSignal::new(false),
             search_query: RwSignal::new(String::new()),
             color_palette: RwSignal::new(ColorPalette::default()),
+            lisp_panel_visible: RwSignal::new(false),
+            mep_view: RwSignal::new(MepView::All),
         }
+    }
+
+    pub fn set_mep_view(&self, view: MepView) {
+        self.mep_view.set(view);
+    }
+
+    pub fn cycle_mep_view(&self) {
+        self.mep_view.update(|v| {
+            *v = match v {
+                MepView::All => MepView::Electrical,
+                MepView::Electrical => MepView::Plumbing,
+                MepView::Plumbing => MepView::Hvac,
+                MepView::Hvac => MepView::Lighting,
+                MepView::Lighting => MepView::All,
+            };
+        });
     }
 
     pub fn set_tool(&self, tool: Tool) {
         self.active_tool.set(tool);
+        // Sync to localStorage so Bevy can read it
+        let tool_str = match tool {
+            Tool::Measure => "measure",
+            Tool::Select => "select",
+            Tool::Pan => "pan",
+            Tool::Orbit => "orbit",
+            Tool::Walk => "walk",
+            Tool::Section => "section",
+            Tool::BoxSelect => "box_select",
+        };
+        crate::bridge::save_active_tool(tool_str);
     }
 
     pub fn toggle_theme(&self) {
@@ -440,6 +544,10 @@ impl UiState {
 
     pub fn cycle_palette(&self) {
         self.color_palette.update(|p| *p = p.next());
+    }
+
+    pub fn toggle_lisp_panel(&self) {
+        self.lisp_panel_visible.update(|v| *v = !*v);
     }
 }
 

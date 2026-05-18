@@ -1,0 +1,21 @@
+[package]
+name = "bimifc-lisp"
+version = "0.2.0"
+edition = "2021"
+description = "AutoLISP scripting engine for IFC BIM models"
+license = "MPL-2.0"
+repository = "https://github.com/holg/bimifc"
+
+[lib]
+name = "bimifc_lisp"
+
+[[bin]]
+name = "bimifc-lisp"
+path = "src/main.rs"
+
+[dependencies]
+acadlisp = { path = "../../../acadlisp" }
+bimifc-geometry = { version = "0.2.0", path = "../bimifc-geometry" }
+bimifc-model = { version = "0.2.0", path = "../bimifc-model" }
+bimifc-parser = { version = "0.2.0", path = "../bimifc-parser" }
+bimifc-writer = { version = "0.2.0", path = "../bimifc-writer" }

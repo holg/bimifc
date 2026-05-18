@@ -130,8 +130,8 @@ impl Default for CameraController {
             is_animating: false,
             animation_target: None,
             fov: 45.0,
-            near: 1.0,         // 1mm near plane for IFC-scale models
-            far: 1000000.0,    // 1km far plane for large IFC models
+            near: 0.05,        // 5cm near plane — good depth precision for buildings
+            far: 10000.0,      // 10km far plane for large IFC models
             walk_speed: 500.0, // 0.5m per frame for walking in mm-scale
             orbit_sensitivity: 0.005,
             pan_sensitivity: 0.01,
@@ -383,6 +383,7 @@ fn camera_input_system(
     mut mouse_wheel: MessageReader<MouseWheel>,
     mut controller: ResMut<CameraController>,
     windows: Query<&Window>,
+    measure_state: Res<crate::picking::MeasurementState>,
     // Check if mouse is over any UI element with Interaction (only when bevy-ui feature is enabled)
     #[cfg(feature = "bevy-ui")] ui_interactions: Query<&Interaction, With<Node>>,
 ) {
@@ -396,8 +397,11 @@ fn camera_input_system(
     #[cfg(not(feature = "bevy-ui"))]
     let mouse_over_ui = false;
 
-    // Handle mouse button state - only start drag if not over UI
-    if mouse_button.just_pressed(MouseButton::Left) && !mouse_over_ui {
+    // Check if measure tool is active — don't start camera drag for left-click
+    let is_measure = measure_state.active;
+
+    // Handle mouse button state - only start drag if not over UI and not measuring
+    if mouse_button.just_pressed(MouseButton::Left) && !mouse_over_ui && !is_measure {
         controller.is_dragging = true;
         controller.did_drag = false;
         controller.just_clicked = false; // Reset on press
@@ -412,6 +416,13 @@ fn camera_input_system(
             controller.just_clicked = true;
         }
         controller.is_dragging = false;
+    }
+    // In measure mode, treat press as click (for immediate feedback)
+    if is_measure && mouse_button.just_pressed(MouseButton::Left) && !mouse_over_ui {
+        controller.just_clicked = true;
+        if let Some(pos) = window.cursor_position() {
+            controller.drag_start_pos = pos;
+        }
     }
 
     // Handle mouse motion

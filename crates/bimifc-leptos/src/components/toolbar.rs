@@ -1,7 +1,9 @@
 //! Toolbar component with tool buttons and file operations
 
 use crate::bridge::{self, CameraCommand, EntityData, GeometryData};
-use crate::state::{use_viewer_state, EntityInfo, Progress, SpatialNode, SpatialNodeType, Tool};
+use crate::state::{
+    use_viewer_state, EntityInfo, MepView, Progress, SpatialNode, SpatialNodeType, Tool,
+};
 use bimifc_geometry::GeometryRouter;
 use bimifc_model::{AttributeValue, DecodedEntity, EntityId, IfcModel, IfcType};
 use bimifc_parser::{EntityDecoder, ParsedModel};
@@ -154,6 +156,32 @@ pub fn Toolbar() -> impl IntoView {
                 </button>
             </div>
 
+            <div class="toolbar-separator"></div>
+
+            // MEP discipline filter
+            <div class="toolbar-group">
+                {[MepView::All, MepView::Electrical, MepView::Plumbing, MepView::Hvac, MepView::Lighting]
+                    .into_iter()
+                    .map(|view| {
+                        let active_signal = state.ui.mep_view;
+                        let class = move || if active_signal.get() == view {
+                            "tool-btn active"
+                        } else {
+                            "tool-btn"
+                        };
+                        view! {
+                            <button
+                                class=class
+                                on:click=move |_| state.ui.set_mep_view(view)
+                                title=view.label()
+                            >
+                                {view.icon()}
+                            </button>
+                        }
+                    })
+                    .collect::<Vec<_>>()}
+            </div>
+
             // Spacer
             <div class="toolbar-spacer"></div>
 
@@ -172,6 +200,15 @@ pub fn Toolbar() -> impl IntoView {
                     title="Keyboard Shortcuts (?)"
                 >
                     "⌨"
+                </button>
+                <button
+                    class=move || {
+                        if state.ui.lisp_panel_visible.get() { "tool-btn active" } else { "tool-btn" }
+                    }
+                    on:click=move |_| state.ui.toggle_lisp_panel()
+                    title="AutoLISP REPL"
+                >
+                    "LISP"
                 </button>
             </div>
 

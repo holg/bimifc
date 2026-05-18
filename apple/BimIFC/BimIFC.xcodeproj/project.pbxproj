@@ -1,0 +1,473 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		10BEA49FDDF6E0BE25150E15 /* Viewport3DView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 401465470CC4E35FBAE54296 /* Viewport3DView.swift */; };
+		1108B35751F4C505E2FD49C5 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 753F7E8CD45346468B45D933 /* ContentView.swift */; };
+		1D33C5A4BC24E8AAE0524FD9 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A263E228FA1C64A8C9513CD /* AppState.swift */; };
+		2505C147F2A2D0470C1A5BDD /* DetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B32BFC4EBA6482FBDE121C4A /* DetailView.swift */; };
+		26FA01B7E425C988E7555253 /* bimifc_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 506F9958BC75B8FED480240C /* bimifc_ffi.swift */; };
+		367020A93EE5DAF63293A7A9 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A263E228FA1C64A8C9513CD /* AppState.swift */; };
+		72E2AB3BA261F22FC53CFDD3 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 039EB79C51C0E6D9BBE2A02C /* SidebarView.swift */; };
+		74320384AC6E018EE81C61C8 /* BimIFCApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 036D9E28556E2AF19E171CC2 /* BimIFCApp.swift */; };
+		7CF5CDADE2F14B8824940645 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9F919EE3D088392AFFE5A762 /* Assets.xcassets */; };
+		96817CE288B0E6F6C32DCB1C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 753F7E8CD45346468B45D933 /* ContentView.swift */; };
+		973A839E9E165CDE33D2FA78 /* DetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B32BFC4EBA6482FBDE121C4A /* DetailView.swift */; };
+		A354A050EA2B9739EBEDAD2B /* bimifc_ffi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 506F9958BC75B8FED480240C /* bimifc_ffi.swift */; };
+		B2F27378CEE9679305231DA9 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 039EB79C51C0E6D9BBE2A02C /* SidebarView.swift */; };
+		B5A631B2A614F9C5BFCBCF41 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9F919EE3D088392AFFE5A762 /* Assets.xcassets */; };
+		DB1517A4857B59A19FA06FA5 /* BimIFCApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 036D9E28556E2AF19E171CC2 /* BimIFCApp.swift */; };
+		FEC8C3B7734848D2F31047A1 /* Viewport3DView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 401465470CC4E35FBAE54296 /* Viewport3DView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		036D9E28556E2AF19E171CC2 /* BimIFCApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BimIFCApp.swift; sourceTree = "<group>"; };
+		039EB79C51C0E6D9BBE2A02C /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		401465470CC4E35FBAE54296 /* Viewport3DView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Viewport3DView.swift; sourceTree = "<group>"; };
+		4A263E228FA1C64A8C9513CD /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		506F9958BC75B8FED480240C /* bimifc_ffi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = bimifc_ffi.swift; sourceTree = "<group>"; };
+		753F7E8CD45346468B45D933 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		849AFF882AAFFEEA6B07EBD6 /* BimIFC.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BimIFC.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8BCDBBA1EF3E29D63BF8CA15 /* BimIFC.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BimIFC.entitlements; sourceTree = "<group>"; };
+		9F919EE3D088392AFFE5A762 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B32BFC4EBA6482FBDE121C4A /* DetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailView.swift; sourceTree = "<group>"; };
+		D5914C243F734B76E594E47F /* BimIFC.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = BimIFC.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		024C5C9168786C41230555CA /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				4A263E228FA1C64A8C9513CD /* AppState.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		5BD58F55D15C14DF82356AF4 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				753F7E8CD45346468B45D933 /* ContentView.swift */,
+				B32BFC4EBA6482FBDE121C4A /* DetailView.swift */,
+				039EB79C51C0E6D9BBE2A02C /* SidebarView.swift */,
+				401465470CC4E35FBAE54296 /* Viewport3DView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		6C62EB839AF5C268CA128F5B /* BimIFC */ = {
+			isa = PBXGroup;
+			children = (
+				9F919EE3D088392AFFE5A762 /* Assets.xcassets */,
+				8BCDBBA1EF3E29D63BF8CA15 /* BimIFC.entitlements */,
+				036D9E28556E2AF19E171CC2 /* BimIFCApp.swift */,
+				75810C9F6C3ED299DC2FCB7E /* Generated */,
+				7F2CBA10F93D3E88D7F9DE2E /* Services */,
+				024C5C9168786C41230555CA /* ViewModels */,
+				5BD58F55D15C14DF82356AF4 /* Views */,
+			);
+			path = BimIFC;
+			sourceTree = "<group>";
+		};
+		75810C9F6C3ED299DC2FCB7E /* Generated */ = {
+			isa = PBXGroup;
+			children = (
+				506F9958BC75B8FED480240C /* bimifc_ffi.swift */,
+			);
+			path = Generated;
+			sourceTree = "<group>";
+		};
+		7F2CBA10F93D3E88D7F9DE2E /* Services */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		AD875350F4081E933FDFCAEF = {
+			isa = PBXGroup;
+			children = (
+				6C62EB839AF5C268CA128F5B /* BimIFC */,
+				B262D4058ABE54D651DB5299 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B262D4058ABE54D651DB5299 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D5914C243F734B76E594E47F /* BimIFC.app */,
+				849AFF882AAFFEEA6B07EBD6 /* BimIFC.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1D2EEB848F8AD97C6AEF5618 /* BimIFC_macOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F5FCEFFBE7C0971F80320E64 /* Build configuration list for PBXNativeTarget "BimIFC_macOS" */;
+			buildPhases = (
+				6B854D19081E00829E3CF2C5 /* Sources */,
+				4CB77DD967F050C9B62DE164 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BimIFC_macOS;
+			packageProductDependencies = (
+			);
+			productName = BimIFC_macOS;
+			productReference = 849AFF882AAFFEEA6B07EBD6 /* BimIFC.app */;
+			productType = "com.apple.product-type.application";
+		};
+		6A808DDAC90CDFF4FD491723 /* BimIFC_iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F29B1EBA81086C577593396E /* Build configuration list for PBXNativeTarget "BimIFC_iOS" */;
+			buildPhases = (
+				47BAD2E84300DF57B1368735 /* Sources */,
+				F97F53AEF22AD378E8EB88CD /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BimIFC_iOS;
+			packageProductDependencies = (
+			);
+			productName = BimIFC_iOS;
+			productReference = D5914C243F734B76E594E47F /* BimIFC.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		6BFF36955ACE59B1A2DB3A2A /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = E9E5F45B64893BB844294301 /* Build configuration list for PBXProject "BimIFC" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = AD875350F4081E933FDFCAEF;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				6A808DDAC90CDFF4FD491723 /* BimIFC_iOS */,
+				1D2EEB848F8AD97C6AEF5618 /* BimIFC_macOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		4CB77DD967F050C9B62DE164 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B5A631B2A614F9C5BFCBCF41 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F97F53AEF22AD378E8EB88CD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7CF5CDADE2F14B8824940645 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		47BAD2E84300DF57B1368735 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1D33C5A4BC24E8AAE0524FD9 /* AppState.swift in Sources */,
+				74320384AC6E018EE81C61C8 /* BimIFCApp.swift in Sources */,
+				96817CE288B0E6F6C32DCB1C /* ContentView.swift in Sources */,
+				973A839E9E165CDE33D2FA78 /* DetailView.swift in Sources */,
+				72E2AB3BA261F22FC53CFDD3 /* SidebarView.swift in Sources */,
+				10BEA49FDDF6E0BE25150E15 /* Viewport3DView.swift in Sources */,
+				26FA01B7E425C988E7555253 /* bimifc_ffi.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6B854D19081E00829E3CF2C5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				367020A93EE5DAF63293A7A9 /* AppState.swift in Sources */,
+				DB1517A4857B59A19FA06FA5 /* BimIFCApp.swift in Sources */,
+				1108B35751F4C505E2FD49C5 /* ContentView.swift in Sources */,
+				2505C147F2A2D0470C1A5BDD /* DetailView.swift in Sources */,
+				B2F27378CEE9679305231DA9 /* SidebarView.swift in Sources */,
+				FEC8C3B7734848D2F31047A1 /* Viewport3DView.swift in Sources */,
+				A354A050EA2B9739EBEDAD2B /* bimifc_ffi.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		77C0AF21934BBADE23B6A39D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = BimIFC/BimIFC.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bimifc.viewer;
+				PRODUCT_NAME = BimIFC;
+				SDKROOT = iphoneos;
+				SWIFT_OBJC_BRIDGING_HEADER = BimIFC/Generated/bimifc_ffiFFI.h;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		85AA96D876996AA93C2B920C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = BimIFC/BimIFC.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bimifc.viewer;
+				PRODUCT_NAME = BimIFC;
+				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = BimIFC/Generated/bimifc_ffiFFI.h;
+			};
+			name = Release;
+		};
+		8FDFA8A5E7A88BBD1F0EDBA8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = BimIFC/BimIFC.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bimifc.viewer;
+				PRODUCT_NAME = BimIFC;
+				SDKROOT = iphoneos;
+				SWIFT_OBJC_BRIDGING_HEADER = BimIFC/Generated/bimifc_ffiFFI.h;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		B20A2810A4E911875DF5BDF4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/BimIFC/Generated";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/Libraries";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = (
+					"-lbimifc_ffi",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/BimIFC/Generated";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Debug;
+		};
+		E63A9F4569860EB94B44F62F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/BimIFC/Generated";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/Libraries";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				OTHER_LDFLAGS = (
+					"-lbimifc_ffi",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/BimIFC/Generated";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Release;
+		};
+		F043700A679C3927142CAA3C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = BimIFC/BimIFC.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bimifc.viewer;
+				PRODUCT_NAME = BimIFC;
+				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = BimIFC/Generated/bimifc_ffiFFI.h;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		E9E5F45B64893BB844294301 /* Build configuration list for PBXProject "BimIFC" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B20A2810A4E911875DF5BDF4 /* Debug */,
+				E63A9F4569860EB94B44F62F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F29B1EBA81086C577593396E /* Build configuration list for PBXNativeTarget "BimIFC_iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				77C0AF21934BBADE23B6A39D /* Debug */,
+				8FDFA8A5E7A88BBD1F0EDBA8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F5FCEFFBE7C0971F80320E64 /* Build configuration list for PBXNativeTarget "BimIFC_macOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F043700A679C3927142CAA3C /* Debug */,
+				85AA96D876996AA93C2B920C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 6BFF36955ACE59B1A2DB3A2A /* Project object */;
+}

@@ -1,6 +1,7 @@
 //! UI Components for the BIMIFC viewer
 
 mod hierarchy_panel;
+mod lisp_panel;
 pub(crate) mod properties_panel;
 mod status_bar;
 mod toolbar;
@@ -8,6 +9,7 @@ mod viewer_layout;
 mod viewport;
 
 pub use hierarchy_panel::HierarchyPanel;
+pub use lisp_panel::LispPanel;
 pub use properties_panel::PropertiesPanel;
 pub use status_bar::StatusBar;
 pub use toolbar::Toolbar;

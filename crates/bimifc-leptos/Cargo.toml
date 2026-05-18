@@ -20,7 +20,10 @@ unified = ["bimifc-bevy"]
 photometric = ["bimifc-bevy/photometric"]
 
 [dependencies]
+acadlisp = { path = "../../../acadlisp" }
 bimifc-geometry = { version = "0.2.0", path = "../bimifc-geometry" }
+# AutoLISP scripting with IFC functions
+bimifc-lisp = { version = "0.2.0", path = "../bimifc-lisp" }
 # Core IFC parsing (our own parser)
 bimifc-model = { version = "0.2.0", path = "../bimifc-model" }
 bimifc-parser = { version = "0.2.0", path = "../bimifc-parser" }
@@ -38,9 +41,9 @@ leptos = { version = "0.7", features = ["csr"] }
 gloo = "0.11"
 gloo-file = { version = "0.3", features = ["futures"] }
 gloo-timers = { version = "0.3", features = ["futures"] }
-js-sys = "0.3"
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
+js-sys = "0.3.91"
+wasm-bindgen = "0.2.114"
+wasm-bindgen-futures = "0.4.64"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -59,7 +62,7 @@ base64 = "0.22"
 bytemuck = { version = "1.14", features = ["derive"] }
 
 [dependencies.web-sys]
-version = "0.3"
+version = "0.3.91"
 features = [
     "Clipboard",
     "console",

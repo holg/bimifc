@@ -35,7 +35,22 @@ pub fn get_entity_display_name(entity_type: &str) -> &str {
 /// Get icon for entity type (emoji-based for simplicity)
 pub fn get_entity_icon(entity_type: &str) -> &'static str {
     let upper = entity_type.to_uppercase();
-    if upper.contains("WALL") {
+    // MEP concrete types — check before generic substring matches
+    if upper == "IFCCABLESEGMENT" {
+        "🔌"
+    } else if upper == "IFCCABLECARRIERSEGMENT" {
+        "🪢"
+    } else if upper == "IFCCABLECARRIERFITTING" {
+        "🔗"
+    } else if upper == "IFCPIPESEGMENT" {
+        "🚰"
+    } else if upper == "IFCPIPEFITTING" {
+        "🔧"
+    } else if upper == "IFCSPACEHEATER" {
+        "🔥"
+    } else if upper == "IFCAIRTERMINAL" {
+        "🌬️"
+    } else if upper.contains("WALL") {
         "🧱"
     } else if upper.contains("SLAB") || upper.contains("FLOOR") {
         "⬜"

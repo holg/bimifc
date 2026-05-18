@@ -2,13 +2,16 @@
 resolver = "2"
 members = [
     "crates/bimifc-bevy",
+    "crates/bimifc-ffi",
     "crates/bimifc-geometry",
     "crates/bimifc-leptos",
+    "crates/bimifc-lisp",
     "crates/bimifc-model",
     "crates/bimifc-parser",
     "crates/bimifc-python",
     "crates/bimifc-viewer",
     "crates/bimifc-viewer-tui",
+    "crates/bimifc-writer",
 ]
 
 [workspace.package]

@@ -2,8 +2,8 @@
 #![allow(clippy::unused_unit)]
 
 use crate::bridge::{self, SelectionData, VisibilityData};
-use crate::components::{HierarchyPanel, PropertiesPanel, StatusBar, Toolbar, Viewport};
-use crate::state::{provide_viewer_state, use_viewer_state, Progress, Theme};
+use crate::components::{HierarchyPanel, LispPanel, PropertiesPanel, StatusBar, Toolbar, Viewport};
+use crate::state::{provide_viewer_state, use_viewer_state, MepView, Progress, Theme};
 use crate::utils::{build_ifc_url, fetch_ifc_file, get_file_param};
 use gloo_timers::callback::Interval;
 use leptos::prelude::*;
@@ -69,6 +69,14 @@ pub fn ViewerLayout() -> impl IntoView {
             <div class="viewport-container">
                 <Toolbar />
                 <Viewport />
+                // Lisp REPL panel (toggled from toolbar)
+                {move || {
+                    if state.ui.lisp_panel_visible.get() {
+                        Some(view! { <LispPanel /> })
+                    } else {
+                        None
+                    }
+                }}
                 <StatusBar />
             </div>
 
@@ -184,14 +192,36 @@ fn StateBridge() -> impl IntoView {
     let state = use_viewer_state();
     let interval_started = RwSignal::new(false);
 
-    // Sync visibility to Bevy when it changes
+    // Sync visibility to Bevy when it changes.
+    //
+    // When a MEP discipline filter is active (anything other than `All`), we
+    // narrow the isolation set to entities whose type matches the filter,
+    // intersected with any user-driven isolation. Manual hides still apply on
+    // top via `hidden`. When the filter is `All`, behavior is unchanged.
     Effect::new(move |_| {
         let hidden = state.visibility.hidden_ids.get();
         let isolated = state.visibility.isolated_ids.get();
+        let mep_view = state.ui.mep_view.get();
+
+        let filter_isolated: Option<Vec<u64>> = if mep_view == MepView::All {
+            isolated.map(|ids| ids.iter().copied().collect())
+        } else {
+            let entities = state.scene.entities.get();
+            let mep_ids: rustc_hash::FxHashSet<u64> = entities
+                .iter()
+                .filter(|e| mep_view.matches(&e.entity_type))
+                .map(|e| e.id)
+                .collect();
+            let combined: Vec<u64> = match isolated {
+                Some(user) => user.iter().copied().filter(|id| mep_ids.contains(id)).collect(),
+                None => mep_ids.iter().copied().collect(),
+            };
+            Some(combined)
+        };
 
         let visibility = VisibilityData {
             hidden: hidden.iter().copied().collect(),
-            isolated: isolated.map(|ids| ids.iter().copied().collect()),
+            isolated: filter_isolated,
         };
         bridge::save_visibility(&visibility);
     });
@@ -222,24 +252,28 @@ fn StateBridge() -> impl IntoView {
         interval_started.set(true);
 
         let poll_interval = Interval::new(100, move || {
-            // Only process if source is "bevy"
-            if bridge::get_selection_source().as_deref() != Some("bevy") {
-                return;
+            // Poll selection from Bevy (only when source is "bevy")
+            if bridge::get_selection_source().as_deref() == Some("bevy") {
+                if let Some(bevy_selection) = bridge::load_selection() {
+                    let current = state.selection.selected_ids.get_untracked();
+                    let new_ids: rustc_hash::FxHashSet<u64> =
+                        bevy_selection.selected_ids.into_iter().collect();
+
+                    if current != new_ids {
+                        state.selection.selected_ids.set(new_ids);
+                    }
+
+                    if bevy_selection.hovered_id != state.selection.hovered_id.get_untracked() {
+                        state.selection.hovered_id.set(bevy_selection.hovered_id);
+                    }
+                }
             }
 
-            if let Some(bevy_selection) = bridge::load_selection() {
-                // Update selection from Bevy
-                let current = state.selection.selected_ids.get_untracked();
-                let new_ids: rustc_hash::FxHashSet<u64> =
-                    bevy_selection.selected_ids.into_iter().collect();
-
-                if current != new_ids {
-                    state.selection.selected_ids.set(new_ids);
-                }
-
-                if bevy_selection.hovered_id != state.selection.hovered_id.get_untracked() {
-                    state.selection.hovered_id.set(bevy_selection.hovered_id);
-                }
+            // Poll measurement points from Bevy (always, independent of selection)
+            if let Some((x, y, z)) = bridge::load_measure_point() {
+                state
+                    .measurements
+                    .add_point(crate::state::MeasurePoint { x, y, z });
             }
         });
 

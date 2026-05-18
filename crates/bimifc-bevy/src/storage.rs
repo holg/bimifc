@@ -464,6 +464,41 @@ pub fn clear_palette() {
 #[cfg(not(target_arch = "wasm32"))]
 pub fn clear_palette() {}
 
+/// Measurement point storage
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MeasurePointStorage {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+/// Save a measurement point to localStorage (Bevy → Leptos)
+#[cfg(target_arch = "wasm32")]
+pub fn save_measure_point(point: &MeasurePointStorage) {
+    if let Some(window) = web_sys::window() {
+        if let Ok(Some(storage)) = window.local_storage() {
+            if let Ok(json) = serde_json::to_string(point) {
+                let _ = storage.set_item("ifc_lite_measure_point", &json);
+            }
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn save_measure_point(_point: &MeasurePointStorage) {}
+
+/// Load active tool mode from localStorage
+#[cfg(target_arch = "wasm32")]
+pub fn load_active_tool() -> Option<String> {
+    let storage = web_sys::window()?.local_storage().ok()??;
+    storage.get_item("ifc_lite_active_tool").ok()?
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn load_active_tool() -> Option<String> {
+    None
+}
+
 /// Load lighting toggle command from localStorage
 #[cfg(target_arch = "wasm32")]
 pub fn load_lighting_cmd() -> Option<String> {

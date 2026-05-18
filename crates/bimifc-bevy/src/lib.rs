@@ -320,8 +320,8 @@ pub fn poll_scene_changes(
 
 /// System to poll selection changes from localStorage (UI -> Bevy sync)
 /// This allows the UI (Leptos/Yew) to update Bevy's selection via localStorage
-#[allow(unused_variables)]
-pub fn poll_selection_from_storage(selection: ResMut<picking::SelectionState>) {
+#[allow(unused_variables, unused_mut)]
+pub fn poll_selection_from_storage(mut selection: ResMut<picking::SelectionState>) {
     #[cfg(target_arch = "wasm32")]
     {
         // Check if there's a pending selection from UI

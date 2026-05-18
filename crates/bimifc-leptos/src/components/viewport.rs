@@ -1,6 +1,7 @@
 //! Viewport component - contains the Bevy canvas
 
 use crate::bridge;
+use crate::state::{use_viewer_state, Tool};
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
@@ -61,8 +62,17 @@ pub fn Viewport() -> impl IntoView {
         });
     });
 
+    let state = use_viewer_state();
+    let viewport_class = Memo::new(move |_| {
+        if state.ui.active_tool.get() == Tool::Measure {
+            "viewport viewport-measure"
+        } else {
+            "viewport"
+        }
+    });
+
     view! {
-        <div class="viewport">
+        <div class=move || viewport_class.get()>
             // Bevy canvas
             <canvas id="bevy-canvas" class="viewport-canvas"></canvas>
 

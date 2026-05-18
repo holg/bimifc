@@ -505,6 +505,26 @@ pub fn save_camera_cmd(cmd: &CameraCommand) {
     }
 }
 
+/// Save active tool to localStorage for Bevy to read
+pub fn save_active_tool(tool: &str) {
+    if let Some(storage) = get_storage() {
+        let _ = storage.set_item("ifc_lite_active_tool", tool);
+    }
+}
+
+/// Load measurement point from Bevy (Bevy → Leptos)
+pub fn load_measure_point() -> Option<(f32, f32, f32)> {
+    let storage = get_storage()?;
+    let json = storage.get_item("ifc_lite_measure_point").ok()??;
+    let parsed: serde_json::Value = serde_json::from_str(&json).ok()?;
+    let x = parsed.get("x")?.as_f64()? as f32;
+    let y = parsed.get("y")?.as_f64()? as f32;
+    let z = parsed.get("z")?.as_f64()? as f32;
+    // Clear after reading so we don't re-read
+    let _ = storage.remove_item("ifc_lite_measure_point");
+    Some((x, y, z))
+}
+
 /// Send lighting toggle command to Bevy
 pub fn toggle_lighting() {
     if let Some(storage) = get_storage() {

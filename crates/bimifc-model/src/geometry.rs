@@ -220,6 +220,19 @@ pub fn get_default_color(ifc_type: &IfcType) -> [f32; 4] {
         IfcType::IfcFlowSegment => [0.5, 0.5, 0.7, 1.0],
         IfcType::IfcFlowFitting => [0.6, 0.5, 0.6, 1.0],
 
+        // Electrical - orange tones
+        IfcType::IfcCableSegment => [0.95, 0.55, 0.15, 1.0],
+        IfcType::IfcCableCarrierSegment => [0.85, 0.45, 0.10, 1.0],
+        IfcType::IfcCableCarrierFitting => [0.75, 0.40, 0.10, 1.0],
+
+        // Plumbing - blue tones
+        IfcType::IfcPipeSegment => [0.20, 0.50, 0.85, 1.0],
+        IfcType::IfcPipeFitting => [0.15, 0.40, 0.70, 1.0],
+
+        // HVAC - cyan / teal tones
+        IfcType::IfcAirTerminal => [0.30, 0.75, 0.80, 1.0],
+        IfcType::IfcSpaceHeater => [0.85, 0.35, 0.35, 1.0],
+
         // Openings - transparent red (usually not rendered)
         IfcType::IfcOpeningElement | IfcType::IfcOpeningStandardCase => [1.0, 0.3, 0.3, 0.3],
 

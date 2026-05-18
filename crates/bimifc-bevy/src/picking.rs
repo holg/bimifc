@@ -17,13 +17,33 @@ impl Plugin for PickingPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SelectionState>()
             .init_resource::<PickingSettings>()
+            .init_resource::<MeasurementState>()
             // Run picking after camera input so we can see just_clicked flag
             .add_systems(
                 Update,
-                (picking_system, hover_system)
+                (
+                    poll_active_tool,
+                    // measure_system must run before picking_system
+                    // because both consume just_clicked
+                    measure_system.after(poll_active_tool),
+                    picking_system.after(measure_system),
+                    hover_system,
+                    draw_measurements,
+                )
                     .after(crate::camera::CameraPlugin::input_system_set()),
             );
     }
+}
+
+/// Active measurements in the scene
+#[derive(Resource, Default)]
+pub struct MeasurementState {
+    /// Completed measurements: (start, end)
+    pub measurements: Vec<(Vec3, Vec3)>,
+    /// First point of in-progress measurement
+    pub pending: Option<Vec3>,
+    /// Whether measure tool is active (polled from localStorage periodically)
+    pub active: bool,
 }
 
 /// Current selection state
@@ -141,19 +161,19 @@ fn picking_system(
     };
 
     // Find closest intersection in batched meshes
-    let mut closest: Option<(u64, f32)> = None;
+    let mut closest: Option<(u64, f32, Vec3)> = None;
 
     for (batched_mesh, transform, mesh_handle) in batched_meshes.iter() {
         if let Some(mesh) = meshes.get(&mesh_handle.0) {
-            if let Some((distance, triangle_index)) =
+            if let Some((distance, triangle_index, hit_point)) =
                 ray_mesh_intersection_with_triangle(&ray, mesh, transform)
             {
                 // Look up which entity this triangle belongs to
                 if let Some(entity_id) =
                     triangle_mapping.get_entity(batched_mesh.is_transparent, triangle_index)
                 {
-                    if closest.map(|(_, d)| distance < d).unwrap_or(true) {
-                        closest = Some((entity_id, distance));
+                    if closest.map(|(_, d, _)| distance < d).unwrap_or(true) {
+                        closest = Some((entity_id, distance, hit_point));
                     }
                 }
             }
@@ -161,7 +181,7 @@ fn picking_system(
     }
 
     // Update selection based on result
-    if let Some((entity_id, _)) = closest {
+    if let Some((entity_id, _, _)) = closest {
         let ctrl_pressed = keyboard.pressed(KeyCode::ControlLeft)
             || keyboard.pressed(KeyCode::ControlRight)
             || keyboard.pressed(KeyCode::SuperLeft)
@@ -223,7 +243,7 @@ fn hover_system(
 
     for (batched_mesh, transform, mesh_handle) in batched_meshes.iter() {
         if let Some(mesh) = meshes.get(&mesh_handle.0) {
-            if let Some((distance, triangle_index)) =
+            if let Some((distance, triangle_index, _hit)) =
                 ray_mesh_intersection_with_triangle(&ray, mesh, transform)
             {
                 // Look up which entity this triangle belongs to
@@ -246,12 +266,12 @@ fn hover_system(
 }
 
 /// Ray-mesh intersection with triangle index for batched mesh picking
-/// Returns (distance, triangle_index) of the closest hit
+/// Returns (distance, triangle_index, hit_point) of the closest hit
 fn ray_mesh_intersection_with_triangle(
     ray: &Ray3d,
     mesh: &Mesh,
     transform: &GlobalTransform,
-) -> Option<(f32, usize)> {
+) -> Option<(f32, usize, Vec3)> {
     // Get vertex positions
     let positions = mesh.attribute(Mesh::ATTRIBUTE_POSITION)?.as_float3()?;
 
@@ -268,7 +288,7 @@ fn ray_mesh_intersection_with_triangle(
     let indices = mesh.indices()?;
     let indices: Vec<usize> = indices.iter().collect();
 
-    let mut closest: Option<(f32, usize)> = None;
+    let mut closest: Option<(f32, usize, Vec3)> = None;
 
     // Iterate through triangles
     for (tri_idx, chunk) in indices.chunks(3).enumerate() {
@@ -280,8 +300,9 @@ fn ray_mesh_intersection_with_triangle(
         let v2 = transform_matrix.transform_point3(Vec3::from(positions[chunk[2]]));
 
         if let Some(t) = ray_triangle_intersection(ray, v0, v1, v2) {
-            if t > 0.0 && closest.map(|(d, _)| t < d).unwrap_or(true) {
-                closest = Some((t, tri_idx));
+            if t > 0.0 && closest.map(|(d, _, _)| t < d).unwrap_or(true) {
+                let hit_point = ray.origin + *ray.direction * t;
+                closest = Some((t, tri_idx, hit_point));
             }
         }
     }
@@ -337,6 +358,137 @@ fn ray_triangle_intersection(ray: &Ray3d, v0: Vec3, v1: Vec3, v2: Vec3) -> Optio
         Some(t)
     } else {
         None
+    }
+}
+
+/// Poll active tool from localStorage (every ~10 frames to avoid DOM thrashing)
+fn poll_active_tool(mut measurement: ResMut<MeasurementState>, mut frame: Local<u32>) {
+    *frame += 1;
+    if !(*frame).is_multiple_of(10) {
+        return;
+    }
+    let is_measure = crate::storage::load_active_tool()
+        .map(|t| t == "measure")
+        .unwrap_or(false);
+    measurement.active = is_measure;
+}
+
+/// Measurement system — when "measure" tool is active, clicks add measurement points
+#[allow(clippy::too_many_arguments)]
+fn measure_system(
+    cameras: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+    batched_meshes: Query<(&BatchedMesh, &GlobalTransform, &Mesh3d)>,
+    meshes: Res<Assets<Mesh>>,
+    mut measurement: ResMut<MeasurementState>,
+    mut camera_controller: ResMut<crate::camera::CameraController>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+) {
+    if !measurement.active {
+        return;
+    }
+
+    // Escape clears pending + all measurements
+    if keyboard.just_pressed(KeyCode::Escape) {
+        measurement.pending = None;
+        measurement.measurements.clear();
+        crate::log_info("[Measure] Cleared all measurements");
+        return;
+    }
+
+    if !camera_controller.just_clicked {
+        return;
+    }
+
+    // Consume the click so picking_system doesn't also process it
+    camera_controller.just_clicked = false;
+
+    let Ok((camera, camera_transform)) = cameras.single() else {
+        return;
+    };
+    let click_pos = camera_controller.drag_start_pos;
+    let Ok(ray) = camera.viewport_to_world(camera_transform, click_pos) else {
+        return;
+    };
+
+    // Find closest hit point
+    let mut closest: Option<(f32, Vec3)> = None;
+    for (_batched_mesh, transform, mesh_handle) in batched_meshes.iter() {
+        if let Some(mesh) = meshes.get(&mesh_handle.0) {
+            if let Some((distance, _tri, hit_point)) =
+                ray_mesh_intersection_with_triangle(&ray, mesh, transform)
+            {
+                if closest.map(|(d, _)| distance < d).unwrap_or(true) {
+                    closest = Some((distance, hit_point));
+                }
+            }
+        }
+    }
+
+    if let Some((_, hit_point)) = closest {
+        // Save point to bridge for Leptos
+        crate::storage::save_measure_point(&crate::storage::MeasurePointStorage {
+            x: hit_point.x,
+            y: hit_point.y,
+            z: hit_point.z,
+        });
+
+        if let Some(start) = measurement.pending.take() {
+            // Complete measurement
+            let dist = (hit_point - start).length();
+            measurement.measurements.push((start, hit_point));
+            crate::log_info(&format!("[Measure] Distance: {:.3}m", dist));
+        } else {
+            // Start new measurement
+            measurement.pending = Some(hit_point);
+            crate::log_info(&format!(
+                "[Measure] Point 1 set ({:.2}, {:.2}, {:.2}) — click point 2",
+                hit_point.x, hit_point.y, hit_point.z,
+            ));
+        }
+    }
+}
+
+/// Draw measurement lines and distance labels as gizmos
+fn draw_measurements(measurement: Res<MeasurementState>, mut gizmos: Gizmos) {
+    if !measurement.active && measurement.measurements.is_empty() && measurement.pending.is_none() {
+        return;
+    }
+
+    let yellow = Color::srgb(1.0, 0.85, 0.0);
+    let red = Color::srgb(1.0, 0.3, 0.3);
+    let cyan = Color::srgb(0.0, 0.9, 1.0);
+
+    // Draw completed measurements
+    for (start, end) in &measurement.measurements {
+        // Main measurement line
+        gizmos.line(*start, *end, yellow);
+        // Parallel offset lines for visibility
+        let dir = (*end - *start).normalize();
+        let offset = if dir.cross(Vec3::Y).length() > 0.1 {
+            dir.cross(Vec3::Y).normalize() * 0.02
+        } else {
+            dir.cross(Vec3::X).normalize() * 0.02
+        };
+        gizmos.line(*start + offset, *end + offset, yellow);
+        gizmos.line(*start - offset, *end - offset, yellow);
+
+        // Endpoint markers — small spheres via circle gizmos
+        let sphere_size = 0.06;
+        gizmos.sphere(Isometry3d::from_translation(*start), sphere_size, red);
+        gizmos.sphere(Isometry3d::from_translation(*end), sphere_size, red);
+
+        // Distance text via midpoint marker (larger sphere shows there's a measurement)
+        let mid = (*start + *end) / 2.0;
+        gizmos.sphere(Isometry3d::from_translation(mid), 0.03, yellow);
+    }
+
+    // Draw pending measurement (first point — pulsing crosshair)
+    if let Some(start) = measurement.pending {
+        let size = 0.12;
+        gizmos.sphere(Isometry3d::from_translation(start), 0.08, cyan);
+        gizmos.line(start - Vec3::X * size, start + Vec3::X * size, cyan);
+        gizmos.line(start - Vec3::Y * size, start + Vec3::Y * size, cyan);
+        gizmos.line(start - Vec3::Z * size, start + Vec3::Z * size, cyan);
     }
 }
 

@@ -179,6 +179,7 @@ html, body {
     position: relative;
     background: var(--bg-primary);
     overflow: hidden;
+    min-height: 0; /* allow shrinking inside grid */
 }
 
 /* Toolbar */
@@ -287,6 +288,12 @@ html, body {
     flex: 1;
     position: relative;
     overflow: hidden;
+    min-height: 0; /* allow shrinking when lisp panel is open */
+}
+
+.viewport-measure,
+.viewport-measure canvas {
+    cursor: crosshair !important;
 }
 
 .viewport-canvas {
@@ -992,4 +999,188 @@ html, body {
         height: 36px;
         min-width: 36px;
     }
+}
+
+/* ============================================
+   AutoLISP REPL Panel
+   ============================================ */
+
+.lisp-panel {
+    height: 340px;
+    flex-shrink: 0;
+    background: var(--bg-primary);
+    border-top: 2px solid var(--accent-blue);
+    display: flex;
+    flex-direction: column;
+}
+
+.lisp-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+    min-height: 32px;
+}
+
+.lisp-panel-title {
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--accent-blue);
+    letter-spacing: 0.5px;
+}
+
+.lisp-panel-actions {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.lisp-btn {
+    padding: 4px 12px;
+    font-size: 12px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 1.4;
+}
+
+.lisp-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.lisp-btn-run {
+    background: var(--accent-green);
+    color: #000;
+    font-weight: 600;
+}
+
+.lisp-btn-run:hover {
+    filter: brightness(1.2);
+}
+
+.lisp-btn-3d {
+    background: var(--accent-blue);
+    color: #fff;
+    font-weight: 600;
+}
+
+.lisp-btn-3d:hover {
+    filter: brightness(1.2);
+}
+
+.lisp-btn-3d.disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.lisp-panel-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.lisp-panel-close:hover {
+    color: var(--text-primary);
+}
+
+.lisp-panel-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.lisp-editor-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border-right: 1px solid var(--border-color);
+}
+
+.lisp-code-input {
+    flex: 1;
+    background: #0d1117;
+    color: #c9d1d9;
+    border: none;
+    padding: 8px;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    resize: none;
+    outline: none;
+    tab-size: 2;
+}
+
+.lisp-code-input::placeholder {
+    color: #484f58;
+}
+
+.lisp-output-area {
+    border-top: 1px solid var(--border-color);
+    max-height: 100px;
+    overflow-y: auto;
+}
+
+.lisp-output-header {
+    font-size: 10px;
+    color: var(--text-secondary);
+    padding: 2px 8px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.lisp-entity-count {
+    color: var(--accent-green);
+}
+
+.lisp-output {
+    margin: 0;
+    padding: 4px 8px;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 11px;
+    color: #8b949e;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.lisp-preview-col {
+    width: 300px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.lisp-preview-header {
+    font-size: 10px;
+    color: var(--text-secondary);
+    padding: 2px 8px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.lisp-svg-preview {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    background: #0d1117;
+    overflow: hidden;
+}
+
+.lisp-svg-preview svg {
+    max-width: 100%;
+    max-height: 100%;
 }

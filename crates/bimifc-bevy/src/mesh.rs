@@ -550,7 +550,7 @@ fn now_ms() -> f64 {
 }
 
 /// System to spawn batched meshes when scene data changes
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, unused_mut)]
 fn spawn_meshes_system(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -592,13 +592,14 @@ fn spawn_meshes_system(
     let index_hint = mesh_count * 300;
 
     let mut opaque_batch = BatchBuilder::with_capacity(vertex_hint, index_hint);
+    let mut metallic_batch = BatchBuilder::with_capacity(vertex_hint / 5, index_hint / 5);
     let mut transparent_batch = BatchBuilder::with_capacity(vertex_hint / 10, index_hint / 10);
 
     // Track bounds
     let mut scene_min = Vec3::splat(f32::INFINITY);
     let mut scene_max = Vec3::splat(f32::NEG_INFINITY);
 
-    // Process all meshes - group by transparency
+    // Process all meshes - group by material type
     for ifc_mesh in &scene_data.meshes {
         let is_transparent = ifc_mesh.color[3] < 1.0;
         let transform = ifc_mesh.get_transform();
@@ -620,9 +621,18 @@ fn spawn_meshes_system(
             scene_max = scene_max.max(world_pos);
         }
 
+        // Determine material type from entity type
+        let etype = ifc_mesh.entity_type.to_uppercase();
+        let is_metallic = etype.contains("BEAM")
+            || etype.contains("COLUMN")
+            || etype.contains("RAILING")
+            || (etype.contains("ROOF") && !etype.contains("SLAB"));
+
         // Add to appropriate batch
         if is_transparent {
             transparent_batch.add_mesh(ifc_mesh);
+        } else if is_metallic {
+            metallic_batch.add_mesh(ifc_mesh);
         } else {
             opaque_batch.add_mesh(ifc_mesh);
         }
@@ -664,6 +674,39 @@ fn spawn_meshes_system(
             metallic: 0.05,
             perceptual_roughness: 0.45,
             reflectance: 0.4,
+            double_sided: true,
+            cull_mode: None,
+            ..default()
+        };
+
+        commands.spawn((
+            Mesh3d(meshes.add(mesh)),
+            MeshMaterial3d(materials.add(material)),
+            Transform::default(),
+            BatchedMesh {
+                is_transparent: false,
+            },
+        ));
+    }
+
+    // Spawn metallic batch (beams, columns, railings, roofs)
+    if !metallic_batch.is_empty() {
+        log(&format!(
+            "[Bevy] Metallic batch: {} vertices, {} triangles",
+            metallic_batch.vertex_count(),
+            metallic_batch.triangle_count()
+        ));
+
+        triangle_mapping
+            .opaque
+            .extend(metallic_batch.take_triangle_mapping());
+
+        let mesh = metallic_batch.build();
+        let material = StandardMaterial {
+            base_color: Color::WHITE,
+            metallic: 0.7,
+            perceptual_roughness: 0.25,
+            reflectance: 0.6,
             double_sided: true,
             cull_mode: None,
             ..default()
@@ -815,12 +858,12 @@ fn auto_fit_camera_system(
 /// Polls visibility state from localStorage and hides/isolates entities by
 /// setting their vertex alpha to 0.0 (same approach as selection highlighting).
 #[cfg(feature = "color-palette")]
-#[allow(unused_variables)]
+#[allow(unused_variables, unused_mut)]
 fn update_mesh_visibility_system(
-    previous_visibility: ResMut<PreviousVisibility>,
+    mut previous_visibility: ResMut<PreviousVisibility>,
     selection: Res<crate::picking::SelectionState>,
     color_mapping: Res<EntityColorMapping>,
-    mesh_assets: ResMut<Assets<Mesh>>,
+    mut mesh_assets: ResMut<Assets<Mesh>>,
     batched_meshes: Query<(&Mesh3d, &BatchedMesh)>,
 ) {
     #[cfg(target_arch = "wasm32")]

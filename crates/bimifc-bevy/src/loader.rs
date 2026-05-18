@@ -3,11 +3,7 @@
 use crate::mesh::IfcMesh;
 use crate::{EntityInfo, IfcSceneData};
 use bevy::prelude::*;
-#[cfg(all(
-    not(target_arch = "wasm32"),
-    not(target_os = "ios"),
-    not(target_os = "macos")
-))]
+#[cfg(all(not(target_arch = "wasm32"), not(target_os = "ios"),))]
 use bevy::tasks::IoTaskPool;
 use bevy::tasks::Task;
 use bimifc_geometry::GeometryRouter;
@@ -91,11 +87,7 @@ pub struct IfcFileLoadedEvent {
 }
 
 /// System to handle request to open file dialog (spawns async task)
-#[cfg(all(
-    not(target_arch = "wasm32"),
-    not(target_os = "ios"),
-    not(target_os = "macos")
-))]
+#[cfg(all(not(target_arch = "wasm32"), not(target_os = "ios"),))]
 fn handle_open_dialog_request(
     mut requests: MessageReader<OpenFileDialogRequest>,
     mut state: ResMut<FileDialogState>,
@@ -138,11 +130,8 @@ fn handle_open_dialog_request(
     }
 }
 
-/// Stub for iOS/macOS - file dialog handled by native UI
-#[cfg(all(
-    not(target_arch = "wasm32"),
-    any(target_os = "ios", target_os = "macos")
-))]
+/// Stub for iOS - file dialog handled by native UI
+#[cfg(all(not(target_arch = "wasm32"), target_os = "ios",))]
 fn handle_open_dialog_request(
     mut _requests: MessageReader<OpenFileDialogRequest>,
     mut _state: ResMut<FileDialogState>,

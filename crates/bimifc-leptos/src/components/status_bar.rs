@@ -1,6 +1,6 @@
 //! Status bar component - shows loading/error status and entity counts
 
-use crate::state::use_viewer_state;
+use crate::state::{use_viewer_state, Tool};
 use leptos::prelude::*;
 
 /// Status bar component
@@ -102,6 +102,58 @@ pub fn StatusBar() -> impl IntoView {
                     }
                 }}
             </div>
+
+            // Measurement display (when measure tool is active)
+            {move || {
+                let tool = state.ui.active_tool.get();
+                let measurements = state.measurements.measurements.get();
+                let pending = state.measurements.pending_point.get();
+
+                if tool == Tool::Measure {
+                    let mut parts: Vec<leptos::tachys::view::any_view::AnyView> = Vec::new();
+
+                    // Instruction or status
+                    if measurements.is_empty() && pending.is_none() {
+                        parts.push(view! {
+                            <span style="color:#ffd60a;font-size:11px">"Click on a surface to start measuring"</span>
+                        }.into_any());
+                    } else if pending.is_some() {
+                        parts.push(view! {
+                            <span style="color:#00e5ff;font-size:11px">"Click 2nd point to complete measurement"</span>
+                        }.into_any());
+                    }
+
+                    // Show completed measurements
+                    for (i, m) in measurements.iter().enumerate() {
+                        let dist = m.distance();
+                        let label = if dist >= 1.0 {
+                            format!(" #{}: {:.2}m", i + 1, dist)
+                        } else {
+                            format!(" #{}: {:.0}cm", i + 1, dist * 100.0)
+                        };
+                        parts.push(view! {
+                            <span style="color:#ffd60a;font-size:11px;font-weight:600;margin-left:8px">
+                                {label}
+                            </span>
+                        }.into_any());
+                    }
+
+                    if !measurements.is_empty() {
+                        parts.push(view! {
+                            <span style="color:#8e8e93;font-size:10px;margin-left:8px">"(Esc to clear)"</span>
+                        }.into_any());
+                    }
+
+                    Some(view! {
+                        <div style="display:flex;align-items:center;gap:4px;margin:0 8px">
+                            <span style="color:#ffd60a;font-size:11px">"Measure"</span>
+                            {parts}
+                        </div>
+                    })
+                } else {
+                    None
+                }
+            }}
 
             // Right section: filters and selection
             <div class="status-right">
