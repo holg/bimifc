@@ -121,6 +121,12 @@ impl EntityResolver for ResolverImpl {
             .unwrap_or_default()
     }
 
+    fn types_present(&self) -> Vec<IfcType> {
+        // O(types) instead of the trait default's O(entities) — we already
+        // know exactly which IfcType keys index entities in this model.
+        self.type_index.keys().cloned().collect()
+    }
+
     fn find_by_type_name(&self, type_name: &str) -> Vec<Arc<DecodedEntity>> {
         let target = IfcType::parse(type_name);
         self.entities_by_type(&target)

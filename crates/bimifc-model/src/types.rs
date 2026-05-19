@@ -48,6 +48,32 @@ impl From<EntityId> for u64 {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum IfcType {
     // ========================================================================
+    // Abstract parents (inheritance graph)
+    // ========================================================================
+    // These rarely appear as concrete entity instances, but are required so
+    // `IfcType::is_subtype_of(IfcProduct)` resolves correctly via parent().
+    // See schema_helpers::has_geometry_by_name.
+    IfcRoot,
+    IfcObjectDefinition,
+    IfcObject,
+    IfcProduct,
+    IfcElement,
+    IfcBuiltElement,
+    IfcSpatialElement,
+    IfcSpatialStructureElement,
+    IfcExternalSpatialStructureElement,
+    IfcExternalSpatialElement,
+    IfcSpatialZone,
+    IfcCivilElement,
+    IfcGeographicElement,
+    IfcAnnotation,
+    IfcPort,
+    IfcFeatureElement,
+    IfcFeatureElementAddition,
+    IfcFeatureElementSubtraction,
+    IfcGeotechnicalAssembly,
+
+    // ========================================================================
     // Spatial Structure
     // ========================================================================
     IfcProject,
@@ -771,47 +797,181 @@ impl IfcType {
         }
     }
 
-    /// Check if this type represents a building element with potential geometry
-    pub fn has_geometry(&self) -> bool {
-        matches!(
-            self,
-            IfcType::IfcWall
-                | IfcType::IfcWallStandardCase
-                | IfcType::IfcCurtainWall
-                | IfcType::IfcSlab
-                | IfcType::IfcRoof
-                | IfcType::IfcBeam
-                | IfcType::IfcColumn
-                | IfcType::IfcDoor
-                | IfcType::IfcWindow
-                | IfcType::IfcStair
-                | IfcType::IfcStairFlight
-                | IfcType::IfcRamp
-                | IfcType::IfcRampFlight
-                | IfcType::IfcRailing
-                | IfcType::IfcCovering
-                | IfcType::IfcPlate
-                | IfcType::IfcMember
-                | IfcType::IfcFooting
-                | IfcType::IfcPile
-                | IfcType::IfcLightFixture
-                | IfcType::IfcBuildingElementProxy
-                | IfcType::IfcFurnishingElement
-                | IfcType::IfcFurniture
-                | IfcType::IfcDistributionElement
-                | IfcType::IfcFlowTerminal
-                | IfcType::IfcFlowSegment
-                | IfcType::IfcFlowFitting
-                | IfcType::IfcCableSegment
-                | IfcType::IfcCableCarrierSegment
-                | IfcType::IfcCableCarrierFitting
-                | IfcType::IfcPipeSegment
-                | IfcType::IfcPipeFitting
-                | IfcType::IfcSpaceHeater
-                | IfcType::IfcAirTerminal
-                | IfcType::IfcOpeningElement
-        )
+    /// IFC inheritance: direct parent in the EXPRESS type hierarchy.
+    ///
+    /// Only the branches needed for geometry-eligibility decisions are
+    /// populated — `IfcRoot` and its `IfcObjectDefinition`/`IfcObject`/
+    /// `IfcProduct`/`IfcElement` descendants. Types unrelated to that
+    /// subtree (representation items, profiles, relationships, units, …)
+    /// return `None`; callers should treat that as "not a product".
+    ///
+    /// This is a hand-maintained subset of upstream `@ifc-lite/codegen`'s
+    /// generated `parent()` table, ported from upstream PR #596 / #585 but
+    /// scoped to the types the bimifc enum actually carries. When a new
+    /// `IfcType` variant is added, give it a parent arm here and the rest
+    /// of the system (has_geometry, future is_subtype_of callers) picks it
+    /// up without further edits.
+    pub fn parent(&self) -> Option<Self> {
+        use IfcType::*;
+        Some(match self {
+            // ── Root chain ────────────────────────────────────────────
+            IfcObjectDefinition => IfcRoot,
+            IfcObject => IfcObjectDefinition,
+            IfcProduct => IfcObject,
+
+            // ── Spatial elements ──────────────────────────────────────
+            IfcSpatialElement => IfcProduct,
+            IfcSpatialStructureElement => IfcSpatialElement,
+            IfcExternalSpatialStructureElement => IfcSpatialElement,
+            IfcExternalSpatialElement => IfcExternalSpatialStructureElement,
+            IfcSpatialZone => IfcSpatialElement,
+            IfcSite => IfcSpatialStructureElement,
+            IfcBuilding => IfcSpatialStructureElement,
+            IfcBuildingStorey => IfcSpatialStructureElement,
+            IfcSpace => IfcSpatialStructureElement,
+            IfcFacility => IfcSpatialStructureElement,
+            IfcFacilityPart => IfcSpatialStructureElement,
+            IfcBridge => IfcFacility,
+            IfcBridgePart => IfcFacilityPart,
+            IfcRoad => IfcFacility,
+            IfcRoadPart => IfcFacilityPart,
+            IfcRailway => IfcFacility,
+            IfcRailwayPart => IfcFacilityPart,
+
+            // ── Elements & built elements ─────────────────────────────
+            IfcElement => IfcProduct,
+            IfcBuiltElement => IfcElement,
+            IfcCivilElement => IfcElement,
+            IfcGeographicElement => IfcElement,
+            IfcAnnotation => IfcProduct,
+            IfcPort => IfcProduct,
+            IfcElementAssembly => IfcElement,
+            IfcFurnishingElement => IfcElement,
+            IfcFurniture => IfcFurnishingElement,
+            IfcSystemFurnitureElement => IfcFurnishingElement,
+            IfcBuildingElementProxy => IfcBuiltElement,
+
+            // ── Built element concrete classes ────────────────────────
+            IfcWall => IfcBuiltElement,
+            IfcWallStandardCase => IfcWall,
+            IfcCurtainWall => IfcBuiltElement,
+            IfcSlab => IfcBuiltElement,
+            IfcRoof => IfcBuiltElement,
+            IfcBeam => IfcBuiltElement,
+            IfcColumn => IfcBuiltElement,
+            IfcDoor => IfcBuiltElement,
+            IfcWindow => IfcBuiltElement,
+            IfcStair => IfcBuiltElement,
+            IfcStairFlight => IfcBuiltElement,
+            IfcRamp => IfcBuiltElement,
+            IfcRampFlight => IfcBuiltElement,
+            IfcRailing => IfcBuiltElement,
+            IfcCovering => IfcBuiltElement,
+            IfcPlate => IfcBuiltElement,
+            IfcMember => IfcBuiltElement,
+            IfcFooting => IfcBuiltElement,
+            IfcPile => IfcBuiltElement,
+            IfcDeepFoundation => IfcBuiltElement,
+
+            // ── Feature elements (openings, voids, projections) ───────
+            IfcFeatureElement => IfcElement,
+            IfcFeatureElementSubtraction => IfcFeatureElement,
+            IfcFeatureElementAddition => IfcFeatureElement,
+            IfcOpeningElement => IfcFeatureElementSubtraction,
+            IfcOpeningStandardCase => IfcOpeningElement,
+            IfcVoidingFeature => IfcFeatureElementSubtraction,
+            IfcProjectionElement => IfcFeatureElementAddition,
+
+            // ── Distribution elements (MEP) ───────────────────────────
+            IfcDistributionElement => IfcElement,
+            IfcDistributionFlowElement => IfcDistributionElement,
+            IfcDistributionControlElement => IfcDistributionElement,
+            IfcFlowSegment => IfcDistributionFlowElement,
+            IfcFlowFitting => IfcDistributionFlowElement,
+            IfcFlowTerminal => IfcDistributionFlowElement,
+            IfcFlowController => IfcDistributionFlowElement,
+            IfcFlowMovingDevice => IfcDistributionFlowElement,
+            IfcFlowStorageDevice => IfcDistributionFlowElement,
+            IfcFlowTreatmentDevice => IfcDistributionFlowElement,
+            IfcEnergyConversionDevice => IfcDistributionFlowElement,
+            IfcCableSegment => IfcFlowSegment,
+            IfcCableCarrierSegment => IfcFlowSegment,
+            IfcCableCarrierFitting => IfcFlowFitting,
+            IfcPipeSegment => IfcFlowSegment,
+            IfcPipeFitting => IfcFlowFitting,
+            IfcSpaceHeater => IfcEnergyConversionDevice,
+            IfcAirTerminal => IfcFlowTerminal,
+            IfcLightFixture => IfcFlowTerminal,
+
+            // ── Infrastructure / geotechnical ─────────────────────────
+            IfcGeotechnicalElement => IfcElement,
+            IfcGeotechnicalAssembly => IfcGeotechnicalElement,
+            IfcBorehole => IfcGeotechnicalAssembly,
+            IfcGeomodel => IfcGeotechnicalAssembly,
+            IfcGeoslice => IfcGeotechnicalAssembly,
+            IfcSolidStratum => IfcGeotechnicalElement,
+            IfcVoidStratum => IfcGeotechnicalElement,
+            IfcWaterStratum => IfcGeotechnicalElement,
+            IfcEarthworksElement => IfcElement,
+            IfcEarthworksCut => IfcFeatureElementSubtraction,
+            IfcEarthworksFill => IfcEarthworksElement,
+            IfcPavement => IfcBuiltElement,
+            IfcCourse => IfcBuiltElement,
+            IfcKerb => IfcBuiltElement,
+
+            // ── IfcProject is itself a context, not a product ─────────
+            // (left unmapped on purpose so is_subtype_of(IfcProduct) is false)
+            _ => return None,
+        })
     }
+
+    /// True if this type equals `parent` or any of its ancestors equals `parent`.
+    pub fn is_subtype_of(&self, parent: IfcType) -> bool {
+        // `IfcType` carries an `Unknown(String)` variant so it isn't `Copy`.
+        // Walking the chain only needs the named variants — `Unknown` has no
+        // parent and is never equal to a named `parent` argument, so we can
+        // short-circuit it.
+        if matches!(self, IfcType::Unknown(_)) {
+            return false;
+        }
+        let mut current = Some(self.clone());
+        while let Some(t) = current {
+            if t == parent {
+                return true;
+            }
+            current = t.parent();
+        }
+        false
+    }
+
+    /// Check if this type represents a product that can carry geometry.
+    ///
+    /// Inheritance-based: anything under `IfcProduct` is renderable, *except*
+    /// spatial-container subclasses of `IfcSpatialElement` (with `IfcSpace`
+    /// and `IfcSite` kept — their boundary representations are rendered).
+    /// Adding a new concrete subtype now only requires wiring up `parent()`.
+    ///
+    /// Ported from upstream ifc-lite PR #596 (`schema_helpers::has_geometry_by_name`),
+    /// scoped to the bimifc `IfcType` enum.
+    pub fn has_geometry(&self) -> bool {
+        if !self.is_subtype_of(IfcType::IfcProduct) {
+            return false;
+        }
+        !is_non_geometric_spatial(self)
+    }
+}
+
+/// Spatial containers that exist only to group children, not to render.
+/// `IfcSpace` and `IfcSite` are deliberately exempt — their boundary
+/// representations are consumed by the renderer.
+fn is_non_geometric_spatial(t: &IfcType) -> bool {
+    if matches!(t, IfcType::IfcSpace | IfcType::IfcSite) {
+        return false;
+    }
+    t.is_subtype_of(IfcType::IfcSpatialElement)
+}
+
+impl IfcType {
 
     /// Check if this type is a spatial structure element
     pub fn is_spatial(&self) -> bool {
@@ -1078,4 +1238,136 @@ pub struct ModelMetadata {
     pub organization: Option<String>,
     /// Timestamp
     pub timestamp: Option<String>,
+}
+
+#[cfg(test)]
+mod inheritance_tests {
+    //! Regression tests for the inheritance-graph based `has_geometry`,
+    //! adapted from upstream ifc-lite `rust/core/src/schema_helpers.rs`
+    //! (PR #596 / #585). Each test that names a specific IFC type is
+    //! a single source of truth: if a new variant is added to `IfcType`
+    //! and missed in `parent()`, the relevant assertion fails here
+    //! instead of silently dropping geometry at render time.
+    use super::IfcType;
+
+    #[test]
+    fn building_elements_have_geometry() {
+        for t in [
+            IfcType::IfcWall,
+            IfcType::IfcWallStandardCase,
+            IfcType::IfcSlab,
+            IfcType::IfcBeam,
+            IfcType::IfcColumn,
+            IfcType::IfcDoor,
+            IfcType::IfcWindow,
+            IfcType::IfcRoof,
+            IfcType::IfcStair,
+        ] {
+            assert!(t.has_geometry(), "{t:?} should have geometry");
+        }
+    }
+
+    #[test]
+    fn mep_elements_have_geometry() {
+        for t in [
+            IfcType::IfcFlowSegment,
+            IfcType::IfcFlowFitting,
+            IfcType::IfcEnergyConversionDevice,
+            IfcType::IfcFlowTreatmentDevice,
+            IfcType::IfcCableSegment,
+            IfcType::IfcCableCarrierSegment,
+            IfcType::IfcCableCarrierFitting,
+            IfcType::IfcPipeSegment,
+            IfcType::IfcPipeFitting,
+            IfcType::IfcSpaceHeater,
+            IfcType::IfcAirTerminal,
+            IfcType::IfcLightFixture,
+        ] {
+            assert!(t.has_geometry(), "{t:?} should have geometry");
+        }
+    }
+
+    #[test]
+    fn space_and_site_have_geometry() {
+        // Containers in general are excluded, but IfcSpace and IfcSite are
+        // exempt because their boundary representations are rendered.
+        assert!(IfcType::IfcSpace.has_geometry());
+        assert!(IfcType::IfcSite.has_geometry());
+        assert!(IfcType::IfcOpeningElement.has_geometry());
+    }
+
+    #[test]
+    fn non_geometric_spatial_excluded() {
+        // Pure spatial containers — present in this enum but never rendered.
+        for t in [
+            IfcType::IfcBuilding,
+            IfcType::IfcBuildingStorey,
+            IfcType::IfcFacility,
+            IfcType::IfcFacilityPart,
+            IfcType::IfcSpatialElement,
+            IfcType::IfcSpatialStructureElement,
+            IfcType::IfcBridge,
+            IfcType::IfcRoad,
+            IfcType::IfcRailway,
+            IfcType::IfcBridgePart,
+            IfcType::IfcSpatialZone,
+            IfcType::IfcExternalSpatialElement,
+            IfcType::IfcExternalSpatialStructureElement,
+        ] {
+            assert!(!t.has_geometry(), "{t:?} should NOT have geometry");
+        }
+    }
+
+    #[test]
+    fn non_products_excluded() {
+        // Project, materials, properties, rels, geometry items — none are
+        // IfcProduct subtypes, so parent() returns None for all of them.
+        for t in [
+            IfcType::IfcProject,
+            IfcType::IfcMaterial,
+            IfcType::IfcPropertySet,
+            IfcType::IfcRelAggregates,
+            IfcType::IfcSurfaceStyleRendering,
+            IfcType::IfcCartesianPoint,
+            IfcType::IfcExtrudedAreaSolid,
+        ] {
+            assert!(!t.has_geometry(), "{t:?} should NOT have geometry");
+        }
+    }
+
+    #[test]
+    fn is_subtype_of_walks_chain() {
+        // Direct relationship.
+        assert!(IfcType::IfcWall.is_subtype_of(IfcType::IfcBuiltElement));
+        // Multi-hop: IfcCableSegment → IfcFlowSegment → IfcDistributionFlowElement → IfcDistributionElement → IfcElement → IfcProduct
+        assert!(IfcType::IfcCableSegment.is_subtype_of(IfcType::IfcElement));
+        assert!(IfcType::IfcCableSegment.is_subtype_of(IfcType::IfcProduct));
+        // A type is its own subtype.
+        assert!(IfcType::IfcWall.is_subtype_of(IfcType::IfcWall));
+        // Negative: not in the same subtree.
+        assert!(!IfcType::IfcWall.is_subtype_of(IfcType::IfcDistributionElement));
+        // Unknown variant never matches anything.
+        assert!(!IfcType::Unknown("FOO".into()).is_subtype_of(IfcType::IfcProduct));
+    }
+
+    /// MEP types we just added (concrete subclasses) — these are the exact
+    /// types whose manual enumeration motivated this port. They must inherit
+    /// geometry eligibility from their parents without any leaf-level edits.
+    #[test]
+    fn mep_concrete_types_inherit_geometry() {
+        for t in [
+            IfcType::IfcCableSegment,
+            IfcType::IfcCableCarrierSegment,
+            IfcType::IfcCableCarrierFitting,
+            IfcType::IfcPipeSegment,
+            IfcType::IfcPipeFitting,
+            IfcType::IfcSpaceHeater,
+            IfcType::IfcAirTerminal,
+        ] {
+            assert!(
+                t.has_geometry(),
+                "{t:?} should inherit geometry via parent() chain"
+            );
+        }
+    }
 }

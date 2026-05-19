@@ -165,43 +165,15 @@ impl<'a> SpatialBuilder<'a> {
             // We'll mark by checking what refers to this shape
         }
 
-        // Simpler approach: check products directly for Representation attribute
-        let product_types = [
-            IfcType::IfcWall,
-            IfcType::IfcWallStandardCase,
-            IfcType::IfcSlab,
-            IfcType::IfcBeam,
-            IfcType::IfcColumn,
-            IfcType::IfcDoor,
-            IfcType::IfcWindow,
-            IfcType::IfcStair,
-            IfcType::IfcStairFlight,
-            IfcType::IfcRoof,
-            IfcType::IfcCovering,
-            IfcType::IfcRailing,
-            IfcType::IfcPlate,
-            IfcType::IfcMember,
-            IfcType::IfcCurtainWall,
-            IfcType::IfcFooting,
-            IfcType::IfcPile,
-            IfcType::IfcBuildingElementProxy,
-            IfcType::IfcElementAssembly,
-            IfcType::IfcOpeningElement,
-            IfcType::IfcFurnishingElement,
-            IfcType::IfcFlowTerminal,
-            IfcType::IfcFlowSegment,
-            IfcType::IfcFlowFitting,
-            IfcType::IfcCableSegment,
-            IfcType::IfcCableCarrierSegment,
-            IfcType::IfcCableCarrierFitting,
-            IfcType::IfcPipeSegment,
-            IfcType::IfcPipeFitting,
-            IfcType::IfcSpaceHeater,
-            IfcType::IfcAirTerminal,
-            IfcType::IfcLightFixture,
-        ];
-
-        for ifc_type in product_types {
+        // Iterate every product subtype actually present in this model,
+        // derived from the type index rather than a hardcoded leaf list.
+        // Adding a new IfcType variant (with a parent() arm) now lights up
+        // here automatically — no need to remember to edit this list too.
+        // Ported from upstream ifc-lite PR #596 (inheritance-graph eligibility).
+        for ifc_type in self.resolver.types_present() {
+            if !ifc_type.has_geometry() {
+                continue;
+            }
             for entity in self.resolver.entities_by_type(&ifc_type) {
                 // Representation is typically at index 6 for most products
                 let has_rep = entity.get_ref(6).is_some();

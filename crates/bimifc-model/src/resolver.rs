@@ -110,6 +110,27 @@ pub trait EntityResolver: Send + Sync {
     /// The number of entities of the specified type
     fn count_by_type(&self, ifc_type: &IfcType) -> usize;
 
+    /// All `IfcType` keys present in the model's type index.
+    ///
+    /// Used by callers that want to iterate entities by type without
+    /// hardcoding a known-types list. Default impl walks all entity IDs
+    /// and dedupes; implementations with a real type index should
+    /// override it for speed.
+    fn types_present(&self) -> Vec<IfcType> {
+        use std::collections::HashSet;
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut out = Vec::new();
+        for id in self.all_ids() {
+            if let Some(e) = self.get(id) {
+                let key = format!("{:?}", e.ifc_type);
+                if seen.insert(key) {
+                    out.push(e.ifc_type.clone());
+                }
+            }
+        }
+        out
+    }
+
     /// Get all entity IDs in the model
     ///
     /// # Returns
