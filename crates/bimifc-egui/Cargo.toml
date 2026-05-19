@@ -35,6 +35,11 @@ bevy = { version = "0.18", default-features = false, features = [
     "bevy_gizmos",
     "bevy_picking",
     "bevy_text",
+    # bevy_ui is needed by bevy_egui's bevy_ui_render integration —
+    # without it, egui draws nothing visible. We disabled bimifc-bevy's
+    # `bevy-ui` feature (their custom toolbar) on the dep below, but
+    # the underlying Bevy feature must stay on.
+    "bevy_ui",
     "default_font",
     "multi_threaded",
     "tonemapping_luts",
@@ -45,9 +50,11 @@ bevy = { version = "0.18", default-features = false, features = [
 ] }
 
 # bevy_egui 0.39 is the matching release for Bevy 0.18 + egui 0.33.
-# It bridges egui into Bevy's render pipeline so we can run a desktop
-# app where Bevy owns the window and egui paints UI on top of the 3D.
-bevy_egui = { version = "0.39", default-features = false, features = ["render", "default_fonts"] }
+# We need default features here — without them, picking/clipboard and
+# crucially the bevy_ui integration that composites egui onto the Bevy
+# UI render layer are missing, so the toolbar/side panels would draw
+# into the void.
+bevy_egui = "0.39"
 
 # Fast hashing for our own data structures.
 rustc-hash = "2"

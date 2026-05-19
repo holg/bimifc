@@ -16,7 +16,7 @@
 //! panel, filter wired into the renderer, persistence, shortcuts.
 
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
+use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass, PrimaryEguiContext};
 use bimifc_bevy::IfcSceneData;
 
 use crate::hierarchy::render_hierarchy;
@@ -30,6 +30,13 @@ impl Plugin for EguiAppPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DisciplineFilter>()
             .init_resource::<LoadedFile>()
+            // bevy_egui 0.39 only emits an EguiPrimaryContextPass for a
+            // camera tagged `PrimaryEguiContext`. bimifc-bevy's camera
+            // is spawned in its CameraPlugin's Startup without that
+            // tag, so we add it post-startup. Without this, every panel
+            // system's `contexts.ctx_mut()?` returns NoEntities and the
+            // UI silently vanishes.
+            .add_systems(PostStartup, tag_primary_egui_camera)
             // Egui systems run inside the EguiPrimaryContextPass schedule
             // — bevy_egui 0.39's contract: "draw UI now that egui has a
             // frame context available". Order matters for layout: the
@@ -50,6 +57,18 @@ impl Plugin for EguiAppPlugin {
             // Mirror IfcSceneData → LoadedFile so the toolbar status
             // updates whenever a new file finishes parsing.
             .add_systems(Update, sync_loaded_file);
+    }
+}
+
+/// Add `PrimaryEguiContext` to the 3D camera that bimifc-bevy's
+/// CameraPlugin spawned during Startup, so bevy_egui will run its
+/// primary-context pass for it.
+fn tag_primary_egui_camera(
+    mut commands: Commands,
+    cameras: Query<Entity, (With<Camera3d>, Without<PrimaryEguiContext>)>,
+) {
+    for cam in cameras.iter() {
+        commands.entity(cam).insert(PrimaryEguiContext);
     }
 }
 
