@@ -20,7 +20,7 @@ photometric = ["bimifc-bevy/photometric", "bimifc-leptos/photometric"]
 [dependencies]
 bimifc-bevy = { version = "0.3.0", path = "../bimifc-bevy", default-features = false }
 bimifc-geometry = { version = "0.3.0", path = "../bimifc-geometry" }
-bimifc-leptos = { version = "0.2.0", path = "../bimifc-leptos", features = ["unified"] }
+bimifc-leptos = { version = "0.3.0", path = "../bimifc-leptos", features = ["unified"] }
 bimifc-model = { version = "0.3.0", path = "../bimifc-model" }
 bimifc-parser = { version = "0.3.0", path = "../bimifc-parser" }
 
