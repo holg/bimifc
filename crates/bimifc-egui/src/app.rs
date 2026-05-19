@@ -19,6 +19,8 @@ use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass};
 use bimifc_bevy::IfcSceneData;
 
+use crate::hierarchy::render_hierarchy;
+use crate::properties::render_properties;
 use crate::state::{DisciplineFilter, LoadedFile};
 use crate::toolbar::render_toolbar;
 
@@ -29,12 +31,21 @@ impl Plugin for EguiAppPlugin {
         app.init_resource::<DisciplineFilter>()
             .init_resource::<LoadedFile>()
             // Egui systems run inside the EguiPrimaryContextPass schedule
-            // — this is bevy_egui 0.39's contract for "draw UI now that
-            // egui has a frame context available". Running them in Update
-            // instead causes the context to be unavailable on some frames.
+            // — bevy_egui 0.39's contract: "draw UI now that egui has a
+            // frame context available". Order matters for layout: the
+            // top toolbar carves space first, then the side panels each
+            // take their slice, then the bottom status bar, and what's
+            // left in the middle is the 3D viewport. `.chain()` forces
+            // that left-to-right declaration order.
             .add_systems(
                 EguiPrimaryContextPass,
-                (render_toolbar, render_status_bar).chain(),
+                (
+                    render_toolbar,
+                    render_status_bar,
+                    render_hierarchy,
+                    render_properties,
+                )
+                    .chain(),
             )
             // Mirror IfcSceneData → LoadedFile so the toolbar status
             // updates whenever a new file finishes parsing.

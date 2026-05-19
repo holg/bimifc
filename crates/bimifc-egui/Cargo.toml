@@ -14,7 +14,11 @@ path = "src/main.rs"
 
 [dependencies]
 # Same versions our other crates pin against.
-bimifc-bevy = { version = "0.3.0", path = "../bimifc-bevy", default-features = false, features = ["bevy-ui", "color-palette"] }
+# We deliberately DO NOT enable the `bevy-ui` feature: that would pull in
+# bimifc-bevy's own Bevy-UI toolbar/hierarchy/properties stack, which
+# overlaps with the egui panels we add ourselves. egui is the UI in this
+# binary; bimifc-bevy contributes only the 3D viewport + parser bridge.
+bimifc-bevy = { version = "0.3.0", path = "../bimifc-bevy", default-features = false, features = ["color-palette"] }
 bimifc-geometry = { version = "0.3.0", path = "../bimifc-geometry" }
 bimifc-model = { version = "0.3.0", path = "../bimifc-model" }
 bimifc-parser = { version = "0.3.0", path = "../bimifc-parser" }

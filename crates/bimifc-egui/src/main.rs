@@ -15,6 +15,8 @@ use bevy_egui::EguiPlugin;
 use bimifc_bevy::IfcViewerPlugin;
 
 mod app;
+mod hierarchy;
+mod properties;
 mod state;
 mod toolbar;
 
