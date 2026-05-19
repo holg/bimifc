@@ -6,6 +6,8 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 description = "IFC 2x3 STEP file writer — generates IFC from room geometry data"
+keywords = ["ifc", "bim", "step", "writer", "building"]
+categories = ["encoding", "data-structures"]
 
 [dependencies]
 chrono = "0.4"
