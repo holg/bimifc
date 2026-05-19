@@ -20,7 +20,7 @@ unified = ["bimifc-bevy"]
 photometric = ["bimifc-bevy/photometric"]
 
 [dependencies]
-acadlisp = { path = "../../../acadlisp" }
+acadlisp = { version = "0.2.0", path = "../../../acadlisp" }
 bimifc-geometry = { version = "0.3.0", path = "../bimifc-geometry" }
 # AutoLISP scripting with IFC functions
 bimifc-lisp = { version = "0.2.0", path = "../bimifc-lisp" }
