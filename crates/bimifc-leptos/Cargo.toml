@@ -96,3 +96,14 @@ features = [
     "WheelEvent",
     "Window",
 ]
+
+# Workaround for uuid 1.x rng on wasm32-unknown-unknown.
+#
+# bimifc-writer transitively pulls uuid for v4 GUID generation. The uuid
+# crate refuses to compile for wasm32-unknown-unknown unless one of `js`,
+# `rng-getrandom`, or `rng-rand` is enabled — and feature unification means
+# enabling it at any point in the dep graph fixes the whole tree. The fix
+# lives here (not in bimifc-writer) so native builds of bimifc-writer don't
+# pay for a JS-only feature they don't need.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+uuid = { version = "1", features = ["js"] }
