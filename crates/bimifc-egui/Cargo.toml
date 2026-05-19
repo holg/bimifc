@@ -49,6 +49,9 @@ bevy = { version = "0.18", default-features = false, features = [
 # app where Bevy owns the window and egui paints UI on top of the 3D.
 bevy_egui = { version = "0.39", default-features = false, features = ["render", "default_fonts"] }
 
+# Fast hashing for our own data structures.
+rustc-hash = "2"
+
 # Native file-open dialog. We already use rfd in bimifc-bevy.
 rfd = "0.15"
 

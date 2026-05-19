@@ -16,6 +16,7 @@ use bimifc_bevy::IfcViewerPlugin;
 
 mod app;
 mod hierarchy;
+mod model;
 mod properties;
 mod state;
 mod toolbar;
@@ -42,6 +43,7 @@ fn main() {
         // egui only sits on top.
         .add_plugins(IfcViewerPlugin)
         // Our own additions.
+        .add_plugins(model::RichModelPlugin)
         .add_plugins(app::EguiAppPlugin)
         .run();
 }

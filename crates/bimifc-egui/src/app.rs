@@ -67,19 +67,32 @@ fn render_status_bar(mut contexts: EguiContexts, filter: Res<DisciplineFilter>) 
     });
 }
 
-/// Watch IfcSceneData and reflect its size into LoadedFile. We don't
-/// know the source path from here (the loader event carried it but the
-/// resource only carries the parsed data) — TODO once the loader plugin
-/// is extended to surface the source path.
-fn sync_loaded_file(scene: Option<Res<IfcSceneData>>, mut loaded: ResMut<LoadedFile>) {
-    let Some(scene) = scene else { return };
-    if !scene.is_changed() {
-        return;
+/// Mirror IfcSceneData (renderer's view of the file) + RichModel
+/// (panels' view) into LoadedFile, which the toolbar reads. The path
+/// comes from RichModel — we set it there during re-parse — so the
+/// status bar can show the filename even though bimifc-bevy's
+/// IfcSceneData doesn't currently carry it.
+fn sync_loaded_file(
+    scene: Option<Res<IfcSceneData>>,
+    rich: Res<crate::model::RichModel>,
+    mut loaded: ResMut<LoadedFile>,
+) {
+    let mut dirty = rich.is_changed();
+    if let Some(scene) = scene.as_ref() {
+        if scene.is_changed() {
+            loaded.entity_count = scene.entities.len();
+            loaded.triangle_count = scene
+                .meshes
+                .iter()
+                .map(|m| m.geometry.indices.len() / 3)
+                .sum();
+            dirty = true;
+        }
     }
-    loaded.entity_count = scene.entities.len();
-    loaded.triangle_count = scene
-        .meshes
-        .iter()
-        .map(|m| m.geometry.indices.len() / 3)
-        .sum();
+    if dirty {
+        loaded.path = rich
+            .source_path
+            .as_ref()
+            .and_then(|p| p.to_str().map(str::to_string));
+    }
 }
