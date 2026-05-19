@@ -13,9 +13,9 @@ name = "bimifc-tui"
 path = "src/main.rs"
 
 [dependencies]
-bimifc-geometry = { version = "0.2.0", path = "../bimifc-geometry" }
-bimifc-model = { version = "0.2.0", path = "../bimifc-model" }
-bimifc-parser = { version = "0.2.0", path = "../bimifc-parser" }
+bimifc-geometry = { version = "0.3.0", path = "../bimifc-geometry" }
+bimifc-model = { version = "0.3.0", path = "../bimifc-model" }
+bimifc-parser = { version = "0.3.0", path = "../bimifc-parser" }
 
 # TUI
 crossterm = "0.28"

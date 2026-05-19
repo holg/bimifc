@@ -12,7 +12,7 @@ chrono = "0.4"
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
-bimifc-model = { version = "0.2.0", path = "../bimifc-model" }
-bimifc-parser = { version = "0.2.0", path = "../bimifc-parser" }
+bimifc-model = { version = "0.3.0", path = "../bimifc-model" }
+bimifc-parser = { version = "0.3.0", path = "../bimifc-parser" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
