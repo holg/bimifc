@@ -160,7 +160,7 @@ pub fn Toolbar() -> impl IntoView {
 
             // MEP discipline filter
             <div class="toolbar-group">
-                {[MepView::All, MepView::Electrical, MepView::Plumbing, MepView::Hvac, MepView::Lighting]
+                {[MepView::All, MepView::Architecture, MepView::Electrical, MepView::Plumbing, MepView::Hvac, MepView::Lighting]
                     .into_iter()
                     .map(|view| {
                         let active_signal = state.ui.mep_view;

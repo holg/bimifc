@@ -58,10 +58,20 @@ pub enum Theme {
 /// When set to anything other than `All`, only entities of the matching category
 /// remain visible — every other geometry is hidden via the existing visibility
 /// channel, so this composes with manual hide/isolate as well as selection.
+///
+/// Variant cheat-sheet:
+/// - `All`: nothing hidden (the default architectural+MEP combined view).
+/// - `Architecture`: hides ALL MEP categories — only walls, floors,
+///   structure, openings, furnishings remain. Useful for "what does the
+///   building shell look like without the services?".
+/// - `Electrical`/`Plumbing`/`Hvac`/`Lighting`: shows only that discipline
+///   plus structural context (entities we couldn't classify) so the user
+///   doesn't lose orientation.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
 pub enum MepView {
     #[default]
     All,
+    Architecture,
     Electrical,
     Plumbing,
     Hvac,
@@ -78,8 +88,18 @@ impl MepView {
     /// ("Rectangular Duct" → HVAC, "Pipe Types: Waste" → Plumbing).
     pub fn matches(self, entity_type: &str, name: Option<&str>) -> bool {
         let upper = entity_type.to_ascii_uppercase();
+        // Architecture-only: keep the entity iff NONE of the MEP filters
+        // would claim it. Implemented by short-circuiting through every
+        // MEP variant and inverting.
+        if matches!(self, MepView::Architecture) {
+            return !MepView::Electrical.matches(entity_type, name)
+                && !MepView::Plumbing.matches(entity_type, name)
+                && !MepView::Hvac.matches(entity_type, name)
+                && !MepView::Lighting.matches(entity_type, name);
+        }
         let by_type = match self {
             MepView::All => return true,
+            MepView::Architecture => unreachable!("handled above"),
             MepView::Electrical => matches!(
                 upper.as_str(),
                 "IFCCABLESEGMENT"
@@ -118,6 +138,9 @@ impl MepView {
         let lower = n.to_ascii_lowercase();
         match self {
             MepView::All => true,
+            // Architecture is handled by the short-circuit above; this
+            // branch isn't reachable but match must be exhaustive.
+            MepView::Architecture => false,
             MepView::Electrical => {
                 lower.contains("cable") || lower.contains("conduit") || lower.contains("electric")
                     || lower.contains("circuit") || lower.contains("panel")
@@ -143,6 +166,7 @@ impl MepView {
     pub fn icon(self) -> &'static str {
         match self {
             MepView::All => "🏗️",
+            MepView::Architecture => "🏛️",
             MepView::Electrical => "⚡",
             MepView::Plumbing => "🔧",
             MepView::Hvac => "💨",
@@ -153,6 +177,7 @@ impl MepView {
     pub fn label(self) -> &'static str {
         match self {
             MepView::All => "All disciplines",
+            MepView::Architecture => "Architecture only (no MEP)",
             MepView::Electrical => "Electrical only",
             MepView::Plumbing => "Plumbing only",
             MepView::Hvac => "HVAC only",
@@ -527,7 +552,8 @@ impl UiState {
     pub fn cycle_mep_view(&self) {
         self.mep_view.update(|v| {
             *v = match v {
-                MepView::All => MepView::Electrical,
+                MepView::All => MepView::Architecture,
+                MepView::Architecture => MepView::Electrical,
                 MepView::Electrical => MepView::Plumbing,
                 MepView::Plumbing => MepView::Hvac,
                 MepView::Hvac => MepView::Lighting,

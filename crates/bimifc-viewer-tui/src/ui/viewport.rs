@@ -112,9 +112,9 @@ pub struct Viewport<'a> {
     /// Raw LDT content for polar diagram (from selected entity's photometry)
     ldt_content: Option<&'a str>,
     focused: bool,
-    /// MEP discipline filter; `Other` means show everything.
-    /// Any other value filters to triangles tagged with that discipline.
-    discipline: crate::scene::Discipline,
+    /// Viewport filter; `ViewFilter::All` means show everything.
+    /// `Architecture` hides MEP; `Discipline(d)` shows only that.
+    discipline: crate::scene::ViewFilter,
 }
 
 impl<'a> Viewport<'a> {
@@ -133,7 +133,7 @@ impl<'a> Viewport<'a> {
             orbit,
             ldt_content: None,
             focused: false,
-            discipline: crate::scene::Discipline::Other,
+            discipline: crate::scene::ViewFilter::All,
         }
     }
 
@@ -147,10 +147,9 @@ impl<'a> Viewport<'a> {
         self
     }
 
-    /// Apply a MEP discipline filter. `Discipline::Other` is the unfiltered
-    /// view (everything is shown). Any other value restricts rendering to
-    /// triangles tagged with that discipline.
-    pub fn discipline(mut self, discipline: crate::scene::Discipline) -> Self {
+    /// Apply a viewport filter. `ViewFilter::All` is the unfiltered view;
+    /// `Architecture` hides MEP; `Discipline(d)` shows only that discipline.
+    pub fn discipline(mut self, discipline: crate::scene::ViewFilter) -> Self {
         self.discipline = discipline;
         self
     }
@@ -180,17 +179,14 @@ impl Widget for Viewport<'_> {
     }
 }
 
-/// True if `tri_discipline` should be rendered when the viewport's filter
-/// is `filter`. Rule: `Other` filter (unfiltered) shows everything;
-/// otherwise show triangles whose tag is `filter` OR `Other` (architectural
-/// context that's always visible).
+/// True if `tri_discipline` should be rendered under `filter`. Thin
+/// wrapper over `ViewFilter::shows` to keep the call sites readable.
 #[inline]
-fn discipline_visible(filter: crate::scene::Discipline, tri_discipline: crate::scene::Discipline) -> bool {
-    use crate::scene::Discipline;
-    match filter {
-        Discipline::Other => true,
-        other => tri_discipline == other || tri_discipline == Discipline::Other,
-    }
+fn discipline_visible(
+    filter: crate::scene::ViewFilter,
+    tri_discipline: crate::scene::Discipline,
+) -> bool {
+    filter.shows(tri_discipline)
 }
 
 /// Render 3D orbit wireframe using braille Canvas
@@ -198,7 +194,7 @@ fn render_iso3d(
     scene: &Scene,
     orbit: &OrbitAngles,
     focused: bool,
-    discipline: crate::scene::Discipline,
+    discipline: crate::scene::ViewFilter,
     area: Rect,
     buf: &mut Buffer,
 ) {
@@ -261,7 +257,7 @@ fn render_iso3d(
     // When a discipline filter is active, the pre-built edges from the
     // full scene don't carry tagging information, so rebuild from
     // triangles. Otherwise use the pre-built edges for speed.
-    let use_filtered = discipline != crate::scene::Discipline::Other;
+    let use_filtered = discipline != crate::scene::ViewFilter::All;
 
     let edges: Vec<_> = if use_filtered {
         Vec::new()
@@ -334,7 +330,7 @@ fn render_floorplan_braille(
     scene: &Scene,
     view: &FloorPlanView,
     focused: bool,
-    discipline: crate::scene::Discipline,
+    discipline: crate::scene::ViewFilter,
     area: Rect,
     buf: &mut Buffer,
 ) {
@@ -374,7 +370,7 @@ fn render_floorplan_braille(
     // visible edges from filtered triangles directly. Slower than the
     // pre-built path but only used when the user explicitly filters.
     let filtered_tri_edges: Vec<(f32, f32, f32, f32, f32, f32)> =
-        if discipline != crate::scene::Discipline::Other {
+        if discipline != crate::scene::ViewFilter::All {
             scene
                 .triangles
                 .iter()
@@ -407,7 +403,7 @@ fn render_floorplan_braille(
         })
         .collect();
 
-    let use_filtered = discipline != crate::scene::Discipline::Other;
+    let use_filtered = discipline != crate::scene::ViewFilter::All;
     let edge_count_for_title = if use_filtered {
         filtered_tri_edges.len()
     } else {

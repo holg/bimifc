@@ -31,6 +31,50 @@ pub enum Discipline {
     Lighting = 4,
 }
 
+/// Viewport-level filter state. Separate from [`Discipline`] because
+/// `Discipline` is a per-triangle tag (what is it?) while `ViewFilter`
+/// is a UI-mode state (what is the user looking at?). The split avoids
+/// the awkward "Other = no filter" overload we had originally.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum ViewFilter {
+    /// Show every triangle. The default architectural+MEP combined view.
+    #[default]
+    All,
+    /// Show only structural/architectural triangles — hides ALL MEP.
+    /// Useful for "what does the shell look like without the services?".
+    Architecture,
+    /// Show triangles tagged with this discipline plus `Discipline::Other`
+    /// (so the user keeps walls/floors as orientation context).
+    Discipline(Discipline),
+}
+
+impl ViewFilter {
+    /// Decide whether a triangle with `tri_discipline` should be drawn
+    /// under this filter.
+    pub fn shows(self, tri_discipline: Discipline) -> bool {
+        match self {
+            ViewFilter::All => true,
+            ViewFilter::Architecture => tri_discipline == Discipline::Other,
+            ViewFilter::Discipline(d) => {
+                tri_discipline == d || tri_discipline == Discipline::Other
+            }
+        }
+    }
+
+    /// Short status-bar label for the current filter.
+    pub fn label(self) -> &'static str {
+        match self {
+            ViewFilter::All => "All",
+            ViewFilter::Architecture => "Architecture",
+            ViewFilter::Discipline(Discipline::Electrical) => "Electrical",
+            ViewFilter::Discipline(Discipline::Plumbing) => "Plumbing",
+            ViewFilter::Discipline(Discipline::Hvac) => "HVAC",
+            ViewFilter::Discipline(Discipline::Lighting) => "Lighting",
+            ViewFilter::Discipline(Discipline::Other) => "Other",
+        }
+    }
+}
+
 /// Map an IFC type name to a MEP discipline.
 ///
 /// Handles both modern concrete types (IfcCableSegment, IfcPipeSegment, …)

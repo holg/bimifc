@@ -38,6 +38,7 @@ Keys to demo, in order:
 - `f` — fit all (initial frame)
 - `↑ ↓ ← →` — orbit camera
 - `+` / `-` — zoom
+- `b` — **Architecture only** — hides ALL MEP, shows just the shell
 - `p` — **Plumbing only** (status bar shows "8372 / 297478 triangles (2.8%)")
 - `m` — **HVAC only** ("1176 / 297478 triangles (0.4%)")
 - `e` — **Electrical only** ("336 / 297478 triangles (0.1%)")
@@ -68,6 +69,7 @@ http://127.0.0.1:8083/?file=AZB%20office.ifc
 Toolbar buttons (left to right after the camera/section controls):
 - 💡 Toggle lighting mode (architectural / photometric / combined)
 - 🏗️ All disciplines
+- 🏛️ Architecture only (hides all MEP)
 - ⚡ Electrical only
 - 🔧 Plumbing only
 - 💨 HVAC only

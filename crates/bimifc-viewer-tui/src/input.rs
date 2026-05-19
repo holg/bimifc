@@ -49,6 +49,7 @@ pub enum Action {
 
     // MEP discipline view filters
     ShowAll,
+    ShowArchitecture,
     ShowElectrical,
     ShowPlumbing,
     ShowHvac,
@@ -103,8 +104,10 @@ pub fn map_key_to_action(key: KeyEvent) -> Option<Action> {
 
         // MEP discipline filters
         // `x` for "show all" (eXit filter), then mnemonic letters per discipline.
-        // We avoid `h` (hierarchy mode uses it) and stick to top-row keys.
+        // `b` for Building shell / Architecture-only (a is WASD pan, so we use b).
+        // We avoid `h` (hierarchy mode) and `v` (view-mode).
         (KeyCode::Char('x'), KeyModifiers::NONE) => Some(Action::ShowAll),
+        (KeyCode::Char('b'), KeyModifiers::NONE) => Some(Action::ShowArchitecture),
         (KeyCode::Char('e'), KeyModifiers::NONE) => Some(Action::ShowElectrical),
         (KeyCode::Char('p'), KeyModifiers::NONE) => Some(Action::ShowPlumbing),
         // `m` for HVAC because `h` is hierarchy and `v` is view-mode
