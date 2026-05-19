@@ -101,6 +101,59 @@ pub fn classify_discipline_name(type_name: &str) -> Discipline {
     }
 }
 
+/// Build a map `instance_id → defining_type_id` by iterating every
+/// `IfcRelDefinesByType` in the model.
+///
+/// `IfcRelDefinesByType` shape: `(GlobalId, OwnerHistory, Name, Desc,
+/// RelatedObjects[], RelatingType)`. We fan-out the RelatedObjects so
+/// each instance gets its own entry. O(rels) with a small constant.
+fn build_type_definition_index(
+    resolver: &dyn bimifc_model::EntityResolver,
+) -> HashMap<u32, u32> {
+    let mut index = HashMap::new();
+    let rels = resolver.entities_by_type(&bimifc_model::IfcType::IfcRelDefinesByType);
+    for rel in rels {
+        let Some(type_ref) = rel.get_ref(5) else { continue };
+        let Some(related) = rel.get_refs(4) else { continue };
+        for r in related {
+            index.insert(r.0, type_ref.0);
+        }
+    }
+    index
+}
+
+/// Resolve discipline from the *defining IFC type* of an entity.
+///
+/// Many IFC2x3 exporters (MagiCAD, Plancal, …) leave the per-instance
+/// Name attribute null and attach the discipline-revealing information
+/// only through `IfcRelDefinesByType → IfcTypeObject`. The type object's
+/// IFC class (`IfcDuctSegmentType`, `IfcPipeSegmentType`, …) and Name
+/// (e.g. "Spiro kanaler") tell us the discipline. We index this once
+/// per file rather than per-entity to keep it O(rels) instead of
+/// O(rels × instances).
+pub fn classify_by_type_name(type_class_upper: &str, type_name: Option<&str>) -> Discipline {
+    // Concrete IFC4-style type-object classes carry the discipline directly.
+    match type_class_upper {
+        "IFCDUCTSEGMENTTYPE" | "IFCDUCTFITTINGTYPE" | "IFCAIRTERMINALTYPE"
+        | "IFCAIRTERMINALBOXTYPE" | "IFCFANTYPE" | "IFCHEATEXCHANGERTYPE"
+        | "IFCCOILTYPE" | "IFCBOILERTYPE" | "IFCCHILLERTYPE"
+        | "IFCDAMPERTYPE" | "IFCSPACEHEATERTYPE" => return Discipline::Hvac,
+        "IFCPIPESEGMENTTYPE" | "IFCPIPEFITTINGTYPE" | "IFCSANITARYTERMINALTYPE"
+        | "IFCVALVETYPE" | "IFCWASTETERMINALTYPE" | "IFCPUMPTYPE"
+        | "IFCTANKTYPE" => return Discipline::Plumbing,
+        "IFCCABLESEGMENTTYPE" | "IFCCABLECARRIERSEGMENTTYPE"
+        | "IFCCABLECARRIERFITTINGTYPE" | "IFCJUNCTIONBOXTYPE"
+        | "IFCSWITCHINGDEVICETYPE" | "IFCOUTLETTYPE" => return Discipline::Electrical,
+        "IFCLIGHTFIXTURETYPE" | "IFCLAMPTYPE" => return Discipline::Lighting,
+        _ => {}
+    }
+    // Fallback to the keyword list on the type's Name.
+    if let Some(n) = type_name {
+        return classify_by_name(n);
+    }
+    Discipline::Other
+}
+
 /// Fallback: infer discipline from the entity's `Name` attribute when the
 /// IFC type alone is too generic to tell (IFC2x3 files use `IfcFlowSegment`
 /// for ducts, pipes, AND conduits indiscriminately). Keyword list is
@@ -311,6 +364,11 @@ impl Scene {
         let router = GeometryRouter::with_default_processors_and_unit_scale(model.unit_scale());
         let resolver = model.resolver();
 
+        // Build instance → defining-type index from IfcRelDefinesByType.
+        // MagiCAD-style exporters leave the instance Name null and put
+        // the discipline-revealing info on the IfcTypeObject only.
+        let type_index = build_type_definition_index(resolver);
+
         // Use scanner for fast initial pass to find building elements
         let mut scanner = EntityScanner::new(content);
         let mut element_ids: Vec<(u32, String)> = Vec::new();
@@ -329,13 +387,26 @@ impl Scene {
 
             // Get color for this type
             let color = get_color_for_type(type_name);
-            // Try concrete-type classification first; for IFC2x3 generic
-            // flow types (IfcFlowSegment etc.) fall back to the entity's
-            // Name attribute (attribute index 2 for IfcRoot subclasses).
-            // Real-world Revit exports name them helpfully:
-            //   'Rectangular Duct:Mitered Elbows / Tees' → HVAC
-            //   'Pipe Types: Waste:...' → Plumbing
+            // Classify discipline, trying three sources in order:
+            //   1. Concrete IFC type name (works for IFC4+ files)
+            //   2. The defining IfcTypeObject (catches IFC2x3 exporters
+            //      that leave the instance Name null but type the
+            //      instances via IfcRelDefinesByType — e.g. MagiCAD)
+            //   3. The instance Name attribute (Revit-style exports)
             let mut discipline = classify_discipline_name(type_name);
+            if discipline == Discipline::Other {
+                if let Some(type_id) = type_index.get(&(*id)) {
+                    if let Some(type_entity) = resolver.get(EntityId(*type_id)) {
+                        // `IfcType::name()` returns the wire-format upper-case
+                        // name and handles Unknown(_) correctly (returns the
+                        // inner string), so e.g. IfcDuctSegmentType resolves
+                        // even though it isn't in our hand-curated enum.
+                        let type_class_upper = type_entity.ifc_type.name().to_string();
+                        let type_name_attr = type_entity.get_string(2);
+                        discipline = classify_by_type_name(&type_class_upper, type_name_attr);
+                    }
+                }
+            }
             if discipline == Discipline::Other {
                 if let Some(name) = entity.get_string(2) {
                     discipline = classify_by_name(name);
