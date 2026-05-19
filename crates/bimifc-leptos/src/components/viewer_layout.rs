@@ -209,7 +209,7 @@ fn StateBridge() -> impl IntoView {
             let entities = state.scene.entities.get();
             let mep_ids: rustc_hash::FxHashSet<u64> = entities
                 .iter()
-                .filter(|e| mep_view.matches(&e.entity_type))
+                .filter(|e| mep_view.matches(&e.entity_type, e.name.as_deref()))
                 .map(|e| e.id)
                 .collect();
             let combined: Vec<u64> = match isolated {

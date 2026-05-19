@@ -112,6 +112,9 @@ pub struct Viewport<'a> {
     /// Raw LDT content for polar diagram (from selected entity's photometry)
     ldt_content: Option<&'a str>,
     focused: bool,
+    /// MEP discipline filter; `Other` means show everything.
+    /// Any other value filters to triangles tagged with that discipline.
+    discipline: crate::scene::Discipline,
 }
 
 impl<'a> Viewport<'a> {
@@ -130,6 +133,7 @@ impl<'a> Viewport<'a> {
             orbit,
             ldt_content: None,
             focused: false,
+            discipline: crate::scene::Discipline::Other,
         }
     }
 
@@ -142,14 +146,31 @@ impl<'a> Viewport<'a> {
         self.focused = focused;
         self
     }
+
+    /// Apply a MEP discipline filter. `Discipline::Other` is the unfiltered
+    /// view (everything is shown). Any other value restricts rendering to
+    /// triangles tagged with that discipline.
+    pub fn discipline(mut self, discipline: crate::scene::Discipline) -> Self {
+        self.discipline = discipline;
+        self
+    }
 }
 
 impl Widget for Viewport<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         match self.view_mode {
-            ViewMode::Iso3D => render_iso3d(self.scene, self.orbit, self.focused, area, buf),
+            ViewMode::Iso3D => {
+                render_iso3d(self.scene, self.orbit, self.focused, self.discipline, area, buf)
+            }
             ViewMode::FloorPlan => {
-                render_floorplan_braille(self.scene, self.floorplan_view, self.focused, area, buf);
+                render_floorplan_braille(
+                    self.scene,
+                    self.floorplan_view,
+                    self.focused,
+                    self.discipline,
+                    area,
+                    buf,
+                );
             }
             ViewMode::Polar => {
                 render_polar_diagram(self.ldt_content, self.focused, area, buf);
@@ -159,8 +180,28 @@ impl Widget for Viewport<'_> {
     }
 }
 
+/// True if `tri_discipline` should be rendered when the viewport's filter
+/// is `filter`. Rule: `Other` filter (unfiltered) shows everything;
+/// otherwise show triangles whose tag is `filter` OR `Other` (architectural
+/// context that's always visible).
+#[inline]
+fn discipline_visible(filter: crate::scene::Discipline, tri_discipline: crate::scene::Discipline) -> bool {
+    use crate::scene::Discipline;
+    match filter {
+        Discipline::Other => true,
+        other => tri_discipline == other || tri_discipline == Discipline::Other,
+    }
+}
+
 /// Render 3D orbit wireframe using braille Canvas
-fn render_iso3d(scene: &Scene, orbit: &OrbitAngles, focused: bool, area: Rect, buf: &mut Buffer) {
+fn render_iso3d(
+    scene: &Scene,
+    orbit: &OrbitAngles,
+    focused: bool,
+    discipline: crate::scene::Discipline,
+    area: Rect,
+    buf: &mut Buffer,
+) {
     let border_style = if focused {
         Style::default().fg(Color::Cyan)
     } else {
@@ -217,22 +258,32 @@ fn render_iso3d(scene: &Scene, orbit: &OrbitAngles, focused: bool, area: Rect, b
     y_min -= dy;
     y_max += dy;
 
-    // Collect edges as projected lines
-    let edges: Vec<_> = scene
-        .edges
-        .iter()
-        .map(|e| {
-            let (x0, y0) = project(e.v0);
-            let (x1, y1) = project(e.v1);
-            (x0, y0, x1, y1)
-        })
-        .collect();
+    // When a discipline filter is active, the pre-built edges from the
+    // full scene don't carry tagging information, so rebuild from
+    // triangles. Otherwise use the pre-built edges for speed.
+    let use_filtered = discipline != crate::scene::Discipline::Other;
 
-    // If no pre-built edges, extract from triangles directly
+    let edges: Vec<_> = if use_filtered {
+        Vec::new()
+    } else {
+        scene
+            .edges
+            .iter()
+            .map(|e| {
+                let (x0, y0) = project(e.v0);
+                let (x1, y1) = project(e.v1);
+                (x0, y0, x1, y1)
+            })
+            .collect()
+    };
+
+    // If no pre-built edges (filtered view OR scene has no edges),
+    // extract from triangles directly with discipline filtering.
     let tri_edges: Vec<_> = if edges.is_empty() {
         scene
             .triangles
             .iter()
+            .filter(|tri| discipline_visible(discipline, tri.discipline))
             .flat_map(|tri| {
                 let (x0, y0) = project(tri.v0);
                 let (x1, y1) = project(tri.v1);
@@ -283,6 +334,7 @@ fn render_floorplan_braille(
     scene: &Scene,
     view: &FloorPlanView,
     focused: bool,
+    discipline: crate::scene::Discipline,
     area: Rect,
     buf: &mut Buffer,
 ) {
@@ -317,7 +369,34 @@ fn render_floorplan_braille(
     let z_min = (cz - half_range) as f64;
     let z_max = (cz + half_range) as f64;
 
-    // Collect visible edges
+    // For the floor-plan view the pre-built scene.edges don't carry
+    // discipline tags, so under a discipline filter we recompute slice-
+    // visible edges from filtered triangles directly. Slower than the
+    // pre-built path but only used when the user explicitly filters.
+    let filtered_tri_edges: Vec<(f32, f32, f32, f32, f32, f32)> =
+        if discipline != crate::scene::Discipline::Other {
+            scene
+                .triangles
+                .iter()
+                .filter(|t| discipline_visible(discipline, t.discipline))
+                .flat_map(|t| {
+                    [
+                        (t.v0.x, t.v0.y, t.v0.z, t.v1.x, t.v1.y, t.v1.z),
+                        (t.v1.x, t.v1.y, t.v1.z, t.v2.x, t.v2.y, t.v2.z),
+                        (t.v2.x, t.v2.y, t.v2.z, t.v0.x, t.v0.y, t.v0.z),
+                    ]
+                })
+                .filter(|(_x0, y0, _z0, _x1, y1, _z1)| {
+                    let edge_min_y = y0.min(*y1);
+                    let edge_max_y = y0.max(*y1);
+                    edge_max_y >= min_y && edge_min_y <= max_y
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+    // Collect visible edges (unfiltered path uses pre-built scene edges)
     let visible_edges: Vec<_> = scene
         .edges
         .iter()
@@ -328,7 +407,13 @@ fn render_floorplan_braille(
         })
         .collect();
 
-    let level_info = format!("Y={:.1}m, {} edges", view.slice_y, visible_edges.len());
+    let use_filtered = discipline != crate::scene::Discipline::Other;
+    let edge_count_for_title = if use_filtered {
+        filtered_tri_edges.len()
+    } else {
+        visible_edges.len()
+    };
+    let level_info = format!("Y={:.1}m, {} edges", view.slice_y, edge_count_for_title);
 
     let canvas = Canvas::default()
         .block(
@@ -341,28 +426,46 @@ fn render_floorplan_braille(
         .x_bounds([x_min, x_max])
         .y_bounds([z_min, z_max])
         .paint(|ctx| {
-            for edge in &visible_edges {
-                // Calculate intensity based on Y overlap
-                let edge_min_y = edge.v0.y.min(edge.v1.y);
-                let edge_max_y = edge.v0.y.max(edge.v1.y);
-                let in_slice = if edge_max_y - edge_min_y < 0.01 {
-                    1.0f32
-                } else {
-                    let overlap_min = edge_min_y.max(min_y);
-                    let overlap_max = edge_max_y.min(max_y);
-                    ((overlap_max - overlap_min) / (edge_max_y - edge_min_y)).clamp(0.0, 1.0)
-                };
-
-                let intensity = (in_slice * 180.0 + 60.0) as u8;
-
-                // Project XZ → canvas (ignore Y)
-                ctx.draw(&CanvasLine {
-                    x1: edge.v0.x as f64,
-                    y1: edge.v0.z as f64,
-                    x2: edge.v1.x as f64,
-                    y2: edge.v1.z as f64,
-                    color: Color::Rgb(intensity, intensity, intensity),
-                });
+            if use_filtered {
+                for &(x0, y0, z0, x1, y1, z1) in &filtered_tri_edges {
+                    let edge_min_y = y0.min(y1);
+                    let edge_max_y = y0.max(y1);
+                    let in_slice = if edge_max_y - edge_min_y < 0.01 {
+                        1.0f32
+                    } else {
+                        let overlap_min = edge_min_y.max(min_y);
+                        let overlap_max = edge_max_y.min(max_y);
+                        ((overlap_max - overlap_min) / (edge_max_y - edge_min_y)).clamp(0.0, 1.0)
+                    };
+                    let intensity = (in_slice * 180.0 + 60.0) as u8;
+                    ctx.draw(&CanvasLine {
+                        x1: x0 as f64,
+                        y1: z0 as f64,
+                        x2: x1 as f64,
+                        y2: z1 as f64,
+                        color: Color::Rgb(intensity, intensity, intensity),
+                    });
+                }
+            } else {
+                for edge in &visible_edges {
+                    let edge_min_y = edge.v0.y.min(edge.v1.y);
+                    let edge_max_y = edge.v0.y.max(edge.v1.y);
+                    let in_slice = if edge_max_y - edge_min_y < 0.01 {
+                        1.0f32
+                    } else {
+                        let overlap_min = edge_min_y.max(min_y);
+                        let overlap_max = edge_max_y.min(max_y);
+                        ((overlap_max - overlap_min) / (edge_max_y - edge_min_y)).clamp(0.0, 1.0)
+                    };
+                    let intensity = (in_slice * 180.0 + 60.0) as u8;
+                    ctx.draw(&CanvasLine {
+                        x1: edge.v0.x as f64,
+                        y1: edge.v0.z as f64,
+                        x2: edge.v1.x as f64,
+                        y2: edge.v1.z as f64,
+                        color: Color::Rgb(intensity, intensity, intensity),
+                    });
+                }
             }
         });
 

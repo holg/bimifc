@@ -69,11 +69,17 @@ pub enum MepView {
 }
 
 impl MepView {
-    /// True if this entity type belongs to the active MEP category.
-    pub fn matches(self, entity_type: &str) -> bool {
+    /// True if this entity belongs to the active MEP category.
+    ///
+    /// Tries the IFC type first (modern IFC4+ concrete subclasses). For
+    /// IFC2x3 generic flow types the type alone doesn't reveal the
+    /// discipline, so we fall back to keyword matching on the entity's
+    /// Name attribute — real-world Revit exports name them helpfully
+    /// ("Rectangular Duct" → HVAC, "Pipe Types: Waste" → Plumbing).
+    pub fn matches(self, entity_type: &str, name: Option<&str>) -> bool {
         let upper = entity_type.to_ascii_uppercase();
-        match self {
-            MepView::All => true,
+        let by_type = match self {
+            MepView::All => return true,
             MepView::Electrical => matches!(
                 upper.as_str(),
                 "IFCCABLESEGMENT"
@@ -102,7 +108,35 @@ impl MepView {
                     | "IFCDUCTFITTING"
                     | "IFCFAN"
             ),
-            MepView::Lighting => matches!(upper.as_str(), "IFCLIGHTFIXTURE"),
+            MepView::Lighting => upper == "IFCLIGHTFIXTURE",
+        };
+        if by_type {
+            return true;
+        }
+        // Name fallback for IFC2x3 generic flow types.
+        let Some(n) = name else { return false };
+        let lower = n.to_ascii_lowercase();
+        match self {
+            MepView::All => true,
+            MepView::Electrical => {
+                lower.contains("cable") || lower.contains("conduit") || lower.contains("electric")
+                    || lower.contains("circuit") || lower.contains("panel")
+                    || lower.contains("junction") || lower.contains("outlet")
+            }
+            MepView::Plumbing => {
+                lower.contains("pipe") || lower.contains("plumb") || lower.contains("sanitary")
+                    || lower.contains("waste") || lower.contains("water")
+                    || lower.contains("hydronic") || lower.contains("sprinkler")
+            }
+            MepView::Hvac => {
+                lower.contains("duct") || lower.contains("diffuser") || lower.contains("hvac")
+                    || lower.contains("supply air") || lower.contains("return air")
+                    || lower.contains("vav") || lower.contains("fan ") || lower.contains("coil")
+                    || lower.contains("damper")
+            }
+            MepView::Lighting => {
+                lower.contains("troffer") || lower.contains("fixture") || lower.contains(" lamp")
+            }
         }
     }
 

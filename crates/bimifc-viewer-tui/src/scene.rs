@@ -5,11 +5,111 @@
 //! Scene representation for rendering
 
 use bimifc_geometry::{GeometryRouter, Mesh};
-use bimifc_model::{get_default_color, EntityId, IfcModel};
+use bimifc_model::{get_default_color, EntityId, IfcModel, IfcType};
 use bimifc_parser::{EntityScanner, ParsedModel};
 use glam::Vec3;
 use std::collections::HashMap;
 use std::sync::Arc;
+
+/// MEP discipline categorisation for a renderable element.
+///
+/// Used by the discipline-view filter in the viewport. The mapping is
+/// derived from the IFC inheritance graph (see [`classify_discipline`]):
+/// concrete subtypes inherit eligibility through `IfcType::is_subtype_of`,
+/// so e.g. `IfcCableCarrierSegment` resolves as `Electrical` because it
+/// transitively inherits from `IfcFlowSegment` and we treat that whole
+/// subtree as electrical-or-plumbing-or-HVAC based on the concrete leaf.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[repr(u8)]
+pub enum Discipline {
+    /// Architectural / structural / generic — shown in every view.
+    #[default]
+    Other = 0,
+    Electrical = 1,
+    Plumbing = 2,
+    Hvac = 3,
+    Lighting = 4,
+}
+
+/// Map an IFC type name to a MEP discipline.
+///
+/// Handles both modern concrete types (IfcCableSegment, IfcPipeSegment, …)
+/// and the IFC2x3 generic distribution types (IfcFlowSegment etc.) that
+/// real-world files like the NBU medical clinic IFC use. For the generic
+/// types we return `Other` — pair this with `classify_by_name` on the
+/// entity's `Name` attribute for fuller classification on legacy files.
+pub fn classify_discipline_name(type_name: &str) -> Discipline {
+    let upper = type_name.to_ascii_uppercase();
+    match upper.as_str() {
+        // Concrete electrical
+        "IFCCABLESEGMENT" | "IFCCABLECARRIERSEGMENT" | "IFCCABLECARRIERFITTING"
+        | "IFCELECTRICAPPLIANCE" | "IFCELECTRICDISTRIBUTIONBOARD" | "IFCJUNCTIONBOX"
+        | "IFCOUTLET" | "IFCSWITCHINGDEVICE" => Discipline::Electrical,
+        // Concrete plumbing
+        "IFCPIPESEGMENT" | "IFCPIPEFITTING" | "IFCSANITARYTERMINAL" | "IFCVALVE"
+        | "IFCWASTETERMINAL" => Discipline::Plumbing,
+        // Concrete HVAC
+        "IFCAIRTERMINAL" | "IFCAIRTERMINALBOX" | "IFCSPACEHEATER" | "IFCDUCTSEGMENT"
+        | "IFCDUCTFITTING" | "IFCFAN" => Discipline::Hvac,
+        // Lighting
+        "IFCLIGHTFIXTURE" => Discipline::Lighting,
+        _ => Discipline::Other,
+    }
+}
+
+/// Fallback: infer discipline from the entity's `Name` attribute when the
+/// IFC type alone is too generic to tell (IFC2x3 files use `IfcFlowSegment`
+/// for ducts, pipes, AND conduits indiscriminately). Keyword list is
+/// derived from observation of real-world Revit-exported MEP models:
+/// "rectangular duct", "pipe types: waste", "supply diffuser", "troffer
+/// light", etc.
+///
+/// Returns `Other` if no keyword matches — caller decides whether to
+/// override the type-based classification.
+pub fn classify_by_name(name: &str) -> Discipline {
+    let lower = name.to_ascii_lowercase();
+    // Order matters: more specific keywords first.
+    if lower.contains("troffer") || lower.contains("fixture") || lower.contains(" lamp") {
+        return Discipline::Lighting;
+    }
+    if lower.contains("diffuser") || lower.contains("duct") || lower.contains("hvac")
+        || lower.contains("supply air") || lower.contains("return air")
+        || lower.contains("vav") || lower.contains("fan ") || lower.contains("coil")
+        || lower.contains("damper")
+    {
+        return Discipline::Hvac;
+    }
+    if lower.contains("pipe") || lower.contains("plumb") || lower.contains("sanitary")
+        || lower.contains("waste") || lower.contains("water")
+        || lower.contains("hydronic") || lower.contains("sprinkler")
+    {
+        return Discipline::Plumbing;
+    }
+    if lower.contains("cable") || lower.contains("conduit") || lower.contains("electric")
+        || lower.contains("circuit") || lower.contains("panel")
+        || lower.contains("junction") || lower.contains("outlet")
+    {
+        return Discipline::Electrical;
+    }
+    Discipline::Other
+}
+
+/// Classify by `IfcType`. Falls back to the generic flow types from IFC2x3
+/// when concrete subtypes aren't present — those land in `Other` because
+/// the entity-type alone doesn't tell us the discipline.
+pub fn classify_discipline(t: &IfcType) -> Discipline {
+    use IfcType::*;
+    match t {
+        IfcCableSegment | IfcCableCarrierSegment | IfcCableCarrierFitting => Discipline::Electrical,
+        IfcPipeSegment | IfcPipeFitting => Discipline::Plumbing,
+        IfcAirTerminal | IfcSpaceHeater => Discipline::Hvac,
+        IfcLightFixture => Discipline::Lighting,
+        // IFC2x3 fallback: when files use the generic IfcFlowSegment/Fitting/
+        // Terminal directly (like NBU_MedicalClinic, 2011-era), we can't
+        // determine the discipline from the type alone.
+        _ => Discipline::Other,
+    }
+}
 
 /// A triangle ready for rendering
 #[derive(Clone, Debug)]
@@ -20,6 +120,10 @@ pub struct RenderTriangle {
     pub normal: Vec3,
     pub color: [f32; 4],
     pub entity_id: u64,
+    /// MEP discipline tag used by the viewport's discipline-view filter.
+    /// `Other` for everything that isn't electrical/plumbing/HVAC/lighting
+    /// — those triangles are always shown.
+    pub discipline: Discipline,
 }
 
 impl RenderTriangle {
@@ -133,11 +237,19 @@ impl Scene {
 
             // Get color for this type
             let color = get_default_color(&entity.ifc_type);
+            // See `from_content`: fall back to Name-based heuristic when
+            // the IFC type is a generic IFC2x3 flow class.
+            let mut discipline = classify_discipline(&entity.ifc_type);
+            if discipline == Discipline::Other {
+                if let Some(name) = entity.get_string(2) {
+                    discipline = classify_by_name(name);
+                }
+            }
 
             // Process geometry
             match router.process_element(&entity, resolver) {
                 Ok(mesh) if !mesh.is_empty() => {
-                    scene.add_mesh(&mesh, color, id.0 as u64);
+                    scene.add_mesh(&mesh, color, id.0 as u64, discipline);
                 }
                 _ => {}
             }
@@ -173,11 +285,23 @@ impl Scene {
 
             // Get color for this type
             let color = get_color_for_type(type_name);
+            // Try concrete-type classification first; for IFC2x3 generic
+            // flow types (IfcFlowSegment etc.) fall back to the entity's
+            // Name attribute (attribute index 2 for IfcRoot subclasses).
+            // Real-world Revit exports name them helpfully:
+            //   'Rectangular Duct:Mitered Elbows / Tees' → HVAC
+            //   'Pipe Types: Waste:...' → Plumbing
+            let mut discipline = classify_discipline_name(type_name);
+            if discipline == Discipline::Other {
+                if let Some(name) = entity.get_string(2) {
+                    discipline = classify_by_name(name);
+                }
+            }
 
             // Process geometry
             if let Ok(mesh) = router.process_element(&entity, resolver) {
                 if !mesh.is_empty() {
-                    scene.add_mesh(&mesh, color, *id as u64);
+                    scene.add_mesh(&mesh, color, *id as u64, discipline);
                 }
             }
         }
@@ -186,8 +310,8 @@ impl Scene {
         scene
     }
 
-    /// Add a mesh to the scene
-    fn add_mesh(&mut self, mesh: &Mesh, color: [f32; 4], entity_id: u64) {
+    /// Add a mesh to the scene with a discipline tag
+    fn add_mesh(&mut self, mesh: &Mesh, color: [f32; 4], entity_id: u64, discipline: Discipline) {
         let vertex_count = mesh.vertex_count();
         if vertex_count == 0 {
             return;
@@ -260,6 +384,7 @@ impl Scene {
                 normal,
                 color,
                 entity_id,
+                discipline,
             });
         }
     }
@@ -325,6 +450,7 @@ impl Scene {
                 normal,
                 color,
                 entity_id: 1,
+                discipline: Discipline::Other,
             });
             scene.triangles.push(RenderTriangle {
                 v0: vertices[tri2[0]],
@@ -333,6 +459,7 @@ impl Scene {
                 normal,
                 color,
                 entity_id: 1,
+                discipline: Discipline::Other,
             });
         }
 

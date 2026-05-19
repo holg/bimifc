@@ -47,6 +47,13 @@ pub enum Action {
     // View mode
     ToggleViewMode,
 
+    // MEP discipline view filters
+    ShowAll,
+    ShowElectrical,
+    ShowPlumbing,
+    ShowHvac,
+    ShowLighting,
+
     // Search
     StartSearch,
     CancelSearch,
@@ -93,6 +100,16 @@ pub fn map_key_to_action(key: KeyEvent) -> Option<Action> {
 
         // View mode
         (KeyCode::Char('v'), KeyModifiers::NONE) => Some(Action::ToggleViewMode),
+
+        // MEP discipline filters
+        // `x` for "show all" (eXit filter), then mnemonic letters per discipline.
+        // We avoid `h` (hierarchy mode uses it) and stick to top-row keys.
+        (KeyCode::Char('x'), KeyModifiers::NONE) => Some(Action::ShowAll),
+        (KeyCode::Char('e'), KeyModifiers::NONE) => Some(Action::ShowElectrical),
+        (KeyCode::Char('p'), KeyModifiers::NONE) => Some(Action::ShowPlumbing),
+        // `m` for HVAC because `h` is hierarchy and `v` is view-mode
+        (KeyCode::Char('m'), KeyModifiers::NONE) => Some(Action::ShowHvac),
+        (KeyCode::Char('l'), KeyModifiers::NONE) => Some(Action::ShowLighting),
 
         // Hierarchy navigation (when focused)
         (KeyCode::Enter, KeyModifiers::NONE) => Some(Action::TreeSelect),

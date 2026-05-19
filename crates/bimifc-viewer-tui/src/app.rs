@@ -7,7 +7,7 @@
 use crate::camera::OrbitCamera;
 use crate::input::{map_hierarchy_key, map_key_to_action, Action};
 use crate::renderer::{render_floorplan, FloorPlanStats, FloorPlanView, Framebuffer};
-use crate::scene::Scene;
+use crate::scene::{Discipline, Scene};
 use crate::ui::{
     calculate_layout,
     hierarchy::{HierarchyPanel, HierarchyState},
@@ -67,6 +67,10 @@ pub struct App {
     frame_times: Vec<Duration>,
     /// Last frame instant
     last_frame: Instant,
+    /// MEP discipline view filter. `Other` (default) shows everything;
+    /// any other variant filters the viewport to triangles matching that
+    /// discipline plus the always-shown `Other` (walls/floors/etc).
+    discipline_view: Discipline,
 }
 
 impl App {
@@ -106,6 +110,7 @@ impl App {
             drag_start: None,
             frame_times: Vec::with_capacity(60),
             last_frame: Instant::now(),
+            discipline_view: Discipline::Other,
         }
     }
 
@@ -152,6 +157,7 @@ impl App {
             drag_start: None,
             frame_times: Vec::with_capacity(60),
             last_frame: Instant::now(),
+            discipline_view: Discipline::Other,
         }
     }
 
@@ -200,6 +206,7 @@ impl App {
             drag_start: None,
             frame_times: Vec::with_capacity(60),
             last_frame: Instant::now(),
+            discipline_view: Discipline::Other,
         }
     }
 
@@ -272,7 +279,8 @@ impl App {
                     &self.orbit,
                 )
                 .ldt_content(ldt_content)
-                .focused(self.focus == Focus::Viewport);
+                .focused(self.focus == Focus::Viewport)
+                .discipline(self.discipline_view);
                 frame.render_widget(viewport, layout.viewport);
 
                 // Properties panel
@@ -490,6 +498,30 @@ impl App {
                 self.message = Some(format!("View: {}", self.view_mode.label()));
             }
 
+            // MEP discipline filters — set the current discipline_view and
+            // surface a status message. Triangles get filtered in the
+            // viewport via App::filter_triangles_by_discipline.
+            Action::ShowAll => {
+                self.discipline_view = Discipline::Other;
+                self.message = Some("Showing all disciplines".to_string());
+            }
+            Action::ShowElectrical => {
+                self.discipline_view = Discipline::Electrical;
+                self.message = Some(self.discipline_status("Electrical"));
+            }
+            Action::ShowPlumbing => {
+                self.discipline_view = Discipline::Plumbing;
+                self.message = Some(self.discipline_status("Plumbing"));
+            }
+            Action::ShowHvac => {
+                self.discipline_view = Discipline::Hvac;
+                self.message = Some(self.discipline_status("HVAC"));
+            }
+            Action::ShowLighting => {
+                self.discipline_view = Discipline::Lighting;
+                self.message = Some(self.discipline_status("Lighting"));
+            }
+
             // Focus
             Action::CycleFocus => self.focus = self.focus.next(),
             Action::FocusViewport => self.focus = Focus::Viewport,
@@ -541,6 +573,23 @@ impl App {
             // Quit
             Action::Quit => self.should_quit = true,
         }
+    }
+
+    /// Build a status-bar message reporting how many triangles match the
+    /// current discipline filter. Helpful during the demo so the user
+    /// sees concrete numbers when they press e/p/m/l.
+    fn discipline_status(&self, name: &str) -> String {
+        let total = self.scene.triangles.len();
+        let matching = self
+            .scene
+            .triangles
+            .iter()
+            .filter(|t| t.discipline == self.discipline_view)
+            .count();
+        format!(
+            "{name}: {matching} / {total} triangles ({:.1}%)",
+            (matching as f32 / total.max(1) as f32) * 100.0
+        )
     }
 
     fn update_selected_properties(&mut self) {
