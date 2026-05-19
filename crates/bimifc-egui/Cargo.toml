@@ -1,0 +1,53 @@
+[package]
+name = "bimifc-egui"
+version = "0.1.0"
+edition = "2021"
+description = "Native desktop IFC viewer — bevy_egui shell on top of bimifc-bevy"
+license = "MPL-2.0"
+repository = "https://github.com/holg/bimifc"
+keywords = ["ifc", "bim", "egui", "bevy", "viewer"]
+categories = ["rendering", "graphics", "visualization"]
+
+[[bin]]
+name = "bimifc-egui"
+path = "src/main.rs"
+
+[dependencies]
+# Same versions our other crates pin against.
+bimifc-bevy = { version = "0.3.0", path = "../bimifc-bevy", default-features = false, features = ["bevy-ui", "color-palette"] }
+bimifc-geometry = { version = "0.3.0", path = "../bimifc-geometry" }
+bimifc-model = { version = "0.3.0", path = "../bimifc-model" }
+bimifc-parser = { version = "0.3.0", path = "../bimifc-parser" }
+
+# Bevy with the same feature set bimifc-bevy ships natively. We keep them
+# in sync so the renderer integrates cleanly.
+bevy = { version = "0.18", default-features = false, features = [
+    "bevy_asset",
+    "bevy_winit",
+    "bevy_core_pipeline",
+    "bevy_pbr",
+    "bevy_render",
+    "bevy_state",
+    "bevy_gizmos",
+    "bevy_picking",
+    "bevy_text",
+    "default_font",
+    "multi_threaded",
+    "tonemapping_luts",
+    "png",
+    "webgpu",
+    "x11",
+    "zstd_rust",
+] }
+
+# bevy_egui 0.39 is the matching release for Bevy 0.18 + egui 0.33.
+# It bridges egui into Bevy's render pipeline so we can run a desktop
+# app where Bevy owns the window and egui paints UI on top of the 3D.
+bevy_egui = { version = "0.39", default-features = false, features = ["render", "default_fonts"] }
+
+# Native file-open dialog. We already use rfd in bimifc-bevy.
+rfd = "0.15"
+
+# Logging + errors.
+anyhow = "1"
+log = "0.4"
