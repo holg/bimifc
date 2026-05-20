@@ -912,6 +912,22 @@ fn update_mesh_federation_visibility_system(
         return;
     }
 
+    // Diagnostic: log what filter we're applying and the discipline
+    // distribution in the color slots. Helps when "filter does nothing"
+    // — confirms whether the leptos classifier actually tagged the
+    // meshes and which batched mesh has them.
+    let mut opaque_disc_hist = [0usize; 5];
+    for info in &color_mapping.opaque {
+        let idx = (info.discipline as usize).min(4);
+        opaque_disc_hist[idx] += 1;
+    }
+    crate::log_info(&format!(
+        "[Bevy] Federation visibility tick: filter={:?}, sources={}, opaque-slot disc histogram: Other={} Elec={} Plumb={} HVAC={} Light={}",
+        federation.scene.filter,
+        federation.scene.sources().len(),
+        opaque_disc_hist[0], opaque_disc_hist[1], opaque_disc_hist[2], opaque_disc_hist[3], opaque_disc_hist[4],
+    ));
+
     let current_selection = &selection.selected;
 
     // Defensive prelude: spawn_meshes_system creates THREE batched

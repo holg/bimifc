@@ -1216,6 +1216,19 @@ pub fn parse_and_process_ifc(
         processed, total_vertices, total_triangles, _errors, geometry_time
     ));
 
+    // Discipline histogram — tells us at a glance whether the classifier
+    // tagged anything as MEP. If all meshes are discipline=0 (Other),
+    // the toolbar filter has nothing to gate.
+    let mut disc_hist = [0usize; 5];
+    for g in &geometry_data {
+        let idx = (g.discipline as usize).min(4);
+        disc_hist[idx] += 1;
+    }
+    bridge::log_info(&format!(
+        "[BIMIFC] Discipline histogram: Other={} Electrical={} Plumbing={} HVAC={} Lighting={}",
+        disc_hist[0], disc_hist[1], disc_hist[2], disc_hist[3], disc_hist[4]
+    ));
+
     state.loading.set_progress(Progress {
         phase: "Sending to viewer".to_string(),
         percent: 90.0,
