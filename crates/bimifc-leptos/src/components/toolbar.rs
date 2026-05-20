@@ -331,6 +331,55 @@ fn get_ref_list(entity: &DecodedEntity, index: usize) -> Option<Vec<u32>> {
         .map(|refs| refs.iter().map(|id| id.0).collect())
 }
 
+/// Compute per-entity discipline byte for the federation filter.
+///
+/// Three lookups, first non-Other wins:
+/// 1. **Concrete IFC class** — works for IFC4 leaves (IfcPipeSegment).
+/// 2. **Defining IfcTypeObject** via the `element_to_type` map built
+///    from IfcRelDefinesByType — catches IFC2x3 files where the
+///    discipline lives on the type (Duplex-A-MEP, LTU, NBU, all
+///    Revit MEP exports). Decodes the type entity, reads its class
+///    name (e.g. "IFCDUCTSEGMENTTYPE") and Name attribute.
+/// 3. **Entity name keyword** — Revit-style "Rectangular Duct" etc.
+fn classify_entity_for_federation(
+    type_name: &str,
+    entity_id: u32,
+    entity_name: Option<&str>,
+    element_to_type: &std::collections::HashMap<u32, u32>,
+    decoder: &mut EntityDecoder,
+) -> u8 {
+    use bimifc_federation::Discipline;
+    let class_upper = type_name.to_ascii_uppercase();
+
+    // 1. Concrete-class lookup
+    let d = bimifc_federation::classify_by_entity_class(&class_upper);
+    if d != Discipline::Other {
+        return d as u8;
+    }
+
+    // 2. IFC2x3 type-object lookup
+    if let Some(&type_id) = element_to_type.get(&entity_id) {
+        if let Ok(type_entity) = decoder.decode_by_id(EntityId(type_id)) {
+            let type_class_upper = type_entity.ifc_type.name().to_string();
+            let type_name_attr = type_entity.get_string(2);
+            let d = bimifc_federation::classify_by_type_name(
+                &type_class_upper,
+                type_name_attr,
+            );
+            if d != Discipline::Other {
+                return d as u8;
+            }
+        }
+    }
+
+    // 3. Name-keyword fallback
+    if let Some(n) = entity_name {
+        return bimifc_federation::classify_by_name(n) as u8;
+    }
+
+    Discipline::Other as u8
+}
+
 /// Spatial structure entity info
 #[allow(dead_code)]
 struct SpatialInfo {
@@ -1024,6 +1073,9 @@ pub fn parse_and_process_ifc(
                     storey: storey_name,
                     storey_elevation,
                     photometry_ldt: None,
+                    // Assemblies aren't classified themselves; their
+                    // children carry the discipline. Tag as Other.
+                    discipline: 0,
                 });
             }
             continue;
@@ -1047,6 +1099,19 @@ pub fn parse_and_process_ifc(
                             (None, None)
                         };
 
+                    // Compute discipline ONCE per element so EntityData
+                    // and GeometryData carry the same value. The
+                    // type-object lookup costs ~one decode per element
+                    // with an IfcRelDefinesByType edge (cached lazily
+                    // by the decoder); negligible at parse-time.
+                    let discipline_tag = classify_entity_for_federation(
+                        type_name,
+                        id,
+                        name.as_deref(),
+                        &element_to_type,
+                        &mut decoder,
+                    );
+
                     entity_data.push(EntityData {
                         id: id as u64,
                         entity_type: type_name.to_string(),
@@ -1056,6 +1121,7 @@ pub fn parse_and_process_ifc(
                         storey: storey_name,
                         storey_elevation,
                         photometry_ldt: None,
+                        discipline: discipline_tag,
                     });
 
                     match router.process_element(&entity, resolver) {
@@ -1110,6 +1176,7 @@ pub fn parse_and_process_ifc(
                                     entity_type: type_name.to_string(),
                                     name: name.clone(),
                                     has_ifc_color,
+                                    discipline: discipline_tag,
                                 });
 
                                 processed += 1;

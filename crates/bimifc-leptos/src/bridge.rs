@@ -169,6 +169,13 @@ pub struct GeometryData {
     /// True if color was authored in IFC (IfcStyledItem)
     #[serde(default)]
     pub has_ifc_color: bool,
+    /// Pre-computed discipline tag (0=Other, 1=Electrical, 2=Plumbing,
+    /// 3=HVAC, 4=Lighting). Set on the leptos parse path because that's
+    /// where we have access to IfcRelDefinesByType → IfcTypeObject for
+    /// IFC2x3 files where the discipline lives on the type, not the
+    /// instance. bimifc-bevy honors a non-zero value as authoritative.
+    #[serde(default)]
+    pub discipline: u8,
 }
 
 /// Entity data for Bevy
@@ -184,6 +191,10 @@ pub struct EntityData {
     pub storey_elevation: Option<f32>,
     /// Embedded EULUMDAT photometric data (LDT content from Pset_Photometry.EulumdatData)
     pub photometry_ldt: Option<String>,
+    /// Discipline tag matching GeometryData::discipline. Lets the
+    /// hierarchy/properties panels colour or icon entities by discipline.
+    #[serde(default)]
+    pub discipline: u8,
 }
 
 impl EntityData {
@@ -419,10 +430,14 @@ pub fn save_geometry(geometry: Vec<GeometryData>) {
                 entity_type: g.entity_type,
                 name: g.name,
                 has_ifc_color: g.has_ifc_color,
-                // Federation tags default to 0/Other; the Bevy loader
-                // re-tags incoming meshes via FederatedScene::register.
+                // source_id is assigned by the Bevy loader after registering
+                // the file with FederationState. discipline carries
+                // through from the leptos parse path so IFC2x3 type-object
+                // classification (Duplex, LTU, NBU…) propagates to the
+                // renderer-side visibility filter without re-doing the
+                // work in Bevy.
                 source_id: 0,
-                discipline: 0,
+                discipline: g.discipline,
             })
             .collect();
 
