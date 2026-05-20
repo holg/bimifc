@@ -907,6 +907,27 @@ fn update_mesh_federation_visibility_system(
 
     let current_selection = &selection.selected;
 
+    // Defensive prelude: spawn_meshes_system creates THREE batched
+    // mesh entities (opaque / metallic / transparent) but stores
+    // EntityColorInfo only for opaque + transparent. Both opaque and
+    // metallic batches carry BatchedMesh.is_transparent = false, so a
+    // naïve "iterate every non-transparent batched mesh, apply
+    // color_mapping.opaque" pass panics on the metallic batch (slot
+    // offsets don't match its vertex layout). We match each batched
+    // mesh to the right color_infos by checking buffer length first:
+    // if the color buffer length doesn't equal the sum of slot
+    // vertex_counts, skip that batched mesh entirely.
+    let opaque_expected_verts: usize = color_mapping
+        .opaque
+        .iter()
+        .map(|i| i.vertex_count as usize)
+        .sum();
+    let transparent_expected_verts: usize = color_mapping
+        .transparent
+        .iter()
+        .map(|i| i.vertex_count as usize)
+        .sum();
+
     for (mesh_handle, batched_mesh) in batched_meshes.iter() {
         let Some(mesh) = mesh_assets.get_mut(&mesh_handle.0) else {
             continue;
@@ -918,22 +939,27 @@ fn update_mesh_federation_visibility_system(
             continue;
         };
 
-        let color_infos = if batched_mesh.is_transparent {
-            &color_mapping.transparent
+        let (color_infos, expected_verts) = if batched_mesh.is_transparent {
+            (&color_mapping.transparent, transparent_expected_verts)
         } else {
-            &color_mapping.opaque
+            (&color_mapping.opaque, opaque_expected_verts)
         };
+
+        // If this batched mesh's color buffer length doesn't match the
+        // mapping we're about to apply, the mapping is meant for a
+        // different batched mesh (e.g. the metallic batch shares
+        // is_transparent=false with opaque but has its own layout, or
+        // we caught a load-then-rebuild race). Skip and let the next
+        // tick — after spawn_meshes_system completes — paint it.
+        if colors.len() != expected_verts {
+            continue;
+        }
 
         for info in color_infos {
             let start = info.start_vertex as usize;
             let end = start + info.vertex_count as usize;
-            // Guard against stale (start, vertex_count) — possible during
-            // the load-then-rebuild window where this system observes
-            // FederationState as changed before `spawn_meshes_system`
-            // has rebuilt the batched mesh and the color mapping.
-            // Without this guard we panic with `range end out of range`
-            // (see https://… commit message). Skip the slot; the next
-            // tick after the rebuild will see consistent state.
+            // Per-slot guard kept as belt-and-braces in case the
+            // summation matches but an individual slot is stale.
             if end > colors.len() {
                 continue;
             }
@@ -1012,6 +1038,21 @@ fn update_mesh_visibility_system(
 
         let current_selection = &selection.selected;
 
+        // Same defensive prelude as the federation visibility system:
+        // skip batched meshes whose vertex layout doesn't match the
+        // mapping we'd apply (metallic batch shares is_transparent=false
+        // with opaque, or load-then-rebuild race).
+        let opaque_expected_verts: usize = color_mapping
+            .opaque
+            .iter()
+            .map(|i| i.vertex_count as usize)
+            .sum();
+        let transparent_expected_verts: usize = color_mapping
+            .transparent
+            .iter()
+            .map(|i| i.vertex_count as usize)
+            .sum();
+
         // Update vertex colors in batched meshes
         for (mesh_handle, batched_mesh) in batched_meshes.iter() {
             let Some(mesh) = mesh_assets.get_mut(&mesh_handle.0) else {
@@ -1024,11 +1065,14 @@ fn update_mesh_visibility_system(
                 continue;
             };
 
-            let color_infos = if batched_mesh.is_transparent {
-                &color_mapping.transparent
+            let (color_infos, expected_verts) = if batched_mesh.is_transparent {
+                (&color_mapping.transparent, transparent_expected_verts)
             } else {
-                &color_mapping.opaque
+                (&color_mapping.opaque, opaque_expected_verts)
             };
+            if colors.len() != expected_verts {
+                continue;
+            }
 
             for info in color_infos {
                 let visible = if let Some(ref iso) = new_isolated {
