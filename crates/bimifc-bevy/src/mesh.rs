@@ -645,18 +645,25 @@ fn spawn_meshes_system(
             scene_max = scene_max.max(world_pos);
         }
 
-        // Determine material type from entity type
-        let etype = ifc_mesh.entity_type.to_uppercase();
-        let is_metallic = etype.contains("BEAM")
-            || etype.contains("COLUMN")
-            || etype.contains("RAILING")
-            || (etype.contains("ROOF") && !etype.contains("SLAB"));
-
-        // Add to appropriate batch
+        // Add to appropriate batch.
+        //
+        // Historically we routed beams/columns/railings/roofs into a
+        // separate "metallic" batch for shinier PBR. That batch was
+        // never tracked in EntityColorMapping (its take_color_info()
+        // was dropped on the floor in the spawn step below), so the
+        // federation + selection visibility systems couldn't address
+        // its entities — they stayed permanently visible regardless
+        // of any discipline filter. For Duplex-A-MEP this manifests
+        // as walls/roof staying lit even when the user picks
+        // "Plumbing only".
+        //
+        // Simplest fix: fold metallic into opaque. We lose the
+        // dedicated metallic shading on beams/columns/railings/roofs;
+        // we gain a unified per-entity visibility model. Re-introducing
+        // metallic shading later requires extending EntityColorMapping
+        // with a third slot.
         if is_transparent {
             transparent_batch.add_mesh(ifc_mesh);
-        } else if is_metallic {
-            metallic_batch.add_mesh(ifc_mesh);
         } else {
             opaque_batch.add_mesh(ifc_mesh);
         }
