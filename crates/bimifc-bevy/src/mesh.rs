@@ -925,6 +925,19 @@ fn update_mesh_federation_visibility_system(
         };
 
         for info in color_infos {
+            let start = info.start_vertex as usize;
+            let end = start + info.vertex_count as usize;
+            // Guard against stale (start, vertex_count) — possible during
+            // the load-then-rebuild window where this system observes
+            // FederationState as changed before `spawn_meshes_system`
+            // has rebuilt the batched mesh and the color mapping.
+            // Without this guard we panic with `range end out of range`
+            // (see https://… commit message). Skip the slot; the next
+            // tick after the rebuild will see consistent state.
+            if end > colors.len() {
+                continue;
+            }
+
             // Decode the per-entity discipline back into the federation
             // enum (it was stored as u8 because IfcMesh is plain data).
             let entity_disc = match info.discipline {
@@ -937,9 +950,6 @@ fn update_mesh_federation_visibility_system(
             let visible = federation
                 .scene
                 .visible(SourceId(info.source_id), entity_disc);
-
-            let start = info.start_vertex as usize;
-            let end = start + info.vertex_count as usize;
 
             if visible {
                 let color = if current_selection.contains(&info.entity_id) {
@@ -1029,6 +1039,12 @@ fn update_mesh_visibility_system(
 
                 let start = info.start_vertex as usize;
                 let end = start + info.vertex_count as usize;
+                // Skip stale offsets if EntityColorMapping holds entries
+                // from a previous scene state (see federation visibility
+                // system above for the analogous guard).
+                if end > colors.len() {
+                    continue;
+                }
 
                 if visible {
                     // Restore original color (or selection color if selected)
