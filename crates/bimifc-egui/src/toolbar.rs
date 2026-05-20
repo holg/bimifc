@@ -2,28 +2,28 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Top toolbar — mirrors the leptos toolbar groups:
-//!   📁 [open]          | 👁 🎯 🚫 [visibility] | 🏠 ⬚ [view]
-//!   💡 [lighting]      | 🏗 🏛 ⚡ 🔧 💨 💡 [discipline filter]
-//!   (spacer)           | 🌙/☀ ⌨ LISP [right-side]
+//! Top toolbar — file open + MEP discipline filter + sources list.
 //!
-//! Tools (Select/Pan/Orbit/Walk/Measure/Section) are wired in the
-//! leptos version through localStorage to the Bevy renderer. The egui
-//! binary runs Bevy in-process, so we'd hook them directly into the
-//! camera/picking resources — left as a follow-up because the parity
-//! you need today is panels + the filter UI, not tool modes.
+//! Mirrors the leptos toolbar group structure: File / Visibility / View
+//! / Lighting / Discipline-filter / right-side status. Discipline state
+//! lives in `bimifc-bevy::FederationState` (the shared federation
+//! registry from `bimifc-federation`), so every viewer that consumes
+//! the same Bevy resource sees the same filter.
+//!
+//! The right-side area lists the loaded sources with their inferred
+//! discipline so the user can see at a glance which file is which —
+//! and toggle per-source visibility independently of the discipline
+//! filter (handy for "show me HVAC + Plumbing but not Cooling").
 
 use bevy::prelude::{MessageWriter, Res, ResMut};
 use bevy_egui::{egui, EguiContexts};
-use bimifc_bevy::{LoadIfcFileEvent, SelectionState};
-
-use crate::state::{DisciplineFilter, LoadedFile};
+use bimifc_bevy::{FederationState, LoadIfcFileEvent, SelectionState};
+use bimifc_federation::{Discipline, ViewFilter};
 
 pub fn render_toolbar(
     mut contexts: EguiContexts,
-    mut filter: ResMut<DisciplineFilter>,
+    mut federation: ResMut<FederationState>,
     mut load_events: MessageWriter<LoadIfcFileEvent>,
-    loaded: Res<LoadedFile>,
     mut selection: ResMut<SelectionState>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
@@ -31,7 +31,11 @@ pub fn render_toolbar(
     egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
         ui.horizontal(|ui| {
             // ── File ────────────────────────────────────────────────
-            if ui.button("📁 Open").on_hover_text("Open IFC file").clicked() {
+            if ui
+                .button("📁 Open")
+                .on_hover_text("Open IFC file — adds to the federated scene")
+                .clicked()
+            {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter("IFC files", &["ifc", "ifcx"])
                     .pick_file()
@@ -42,10 +46,8 @@ pub fn render_toolbar(
 
             ui.separator();
 
-            // ── Visibility (selection-driven) ───────────────────────
-            // No "Show All" state to drive class-active from yet (the
-            // Bevy native side doesn't expose hidden_ids via a resource
-            // we read here). Buttons mutate SelectionState only for now.
+            // ── Visibility (selection-driven; native wiring is a TODO).
+            let has_selection = !selection.selected.is_empty();
             if ui
                 .button("👁")
                 .on_hover_text("Show All — reset hidden/isolated")
@@ -53,26 +55,18 @@ pub fn render_toolbar(
             {
                 // TODO: thread to bimifc-bevy's visibility resource.
             }
-            let has_selection = !selection.selected.is_empty();
             if ui
                 .add_enabled(has_selection, egui::Button::new("🎯"))
                 .on_hover_text("Isolate selection")
                 .clicked()
-            {
-                // TODO
-            }
+            { /* TODO */ }
             if ui
                 .add_enabled(has_selection, egui::Button::new("🚫"))
                 .on_hover_text("Hide selection")
                 .clicked()
-            {
-                // TODO
-            }
+            { /* TODO */ }
             if has_selection
-                && ui
-                    .button("✖")
-                    .on_hover_text("Clear selection")
-                    .clicked()
+                && ui.button("✖").on_hover_text("Clear selection").clicked()
             {
                 selection.selected.clear();
             }
@@ -80,16 +74,8 @@ pub fn render_toolbar(
             ui.separator();
 
             // ── View commands ───────────────────────────────────────
-            // bimifc-bevy's camera plugin reads commands from
-            // localStorage in the wasm build; native uses keyboard.
-            // These buttons stay visible for parity even though they're
-            // not yet wired to the native camera controller.
-            if ui.button("🏠").on_hover_text("Home view").clicked() {
-                // TODO: send camera reset
-            }
-            if ui.button("⬚").on_hover_text("Fit all").clicked() {
-                // TODO: send camera fit
-            }
+            if ui.button("🏠").on_hover_text("Home view").clicked() { /* TODO */ }
+            if ui.button("⬚").on_hover_text("Fit all").clicked() { /* TODO */ }
 
             ui.separator();
 
@@ -99,59 +85,49 @@ pub fn render_toolbar(
                 .on_hover_text("Toggle lighting mode (architectural / photometric / combined)")
                 .clicked()
             {
-                // TODO: drive PhotometricLightingPlugin when "photometric"
-                // feature is enabled on bimifc-bevy.
+                // TODO: drive PhotometricLightingPlugin
             }
 
             ui.separator();
 
             // ── MEP discipline filter ───────────────────────────────
-            for variant in DisciplineFilter::ALL_VARIANTS {
+            // Reads/writes FederationState::scene::filter directly so
+            // every viewer that shares the resource (today: egui;
+            // tomorrow: leptos web + ratatui via the same crate) sees
+            // the toggle.
+            for variant in ViewFilter::ALL_VARIANTS {
+                let active = federation.scene.filter == variant;
                 let label = format!("{} {}", variant.icon(), short_label(variant));
                 if ui
-                    .selectable_label(*filter == variant, label)
+                    .selectable_label(active, label)
                     .on_hover_text(variant.label())
                     .clicked()
                 {
-                    *filter = variant;
+                    federation.scene.filter = variant;
                 }
             }
 
-            // ── Right-side: theme/shortcuts/LISP + loaded-file label ─
+            // ── Right-side: source list + filename status ───────────
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                // Theme + shortcuts + LISP are stub-buttons today.
-                // Calling them out so they're visible in the parity
-                // demo — wiring follows the same pattern as the rest.
-                ui.button("LISP").on_hover_text("AutoLISP REPL");
-                ui.button("⌨").on_hover_text("Keyboard shortcuts");
-                ui.button("🌙").on_hover_text("Toggle theme");
-
-                ui.separator();
-
-                if let Some(path) = &loaded.path {
-                    let name = std::path::Path::new(path)
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or(path);
-                    ui.label(format!(
-                        "{} — {} entities, {} tri",
-                        name, loaded.entity_count, loaded.triangle_count
-                    ));
-                } else {
-                    ui.label("No file loaded");
-                }
+                let counts = federation.scene.sources().len();
+                ui.label(format!(
+                    "{} source{}",
+                    counts,
+                    if counts == 1 { "" } else { "s" }
+                ));
             });
         });
     });
 }
 
-fn short_label(filter: DisciplineFilter) -> &'static str {
+fn short_label(filter: ViewFilter) -> &'static str {
     match filter {
-        DisciplineFilter::All => "All",
-        DisciplineFilter::Architecture => "Arch",
-        DisciplineFilter::Electrical => "Elec",
-        DisciplineFilter::Plumbing => "Plumb",
-        DisciplineFilter::Hvac => "HVAC",
-        DisciplineFilter::Lighting => "Light",
+        ViewFilter::All => "All",
+        ViewFilter::Architecture => "Arch",
+        ViewFilter::Discipline(Discipline::Electrical) => "Elec",
+        ViewFilter::Discipline(Discipline::Plumbing) => "Plumb",
+        ViewFilter::Discipline(Discipline::Hvac) => "HVAC",
+        ViewFilter::Discipline(Discipline::Lighting) => "Light",
+        ViewFilter::Discipline(Discipline::Other) => "Other",
     }
 }

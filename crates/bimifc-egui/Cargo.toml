@@ -19,6 +19,7 @@ path = "src/main.rs"
 # overlaps with the egui panels we add ourselves. egui is the UI in this
 # binary; bimifc-bevy contributes only the 3D viewport + parser bridge.
 bimifc-bevy = { version = "0.3.0", path = "../bimifc-bevy", default-features = false, features = ["color-palette"] }
+bimifc-federation = { version = "0.1.0", path = "../bimifc-federation" }
 bimifc-geometry = { version = "0.3.0", path = "../bimifc-geometry" }
 bimifc-model = { version = "0.3.0", path = "../bimifc-model" }
 bimifc-parser = { version = "0.3.0", path = "../bimifc-parser" }

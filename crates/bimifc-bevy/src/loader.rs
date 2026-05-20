@@ -1,11 +1,15 @@
 //! IFC file loading - handles file dialog, drag-and-drop, and WASM file input
 
 use crate::mesh::IfcMesh;
-use crate::{EntityInfo, IfcSceneData};
+use crate::{EntityInfo, FederationState, IfcSceneData};
 use bevy::prelude::*;
 #[cfg(all(not(target_arch = "wasm32"), not(target_os = "ios"),))]
 use bevy::tasks::IoTaskPool;
 use bevy::tasks::Task;
+use bimifc_federation::{
+    classify_by_entity_class, classify_by_name, classify_by_type_name,
+    discipline_from_filename, Discipline, SourceInfo,
+};
 use bimifc_geometry::GeometryRouter;
 use bimifc_model::{AttributeValue, EntityId, EntityResolver, IfcModel, IfcType};
 use bimifc_parser::{EntityScanner, ParsedModel};
@@ -157,34 +161,80 @@ fn poll_file_dialog(
     }
 }
 
-/// System to handle file load events
+/// System to handle file load events.
+///
+/// **Federated behaviour**: each call APPENDS to `IfcSceneData` rather
+/// than replacing it. The federation registry assigns a new `SourceId`
+/// per file and tags every spawned mesh/entity with that id + the
+/// per-entity discipline (electrical/plumbing/HVAC/lighting/other),
+/// computed via [`bimifc_federation::classify_*`]. The toolbar's
+/// `ViewFilter` then decides per-mesh visibility downstream.
 fn handle_load_file_event(
     mut events: MessageReader<LoadIfcFileEvent>,
     mut scene_data: ResMut<IfcSceneData>,
     mut auto_fit: ResMut<crate::mesh::AutoFitState>,
     mut loaded_events: MessageWriter<IfcFileLoadedEvent>,
+    mut federation: ResMut<FederationState>,
 ) {
     for event in events.read() {
         crate::log_info(&format!("[Loader] Loading file: {:?}", event.path));
 
         match load_ifc_file(&event.path) {
-            Ok((meshes, entities)) => {
+            Ok((mut meshes, mut entities)) => {
                 let mesh_count = meshes.len();
                 let entity_count = entities.len();
 
+                // Register a fresh source in the federation registry.
+                // Filename → discipline-hint inference picks up the
+                // LTU-style naming ('_Air' → HVAC, '_Plumbing' → Plumbing).
+                let display_name = event
+                    .path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("(unnamed)")
+                    .to_string();
+                let mut info = SourceInfo::new(display_name);
+                info.path = event.path.to_str().map(str::to_string);
+                info.discipline = discipline_from_filename(&event.path);
+                info.entity_count = entity_count;
+                info.triangle_count = meshes
+                    .iter()
+                    .map(|m| m.geometry.indices.len() / 3)
+                    .sum();
+                let source_id = federation.scene.register(info);
+
+                // Tag every mesh + entity with the source id.
+                // Per-entity discipline was computed in load_ifc_file;
+                // here we just stamp the source. If the federation
+                // registry has a whole-file discipline override, that
+                // wins over the per-entity value at visibility time.
+                for m in &mut meshes {
+                    m.source_id = source_id.0;
+                }
+                for e in &mut entities {
+                    e.source_id = source_id.0;
+                }
+
                 crate::log_info(&format!(
-                    "[Loader] Loaded {} meshes, {} entities",
-                    mesh_count, entity_count
+                    "[Loader] Loaded {} meshes, {} entities as source #{} ({:?})",
+                    mesh_count, entity_count, source_id.0,
+                    federation.scene.source(source_id).and_then(|s| s.discipline),
                 ));
 
-                // Update scene data
-                scene_data.meshes = meshes;
-                scene_data.entities = entities;
+                // APPEND to the scene rather than replace — this is what
+                // makes federation work. Opening the architectural file
+                // then the HVAC file keeps both visible.
+                scene_data.meshes.extend(meshes);
+                scene_data.entities.extend(entities);
                 scene_data.dirty = true;
                 scene_data.bounds = None;
 
-                // Reset auto-fit to trigger camera adjustment
-                auto_fit.has_fit = false;
+                // Auto-fit only on the very first source so subsequent
+                // file loads don't jolt the camera away from what the
+                // user is looking at.
+                if source_id.0 == 0 {
+                    auto_fit.has_fit = false;
+                }
 
                 loaded_events.write(IfcFileLoadedEvent {
                     path: event.path.clone(),
@@ -220,11 +270,13 @@ fn handle_file_drop(
 }
 
 /// System to handle content load events (WASM - content comes from JS file input)
+/// — same federated-append behaviour as `handle_load_file_event`.
 fn handle_load_content_event(
     mut events: MessageReader<LoadIfcContentEvent>,
     mut scene_data: ResMut<IfcSceneData>,
     mut auto_fit: ResMut<crate::mesh::AutoFitState>,
     mut loaded_events: MessageWriter<IfcFileLoadedEvent>,
+    mut federation: ResMut<FederationState>,
 ) {
     for event in events.read() {
         crate::log_info(&format!(
@@ -234,23 +286,43 @@ fn handle_load_content_event(
         ));
 
         match load_ifc_content(&event.content) {
-            Ok((meshes, entities)) => {
+            Ok((mut meshes, mut entities)) => {
                 let mesh_count = meshes.len();
                 let entity_count = entities.len();
 
+                // Register source. The web bridge passes a file name
+                // (not a full path) — the filename heuristic still works
+                // because discipline_from_filename only looks at the stem.
+                let mut info = SourceInfo::new(event.file_name.clone());
+                info.path = Some(event.file_name.clone());
+                info.discipline = discipline_from_filename(&event.file_name);
+                info.entity_count = entity_count;
+                info.triangle_count = meshes
+                    .iter()
+                    .map(|m| m.geometry.indices.len() / 3)
+                    .sum();
+                let source_id = federation.scene.register(info);
+
+                for m in &mut meshes {
+                    m.source_id = source_id.0;
+                }
+                for e in &mut entities {
+                    e.source_id = source_id.0;
+                }
+
                 crate::log_info(&format!(
-                    "[Loader] Loaded {} meshes, {} entities",
-                    mesh_count, entity_count
+                    "[Loader] Loaded {} meshes, {} entities as source #{}",
+                    mesh_count, entity_count, source_id.0
                 ));
 
-                // Update scene data
-                scene_data.meshes = meshes;
-                scene_data.entities = entities;
+                scene_data.meshes.extend(meshes);
+                scene_data.entities.extend(entities);
                 scene_data.dirty = true;
                 scene_data.bounds = None;
 
-                // Reset auto-fit to trigger camera adjustment
-                auto_fit.has_fit = false;
+                if source_id.0 == 0 {
+                    auto_fit.has_fit = false;
+                }
 
                 loaded_events.write(IfcFileLoadedEvent {
                     path: PathBuf::from(&event.file_name),
@@ -422,6 +494,59 @@ pub fn trigger_file_dialog() {
     // No-op on native - use rfd instead
 }
 
+/// Build an `instance_id → defining_type_id` map by sweeping
+/// `IfcRelDefinesByType` once. Used to look up the IFC TypeObject that
+/// defines an IfcFlowSegment/Fitting/Terminal instance so the
+/// federation classifier can tell electrical from plumbing on IFC2x3
+/// MagiCAD-style files (port of the same helper in
+/// bimifc-viewer-tui::scene::build_type_definition_index).
+fn build_type_definition_index(
+    resolver: &dyn EntityResolver,
+) -> FxHashMap<u32, u32> {
+    let mut index = FxHashMap::default();
+    let rels = resolver.entities_by_type(&IfcType::IfcRelDefinesByType);
+    for rel in rels {
+        let Some(type_ref) = rel.get_ref(5) else { continue };
+        let Some(related) = rel.get_refs(4) else { continue };
+        for r in related {
+            index.insert(r.0, type_ref.0);
+        }
+    }
+    index
+}
+
+/// Classify an entity's discipline using the same three-step strategy
+/// as the TUI: concrete class → defining type object → instance name.
+fn classify_entity_discipline(
+    type_name: &str,
+    instance_id: u32,
+    entity_name: Option<&str>,
+    type_index: &FxHashMap<u32, u32>,
+    resolver: &dyn EntityResolver,
+) -> Discipline {
+    // (1) Concrete IFC4-style class — catches IfcPipeSegment etc.
+    let d = classify_by_entity_class(&type_name.to_ascii_uppercase());
+    if d != Discipline::Other {
+        return d;
+    }
+    // (2) Defining IfcTypeObject — catches MagiCAD-style IFC2x3.
+    if let Some(type_id) = type_index.get(&instance_id) {
+        if let Some(type_entity) = resolver.get(EntityId(*type_id)) {
+            let type_class_upper = type_entity.ifc_type.name().to_string();
+            let type_name_attr = type_entity.get_string(2);
+            let d = classify_by_type_name(&type_class_upper, type_name_attr);
+            if d != Discipline::Other {
+                return d;
+            }
+        }
+    }
+    // (3) Last-resort: keyword match on the entity's own Name.
+    if let Some(n) = entity_name {
+        return classify_by_name(n);
+    }
+    Discipline::Other
+}
+
 /// Load an IFC file and convert to viewer format
 fn load_ifc_file(
     path: &std::path::Path,
@@ -470,6 +595,9 @@ fn load_ifc_file(
         ));
     }
 
+    // One-off index for federated-classify-via-IfcRelDefinesByType.
+    let type_index = build_type_definition_index(resolver);
+
     // Process each element - only NOW do we decode entities
     for (id, type_name) in element_ids {
         // Get the decoded entity (lazy decode)
@@ -480,6 +608,16 @@ fn load_ifc_file(
 
         // Get entity name (attribute 2 for most building elements)
         let name: Option<String> = entity.get_string(2).map(|s: &str| s.to_string());
+
+        // Per-entity discipline tag — federation visibility checks this
+        // alongside the per-source override (filename hint).
+        let discipline_tag = classify_entity_discipline(
+            &type_name,
+            id,
+            name.as_deref(),
+            &type_index,
+            resolver,
+        ) as u8;
 
         // Process geometry
         let mesh = match router.process_element(&entity, resolver) {
@@ -502,13 +640,14 @@ fn load_ifc_file(
             if is_point_entity_type(&type_name) {
                 if let Some(pos) = extract_entity_position(&entity, resolver, unit_scale) {
                     let marker = create_marker_sphere(pos, 0.5);
-                    let ifc_mesh = IfcMesh::from_geometry_mesh(
+                    let mut ifc_mesh = IfcMesh::from_geometry_mesh(
                         id as u64,
                         marker,
                         color,
                         type_name.clone(),
                         name.clone(),
                     );
+                    ifc_mesh.discipline = discipline_tag;
                     meshes.push(ifc_mesh);
                     entities.push(EntityInfo {
                         id: id as u64,
@@ -516,6 +655,8 @@ fn load_ifc_file(
                         name,
                         storey: None,
                         storey_elevation: None,
+                        discipline: discipline_tag,
+                        ..Default::default()
                     });
                 }
             }
@@ -523,13 +664,14 @@ fn load_ifc_file(
         }
 
         // Convert to IfcMesh format - takes ownership of mesh, no cloning!
-        let ifc_mesh = IfcMesh::from_geometry_mesh(
+        let mut ifc_mesh = IfcMesh::from_geometry_mesh(
             id as u64,
             mesh, // Move, not clone
             color,
             type_name.clone(),
             name.clone(),
         );
+        ifc_mesh.discipline = discipline_tag;
         meshes.push(ifc_mesh);
 
         // Add entity info
@@ -539,6 +681,8 @@ fn load_ifc_file(
             name,
             storey: None, // TODO: extract from spatial structure
             storey_elevation: None,
+            discipline: discipline_tag,
+            ..Default::default()
         });
     }
 
@@ -590,6 +734,9 @@ fn load_ifc_content(
         ));
     }
 
+    // One-off index for federated-classify-via-IfcRelDefinesByType.
+    let type_index = build_type_definition_index(resolver);
+
     // Process each element - only NOW do we decode entities
     for (id, type_name) in element_ids {
         // Get the decoded entity (lazy decode)
@@ -600,6 +747,16 @@ fn load_ifc_content(
 
         // Get entity name (attribute 2 for most building elements)
         let name: Option<String> = entity.get_string(2).map(|s: &str| s.to_string());
+
+        // Per-entity discipline tag — federation visibility checks this
+        // alongside the per-source override (filename hint).
+        let discipline_tag = classify_entity_discipline(
+            &type_name,
+            id,
+            name.as_deref(),
+            &type_index,
+            resolver,
+        ) as u8;
 
         // Process geometry
         let mesh = match router.process_element(&entity, resolver) {
@@ -622,13 +779,14 @@ fn load_ifc_content(
             if is_point_entity_type(&type_name) {
                 if let Some(pos) = extract_entity_position(&entity, resolver, unit_scale) {
                     let marker = create_marker_sphere(pos, 0.5);
-                    let ifc_mesh = IfcMesh::from_geometry_mesh(
+                    let mut ifc_mesh = IfcMesh::from_geometry_mesh(
                         id as u64,
                         marker,
                         color,
                         type_name.clone(),
                         name.clone(),
                     );
+                    ifc_mesh.discipline = discipline_tag;
                     meshes.push(ifc_mesh);
                     entities.push(EntityInfo {
                         id: id as u64,
@@ -636,6 +794,8 @@ fn load_ifc_content(
                         name,
                         storey: None,
                         storey_elevation: None,
+                        discipline: discipline_tag,
+                        ..Default::default()
                     });
                 }
             }
@@ -643,13 +803,14 @@ fn load_ifc_content(
         }
 
         // Convert to IfcMesh format - takes ownership of mesh, no cloning!
-        let ifc_mesh = IfcMesh::from_geometry_mesh(
+        let mut ifc_mesh = IfcMesh::from_geometry_mesh(
             id as u64,
             mesh, // Move, not clone
             color,
             type_name.clone(),
             name.clone(),
         );
+        ifc_mesh.discipline = discipline_tag;
         meshes.push(ifc_mesh);
 
         // Add entity info
@@ -659,6 +820,8 @@ fn load_ifc_content(
             name,
             storey: None, // TODO: extract from spatial structure
             storey_elevation: None,
+            discipline: discipline_tag,
+            ..Default::default()
         });
     }
 

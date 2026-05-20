@@ -1,0 +1,16 @@
+[package]
+name = "bimifc-federation"
+version = "0.1.0"
+edition = "2021"
+description = "Multi-file IFC federation: load several discipline files as one scene with source/discipline tags"
+license = "MPL-2.0"
+repository = "https://github.com/holg/bimifc"
+keywords = ["ifc", "bim", "federation", "mep"]
+categories = ["data-structures"]
+
+[dependencies]
+bimifc-model = { version = "0.3.0", path = "../bimifc-model" }
+bimifc-parser = { version = "0.3.0", path = "../bimifc-parser" }
+
+serde = { version = "1", features = ["derive"] }
+rustc-hash = "2"

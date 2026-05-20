@@ -6,57 +6,48 @@
 //! UI systems. The 3D viewport is already provided by `IfcViewerPlugin`
 //! from `bimifc-bevy`; we only add the surrounding chrome here.
 //!
-//! Walking-skeleton scope (per `docs/egui-viewer-plan.md`):
-//!   ✅ window opens
-//!   ✅ IFC can be loaded via File menu
-//!   ✅ 3D shows
-//!   ✅ discipline-filter buttons exist and update a shared resource
-//!
-//! Post-skeleton work (not in this commit): hierarchy panel, properties
-//! panel, filter wired into the renderer, persistence, shortcuts.
+//! Federation state (the source list + active ViewFilter) lives in the
+//! `FederationState` resource installed by `IfcViewerPlugin`, so we
+//! don't init it ourselves. Each egui system reads/writes that
+//! resource directly.
 
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass, PrimaryEguiContext};
-use bimifc_bevy::IfcSceneData;
+use bimifc_bevy::FederationState;
 
 use crate::hierarchy::render_hierarchy;
 use crate::properties::render_properties;
-use crate::state::{DisciplineFilter, LoadedFile};
+use crate::sources::render_sources;
 use crate::toolbar::render_toolbar;
 
 pub struct EguiAppPlugin;
 
 impl Plugin for EguiAppPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DisciplineFilter>()
-            .init_resource::<LoadedFile>()
-            // bevy_egui 0.39 only emits an EguiPrimaryContextPass for a
-            // camera tagged `PrimaryEguiContext`. bimifc-bevy's camera
-            // is spawned in its CameraPlugin's Startup without that
-            // tag, so we add it post-startup. Without this, every panel
-            // system's `contexts.ctx_mut()?` returns NoEntities and the
-            // UI silently vanishes.
-            .add_systems(PostStartup, tag_primary_egui_camera)
+        // bevy_egui 0.39 only emits an EguiPrimaryContextPass for a
+        // camera tagged `PrimaryEguiContext`. bimifc-bevy's camera is
+        // spawned in its CameraPlugin's Startup without that tag, so
+        // we add it post-startup. Without this, every panel system's
+        // `contexts.ctx_mut()?` returns NoEntities and the UI silently
+        // vanishes.
+        app.add_systems(PostStartup, tag_primary_egui_camera)
             // Egui systems run inside the EguiPrimaryContextPass schedule
-            // — bevy_egui 0.39's contract: "draw UI now that egui has a
-            // frame context available". Order matters for layout: the
-            // top toolbar carves space first, then the side panels each
-            // take their slice, then the bottom status bar, and what's
-            // left in the middle is the 3D viewport. `.chain()` forces
-            // that left-to-right declaration order.
+            // — bevy_egui 0.39's contract. Order is important so panels
+            // claim screen space in a predictable layout: top toolbar
+            // first, then sources at the bottom, then left/right side
+            // panels, then the status bar. egui resolves layout in the
+            // order systems run.
             .add_systems(
                 EguiPrimaryContextPass,
                 (
                     render_toolbar,
-                    render_status_bar,
+                    render_sources,
                     render_hierarchy,
                     render_properties,
+                    render_status_bar,
                 )
                     .chain(),
-            )
-            // Mirror IfcSceneData → LoadedFile so the toolbar status
-            // updates whenever a new file finishes parsing.
-            .add_systems(Update, sync_loaded_file);
+            );
     }
 }
 
@@ -72,46 +63,21 @@ fn tag_primary_egui_camera(
     }
 }
 
-/// Bottom status bar — short and quiet, holds the discipline-filter
-/// label + any future hints (selected entity, picking ray, etc.).
-fn render_status_bar(mut contexts: EguiContexts, filter: Res<DisciplineFilter>) {
+/// Bottom status bar — shows the active discipline filter + a hint.
+fn render_status_bar(mut contexts: EguiContexts, federation: Res<FederationState>) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
     egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
         ui.horizontal(|ui| {
-            ui.label(format!("View: {}", filter.label()));
+            ui.label(format!("View: {}", federation.scene.filter.label()));
+            let total = federation.scene.total_triangles();
+            let vis = federation.scene.visible_triangles();
+            if total > 0 {
+                ui.separator();
+                ui.label(format!("{vis} / {total} triangles visible"));
+            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label("bimifc-egui v0.1 (walking skeleton)");
+                ui.label("bimifc-egui — federated viewer");
             });
         });
     });
-}
-
-/// Mirror IfcSceneData (renderer's view of the file) + RichModel
-/// (panels' view) into LoadedFile, which the toolbar reads. The path
-/// comes from RichModel — we set it there during re-parse — so the
-/// status bar can show the filename even though bimifc-bevy's
-/// IfcSceneData doesn't currently carry it.
-fn sync_loaded_file(
-    scene: Option<Res<IfcSceneData>>,
-    rich: Res<crate::model::RichModel>,
-    mut loaded: ResMut<LoadedFile>,
-) {
-    let mut dirty = rich.is_changed();
-    if let Some(scene) = scene.as_ref() {
-        if scene.is_changed() {
-            loaded.entity_count = scene.entities.len();
-            loaded.triangle_count = scene
-                .meshes
-                .iter()
-                .map(|m| m.geometry.indices.len() / 3)
-                .sum();
-            dirty = true;
-        }
-    }
-    if dirty {
-        loaded.path = rich
-            .source_path
-            .as_ref()
-            .and_then(|p| p.to_str().map(str::to_string));
-    }
 }

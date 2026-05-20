@@ -35,6 +35,10 @@ pub mod shared {
             entity_type: g.entity_type,
             name: g.name,
             has_ifc_color: g.has_ifc_color,
+            // Federation tags default to 0/Other; the Bevy loader
+            // assigns the real source_id when meshes arrive.
+            source_id: 0,
+            discipline: 0,
         }
     }
 
@@ -46,6 +50,7 @@ pub mod shared {
             name: e.name,
             storey: e.storey,
             storey_elevation: e.storey_elevation,
+            ..Default::default()
         }
     }
 

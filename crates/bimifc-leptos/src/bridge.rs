@@ -379,6 +379,10 @@ pub fn save_geometry(geometry: Vec<GeometryData>) {
                 entity_type: g.entity_type,
                 name: g.name,
                 has_ifc_color: g.has_ifc_color,
+                // Federation tags default to 0/Other; the Bevy loader
+                // re-tags incoming meshes via FederatedScene::register.
+                source_id: 0,
+                discipline: 0,
             })
             .collect();
 

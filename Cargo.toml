@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/bimifc-bevy",
     "crates/bimifc-egui",
+    "crates/bimifc-federation",
     "crates/bimifc-ffi",
     "crates/bimifc-geometry",
     "crates/bimifc-leptos",

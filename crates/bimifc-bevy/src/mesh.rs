@@ -45,6 +45,7 @@ impl Plugin for MeshPlugin {
                     spawn_meshes_system,
                     auto_fit_camera_system,
                     update_mesh_visibility_system,
+                    update_mesh_federation_visibility_system,
                     update_mesh_selection_system,
                     poll_focus_command_system,
                 )
@@ -88,6 +89,11 @@ pub struct EntityColorInfo {
     pub has_ifc_color: bool,
     pub start_vertex: u32,
     pub vertex_count: u32,
+    /// Federation source id — set by the loader; the visibility system
+    /// consults [`FederationState`] with this + `discipline` to decide
+    /// whether to keep the entity's triangles drawn.
+    pub source_id: u32,
+    pub discipline: u8,
 }
 
 /// Maps entity color info for palette switching without keeping geometry
@@ -175,6 +181,14 @@ pub struct IfcMesh {
     pub name: Option<String>,
     /// True if color was authored in IFC (IfcStyledItem), should survive palette changes
     pub has_ifc_color: bool,
+    /// Federation source id — which loaded IFC file this mesh came from.
+    /// `0` is the first file the user opened; subsequent files get
+    /// monotonically increasing ids. See `bimifc-federation::SourceId`.
+    pub source_id: u32,
+    /// Per-entity discipline tag (electrical / plumbing / HVAC /
+    /// lighting / other) — computed at load time and used by the
+    /// federation filter to decide visibility per mesh.
+    pub discipline: u8,
 }
 
 /// Legacy serializable format for storage/transfer
@@ -209,6 +223,10 @@ impl From<IfcMeshSerialized> for IfcMesh {
             entity_type: s.entity_type,
             name: s.name,
             has_ifc_color: false,
+            // Federation tags default to "no federation" — the loader
+            // re-tags these fields when it knows the source/discipline.
+            source_id: 0,
+            discipline: 0,
         }
     }
 }
@@ -246,6 +264,8 @@ impl IfcMesh {
             entity_type,
             name,
             has_ifc_color: false,
+            source_id: 0,
+            discipline: 0,
         }
     }
 
@@ -269,6 +289,8 @@ impl IfcMesh {
             ],
             entity_type,
             name,
+            source_id: 0,
+            discipline: 0,
             has_ifc_color: false,
         }
     }
@@ -487,6 +509,8 @@ impl BatchBuilder {
             has_ifc_color: ifc_mesh.has_ifc_color,
             start_vertex: start_vertex as u32,
             vertex_count: vertex_count as u32,
+            source_id: ifc_mesh.source_id,
+            discipline: ifc_mesh.discipline,
         });
     }
 
@@ -853,6 +877,90 @@ fn auto_fit_camera_system(
         auto_fit.has_fit = true;
     }
 }
+
+/// Federation-aware visibility system. Walks every batched mesh's
+/// per-entity color slots and sets alpha=0 for entities whose
+/// `(source_id, discipline)` pair fails the current
+/// [`crate::FederationState`] filter.
+///
+/// Independent of the localStorage-driven `update_mesh_visibility_system`
+/// — both can run; they overlay each other. The federation system runs
+/// each frame because its cost is O(entities) × constant — for ~16K
+/// entities on the medical clinic that's negligible. We could detect
+/// filter-change and skip otherwise, but the simpler always-run loop
+/// keeps the code path inspectable.
+#[cfg(feature = "color-palette")]
+#[allow(unused_variables, unused_mut)]
+fn update_mesh_federation_visibility_system(
+    federation: Res<crate::FederationState>,
+    selection: Res<crate::picking::SelectionState>,
+    color_mapping: Res<EntityColorMapping>,
+    mut mesh_assets: ResMut<Assets<Mesh>>,
+    batched_meshes: Query<(&Mesh3d, &BatchedMesh)>,
+) {
+    use bimifc_federation::SourceId;
+    // Only do work when the filter actually changed; otherwise we'd
+    // overwrite the same colors every frame.
+    if !federation.is_changed() {
+        return;
+    }
+
+    let current_selection = &selection.selected;
+
+    for (mesh_handle, batched_mesh) in batched_meshes.iter() {
+        let Some(mesh) = mesh_assets.get_mut(&mesh_handle.0) else {
+            continue;
+        };
+
+        let Some(VertexAttributeValues::Float32x4(colors)) =
+            mesh.attribute_mut(Mesh::ATTRIBUTE_COLOR)
+        else {
+            continue;
+        };
+
+        let color_infos = if batched_mesh.is_transparent {
+            &color_mapping.transparent
+        } else {
+            &color_mapping.opaque
+        };
+
+        for info in color_infos {
+            // Decode the per-entity discipline back into the federation
+            // enum (it was stored as u8 because IfcMesh is plain data).
+            let entity_disc = match info.discipline {
+                1 => bimifc_federation::Discipline::Electrical,
+                2 => bimifc_federation::Discipline::Plumbing,
+                3 => bimifc_federation::Discipline::Hvac,
+                4 => bimifc_federation::Discipline::Lighting,
+                _ => bimifc_federation::Discipline::Other,
+            };
+            let visible = federation
+                .scene
+                .visible(SourceId(info.source_id), entity_disc);
+
+            let start = info.start_vertex as usize;
+            let end = start + info.vertex_count as usize;
+
+            if visible {
+                let color = if current_selection.contains(&info.entity_id) {
+                    SELECTION_COLOR
+                } else {
+                    info.original_color
+                };
+                for c in colors[start..end].iter_mut() {
+                    *c = color;
+                }
+            } else {
+                for c in colors[start..end].iter_mut() {
+                    *c = [c[0], c[1], c[2], 0.0];
+                }
+            }
+        }
+    }
+}
+
+#[cfg(not(feature = "color-palette"))]
+fn update_mesh_federation_visibility_system() {}
 
 /// System to update mesh visibility via vertex alpha.
 /// Polls visibility state from localStorage and hides/isolates entities by

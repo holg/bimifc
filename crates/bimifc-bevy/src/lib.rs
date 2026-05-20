@@ -110,6 +110,7 @@ impl Plugin for IfcViewerPlugin {
         app.init_resource::<IfcSceneData>()
             .init_resource::<ViewerSettings>()
             .init_resource::<IfcTimestamp>()
+            .init_resource::<FederationState>()
             .add_plugins((
                 CameraPlugin,
                 MeshPlugin,
@@ -129,6 +130,16 @@ impl Plugin for IfcViewerPlugin {
     }
 }
 
+/// Bevy resource wrapping `bimifc_federation::FederatedScene` so it
+/// can be passed around as a system parameter. The inner
+/// `FederatedScene` carries the list of loaded sources (one entry per
+/// IFC file the user opened) and the active [`ViewFilter`] — both the
+/// toolbar and the visibility system read this resource each frame.
+#[derive(Resource, Default)]
+pub struct FederationState {
+    pub scene: bimifc_federation::FederatedScene,
+}
+
 /// Resource containing all IFC scene data
 #[derive(Resource, Default)]
 pub struct IfcSceneData {
@@ -145,13 +156,20 @@ pub struct IfcSceneData {
 }
 
 /// Entity metadata
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct EntityInfo {
     pub id: u64,
     pub entity_type: String,
     pub name: Option<String>,
     pub storey: Option<String>,
     pub storey_elevation: Option<f32>,
+    /// Which loaded file this entity came from. See `bimifc-federation`.
+    #[serde(default)]
+    pub source_id: u32,
+    /// Per-entity discipline tag (0=Other, 1=Electrical, 2=Plumbing,
+    /// 3=HVAC, 4=Lighting). Used by the federation filter.
+    #[serde(default)]
+    pub discipline: u8,
 }
 
 /// Axis-aligned bounding box for scene
@@ -258,6 +276,8 @@ pub fn poll_scene_changes(
                 name: m.name.clone(),
                 storey: None,
                 storey_elevation: None,
+                source_id: m.source_id,
+                discipline: m.discipline,
             })
             .collect();
 
@@ -291,6 +311,8 @@ pub fn poll_scene_changes(
                                 name: m.name.clone(),
                                 storey: None,
                                 storey_elevation: None,
+                                source_id: m.source_id,
+                                discipline: m.discipline,
                             })
                             .collect();
 

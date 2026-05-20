@@ -18,6 +18,7 @@ mod app;
 mod hierarchy;
 mod model;
 mod properties;
+mod sources;
 mod state;
 mod toolbar;
 
