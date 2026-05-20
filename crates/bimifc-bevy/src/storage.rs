@@ -249,6 +249,11 @@ fn deserialize_geometry_binary(data: &[u8]) -> Option<Vec<crate::IfcMesh>> {
             entity_type,
             name,
             has_ifc_color: false,
+            // Federation tags default to 0/Other; poll_scene_changes
+            // re-tags incoming meshes from this storage path during
+            // load via FederatedScene::register.
+            source_id: 0,
+            discipline: 0,
         });
     }
 

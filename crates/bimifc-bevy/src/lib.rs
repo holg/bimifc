@@ -35,12 +35,16 @@ use std::sync::Mutex;
 /// Global debug mode flag (set from URL parameter ?debug=1)
 static DEBUG_MODE: AtomicBool = AtomicBool::new(false);
 
-/// Pending meshes for unified mode (Yew -> Bevy direct transfer)
+/// Pending meshes for unified mode (Leptos -> Bevy direct transfer)
 /// This avoids serialization overhead when running in same WASM
 static PENDING_MESHES: Mutex<Option<Vec<IfcMesh>>> = Mutex::new(None);
+/// Source filename carried alongside PENDING_MESHES so the wasm load
+/// path can register a federation source with a meaningful name +
+/// run the filename-keyword discipline inference.
+static PENDING_SOURCE_NAME: Mutex<Option<String>> = Mutex::new(None);
 
-/// Set pending meshes from Yew (unified mode only)
-/// This is called by Yew after parsing geometry, Bevy polls this
+/// Set pending meshes from Leptos (unified mode only)
+/// This is called by Leptos after parsing geometry, Bevy polls this.
 pub fn set_pending_meshes(meshes: Vec<IfcMesh>) {
     let count = meshes.len();
     let mut guard = PENDING_MESHES.lock().unwrap();
@@ -48,10 +52,50 @@ pub fn set_pending_meshes(meshes: Vec<IfcMesh>) {
     log(&format!("[Bevy] Pending meshes set: {} meshes", count));
 }
 
+/// Set the source filename for the next pending meshes batch.
+/// Should be called BEFORE [`set_pending_meshes`] from the wasm side
+/// so `poll_scene_changes` can register the source with the right
+/// name and discipline hint.
+pub fn set_pending_source_name(name: String) {
+    let mut guard = PENDING_SOURCE_NAME.lock().unwrap();
+    *guard = Some(name);
+}
+
 /// Take pending meshes (consumes them)
 pub fn take_pending_meshes() -> Option<Vec<IfcMesh>> {
     let mut guard = PENDING_MESHES.lock().unwrap();
     guard.take()
+}
+
+pub fn take_pending_source_name() -> Option<String> {
+    let mut guard = PENDING_SOURCE_NAME.lock().unwrap();
+    guard.take()
+}
+
+/// Cross-runtime channel for Leptos-side toolbar updates to the
+/// federation `ViewFilter`. Leptos writes; the `poll_pending_filter`
+/// Bevy system reads + applies on its next tick.
+static PENDING_FILTER: Mutex<Option<bimifc_federation::ViewFilter>> = Mutex::new(None);
+
+/// Set the federation view filter from outside Bevy (Leptos toolbar).
+pub fn set_pending_filter(filter: bimifc_federation::ViewFilter) {
+    let mut guard = PENDING_FILTER.lock().unwrap();
+    *guard = Some(filter);
+}
+
+pub fn take_pending_filter() -> Option<bimifc_federation::ViewFilter> {
+    let mut guard = PENDING_FILTER.lock().unwrap();
+    guard.take()
+}
+
+/// Bevy system: pulls any pending filter from the cross-runtime
+/// channel into the live `FederationState` resource. Wired into
+/// `IfcViewerPlugin` so any consumer that calls
+/// [`set_pending_filter`] gets reflected on the next frame.
+pub fn poll_pending_filter(mut federation: ResMut<FederationState>) {
+    if let Some(filter) = take_pending_filter() {
+        federation.scene.filter = filter;
+    }
 }
 
 /// Check if pending meshes are available
@@ -118,7 +162,10 @@ impl Plugin for IfcViewerPlugin {
                 SectionPlanePlugin,
                 LoaderPlugin,
             ))
-            .add_systems(Update, (poll_scene_changes, poll_selection_from_storage));
+            .add_systems(
+                Update,
+                (poll_scene_changes, poll_selection_from_storage, poll_pending_filter),
+            );
 
         // Add Bevy UI when feature is enabled
         #[cfg(feature = "bevy-ui")]
@@ -252,23 +299,66 @@ impl Theme {
 pub struct IfcTimestamp(pub String);
 
 /// System to poll for scene changes
-/// Checks both direct memory (unified mode) and JS bridge (split mode)
+/// Checks both direct memory (unified mode) and JS bridge (split mode).
+///
+/// **Federated behaviour**: when new meshes arrive, register a source
+/// in [`FederationState`], classify each incoming mesh's discipline by
+/// its IFC class + name (the parser-side IfcRelDefinesByType lookup
+/// already happened on the Leptos side; we just trust the value when
+/// it's set), and APPEND to the existing scene. The wasm path now
+/// behaves the same as the native loader — `set_pending_source_name`
+/// from Leptos provides the filename for the federation registry.
 #[allow(unused_variables, unused_mut)]
 pub fn poll_scene_changes(
     mut scene_data: ResMut<IfcSceneData>,
     mut settings: ResMut<ViewerSettings>,
     mut last_timestamp: ResMut<IfcTimestamp>,
     mut auto_fit: ResMut<mesh::AutoFitState>,
+    mut federation: ResMut<FederationState>,
 ) {
     // UNIFIED MODE: Check for direct memory transfer first (no serialization!)
-    if let Some(meshes) = take_pending_meshes() {
+    if let Some(mut meshes) = take_pending_meshes() {
+        let pending_name = take_pending_source_name()
+            .unwrap_or_else(|| "(unnamed)".to_string());
         log_info(&format!(
-            "[Bevy] Direct mesh transfer: {} meshes (no deserialization!)",
-            meshes.len()
+            "[Bevy] Direct mesh transfer: {} meshes from '{}'",
+            meshes.len(),
+            pending_name,
         ));
 
-        // Build EntityInfo from meshes
-        scene_data.entities = meshes
+        // Register a fresh federation source. If the per-mesh discipline
+        // tag was already set on the Leptos side (set explicitly via the
+        // bridge), we trust it; otherwise we run the simpler entity-
+        // class + name classifier here. IfcRelDefinesByType resolution
+        // needs the parser model which isn't reachable from here.
+        let mut info = bimifc_federation::SourceInfo::new(pending_name.clone());
+        info.path = Some(pending_name.clone());
+        info.discipline = bimifc_federation::discipline_from_filename(&pending_name);
+        info.entity_count = meshes.len();
+        info.triangle_count =
+            meshes.iter().map(|m| m.geometry.indices.len() / 3).sum();
+        let source_id = federation.scene.register(info);
+
+        // Tag every mesh + classify if Leptos didn't.
+        for m in &mut meshes {
+            m.source_id = source_id.0;
+            if m.discipline == 0 {
+                let class_upper = m.entity_type.to_ascii_uppercase();
+                let d = bimifc_federation::classify_by_entity_class(&class_upper);
+                let d = if d == bimifc_federation::Discipline::Other {
+                    match m.name.as_deref() {
+                        Some(n) => bimifc_federation::classify_by_name(n),
+                        None => d,
+                    }
+                } else {
+                    d
+                };
+                m.discipline = d as u8;
+            }
+        }
+
+        // Build EntityInfo from the now-tagged meshes
+        let new_entities: Vec<EntityInfo> = meshes
             .iter()
             .map(|m| EntityInfo {
                 id: m.entity_id,
@@ -281,9 +371,13 @@ pub fn poll_scene_changes(
             })
             .collect();
 
-        scene_data.meshes = meshes;
+        // APPEND, not replace — federated workflow.
+        scene_data.entities.extend(new_entities);
+        scene_data.meshes.extend(meshes);
         scene_data.dirty = true;
-        auto_fit.has_fit = false;
+        if source_id.0 == 0 {
+            auto_fit.has_fit = false;
+        }
     } else {
         // SPLIT MODE: Fall back to JS bridge polling
         #[cfg(target_arch = "wasm32")]
@@ -295,15 +389,47 @@ pub fn poll_scene_changes(
                         last_timestamp.0, new_timestamp
                     ));
 
-                    // Load geometry from storage (binary deserialization)
-                    if let Some(geometry) = storage::load_geometry() {
+                    // Load geometry from storage (binary deserialization).
+                    // Same federation path as unified mode above —
+                    // register source, classify, append.
+                    if let Some(mut geometry) = storage::load_geometry() {
                         log(&format!(
                             "[Bevy] Loaded {} meshes from JS bridge",
                             geometry.len()
                         ));
 
-                        // Build EntityInfo directly from meshes
-                        scene_data.entities = geometry
+                        let pending_name = take_pending_source_name()
+                            .unwrap_or_else(|| "(unnamed)".to_string());
+
+                        let mut info = bimifc_federation::SourceInfo::new(pending_name.clone());
+                        info.path = Some(pending_name.clone());
+                        info.discipline =
+                            bimifc_federation::discipline_from_filename(&pending_name);
+                        info.entity_count = geometry.len();
+                        info.triangle_count = geometry
+                            .iter()
+                            .map(|m| m.geometry.indices.len() / 3)
+                            .sum();
+                        let source_id = federation.scene.register(info);
+
+                        for m in &mut geometry {
+                            m.source_id = source_id.0;
+                            if m.discipline == 0 {
+                                let class_upper = m.entity_type.to_ascii_uppercase();
+                                let d = bimifc_federation::classify_by_entity_class(&class_upper);
+                                let d = if d == bimifc_federation::Discipline::Other {
+                                    match m.name.as_deref() {
+                                        Some(n) => bimifc_federation::classify_by_name(n),
+                                        None => d,
+                                    }
+                                } else {
+                                    d
+                                };
+                                m.discipline = d as u8;
+                            }
+                        }
+
+                        let new_entities: Vec<EntityInfo> = geometry
                             .iter()
                             .map(|m| EntityInfo {
                                 id: m.entity_id,
@@ -316,9 +442,12 @@ pub fn poll_scene_changes(
                             })
                             .collect();
 
-                        scene_data.meshes = geometry;
+                        scene_data.entities.extend(new_entities);
+                        scene_data.meshes.extend(geometry);
                         scene_data.dirty = true;
-                        auto_fit.has_fit = false;
+                        if source_id.0 == 0 {
+                            auto_fit.has_fit = false;
+                        }
                     }
 
                     // Load selection state

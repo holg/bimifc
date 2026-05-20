@@ -355,6 +355,46 @@ fn serialize_geometry_binary(geometry: &[GeometryData]) -> Vec<u8> {
     buf
 }
 
+/// Push the active discipline filter to the shared
+/// `bimifc-bevy::FederationState`. In unified mode this is a direct
+/// memory write picked up by `poll_pending_filter` next frame. In
+/// split mode (separate WASM workers) we fall back to localStorage.
+pub fn set_federation_filter(filter: bimifc_federation::ViewFilter) {
+    #[cfg(feature = "unified")]
+    {
+        bimifc_bevy::set_pending_filter(filter);
+    }
+    #[cfg(not(feature = "unified"))]
+    {
+        // Best-effort: serialize to localStorage. The Bevy side's
+        // poll_pending_filter in non-unified builds reads this.
+        if let Some(storage) = get_storage() {
+            if let Ok(json) = serde_json::to_string(&filter) {
+                let _ = storage.set_item("ifc_lite_fed_filter", &json);
+            }
+        }
+    }
+}
+
+/// Tell Bevy the source filename for the next batch of meshes.
+/// Call this BEFORE [`save_geometry`] so the federation registry
+/// can label the new source correctly (and apply the filename →
+/// discipline heuristic from `bimifc-federation`).
+pub fn set_source_name(name: &str) {
+    #[cfg(feature = "unified")]
+    {
+        bimifc_bevy::set_pending_source_name(name.to_string());
+    }
+    #[cfg(not(feature = "unified"))]
+    {
+        // Split mode pushes the name through the JS bridge so the
+        // Bevy side can poll it. localStorage is the simplest channel.
+        if let Some(storage) = get_storage() {
+            let _ = storage.set_item("ifc_lite_source_name", name);
+        }
+    }
+}
+
 /// Save geometry data for Bevy
 /// In unified mode: direct memory transfer (no serialization!)
 /// In split mode: binary serialization via JS bridge

@@ -203,6 +203,12 @@ fn StateBridge() -> impl IntoView {
         let isolated = state.visibility.isolated_ids.get();
         let mep_view = state.ui.mep_view.get();
 
+        // Push the discipline filter to bimifc-bevy::FederationState
+        // so the renderer-side federated visibility system (which gates
+        // on (source_id, discipline)) updates alongside the legacy
+        // visibility-isolation channel below.
+        bridge::set_federation_filter(mep_view.to_federation());
+
         let filter_isolated: Option<Vec<u64>> = if mep_view == MepView::All {
             isolated.map(|ids| ids.iter().copied().collect())
         } else {

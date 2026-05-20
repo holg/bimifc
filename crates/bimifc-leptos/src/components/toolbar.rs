@@ -584,6 +584,12 @@ fn load_from_cache(
     let geometry_count = cached.geometry.len();
     let entity_count = cached.entities.len();
 
+    // Tell Bevy's federation registry what filename to label this
+    // batch with — it uses the filename to infer a whole-file
+    // discipline hint (LTU '_Air.ifc' → HVAC etc.).
+    if let Some(name) = state.scene.file_name.get_untracked() {
+        bridge::set_source_name(&name);
+    }
     // Send geometry to Bevy
     bridge::save_geometry(cached.geometry);
 
@@ -1152,6 +1158,11 @@ pub fn parse_and_process_ifc(
     let geometry_count = geometry_data.len();
     let entities_with_geometry: HashSet<u64> = geometry_data.iter().map(|g| g.entity_id).collect();
 
+    // Tell Bevy's federation registry what filename to label this
+    // batch with — same as the cached-load path above.
+    if let Some(name) = state.scene.file_name.get_untracked() {
+        bridge::set_source_name(&name);
+    }
     // Send geometry to Bevy (clone for cache)
     bridge::save_geometry(geometry_data.clone());
     bridge::log(&format!(

@@ -79,6 +79,22 @@ pub enum MepView {
 }
 
 impl MepView {
+    /// Map to the canonical federation enum so the toolbar can push the
+    /// same value into `bimifc-bevy::FederationState` via the bridge.
+    /// Leptos keeps its own `MepView` for UI/serialization parity, but
+    /// the renderer-side filter authority is the federation one.
+    pub fn to_federation(self) -> bimifc_federation::ViewFilter {
+        use bimifc_federation::{Discipline, ViewFilter};
+        match self {
+            MepView::All => ViewFilter::All,
+            MepView::Architecture => ViewFilter::Architecture,
+            MepView::Electrical => ViewFilter::Discipline(Discipline::Electrical),
+            MepView::Plumbing => ViewFilter::Discipline(Discipline::Plumbing),
+            MepView::Hvac => ViewFilter::Discipline(Discipline::Hvac),
+            MepView::Lighting => ViewFilter::Discipline(Discipline::Lighting),
+        }
+    }
+
     /// True if this entity belongs to the active MEP category.
     ///
     /// Tries the IFC type first (modern IFC4+ concrete subclasses). For
