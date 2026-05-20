@@ -280,6 +280,14 @@ pub enum IfcType {
     IfcEdgeCurve,
     IfcVertexPoint,
     IfcConnectedFaceSet,
+    /// IFC surface-model wrappers — both are lists of `IfcConnectedFaceSet`,
+    /// which in turn are lists of `IfcFace`. Same face/bound/poly-loop
+    /// structure as `IfcFacetedBrep`'s `IfcClosedShell` — see the
+    /// `FaceBasedSurfaceModelProcessor` for the shared face triangulation.
+    /// Revit MEP 2011 (Duplex-A-MEP.ifc) and many IFC2x3 federated
+    /// files use these for pipe runs, ducts, fixtures.
+    IfcFaceBasedSurfaceModel,
+    IfcShellBasedSurfaceModel,
 
     // ========================================================================
     // Relationships
@@ -608,6 +616,8 @@ impl IfcType {
             "IFCEDGECURVE" => IfcType::IfcEdgeCurve,
             "IFCVERTEXPOINT" => IfcType::IfcVertexPoint,
             "IFCCONNECTEDFACESET" => IfcType::IfcConnectedFaceSet,
+            "IFCFACEBASEDSURFACEMODEL" => IfcType::IfcFaceBasedSurfaceModel,
+            "IFCSHELLBASEDSURFACEMODEL" => IfcType::IfcShellBasedSurfaceModel,
 
             // Relationships
             "IFCRELCONTAINEDINSPATIALSTRUCTURE" => IfcType::IfcRelContainedInSpatialStructure,

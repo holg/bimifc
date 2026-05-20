@@ -82,8 +82,9 @@ impl GeometryRouter {
     /// - `RevolvedAreaSolidProcessor` (IfcRevolvedAreaSolid)
     pub fn with_default_processors() -> Self {
         use crate::processors::{
-            ExtrudedAreaSolidProcessor, FacetedBrepProcessor, RevolvedAreaSolidProcessor,
-            SweptDiskSolidProcessor, TriangulatedFaceSetProcessor,
+            ExtrudedAreaSolidProcessor, FaceBasedSurfaceModelProcessor,
+            FacetedBrepProcessor, RevolvedAreaSolidProcessor, SweptDiskSolidProcessor,
+            TriangulatedFaceSetProcessor,
         };
 
         let mut router = Self::new();
@@ -92,6 +93,9 @@ impl GeometryRouter {
         router.register(Arc::new(FacetedBrepProcessor::new()));
         router.register(Arc::new(SweptDiskSolidProcessor::new()));
         router.register(Arc::new(RevolvedAreaSolidProcessor::new()));
+        // Surface models: IfcFaceBasedSurfaceModel + IfcShellBasedSurfaceModel.
+        // Required for Revit MEP 2011 federated IFC2x3 (Duplex, LTU, NBU).
+        router.register(Arc::new(FaceBasedSurfaceModelProcessor::new()));
         router
     }
 

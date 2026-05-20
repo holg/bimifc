@@ -145,6 +145,110 @@ impl Default for FacetedBrepProcessor {
     }
 }
 
+impl FacetedBrepProcessor {
+    /// Triangulate any list of `IfcFace` references into a single mesh.
+    /// Shared with `FaceBasedSurfaceModelProcessor` — both walk
+    /// face → bounds → poly-loop, the only difference being how the
+    /// face list is reached.
+    pub fn triangulate_face_list(
+        &self,
+        face_refs: &[bimifc_model::AttributeValue],
+        resolver: &dyn EntityResolver,
+    ) -> Mesh {
+        let mut all_positions = Vec::new();
+        let mut all_indices = Vec::new();
+        for face_ref in face_refs {
+            self.append_face(face_ref, resolver, &mut all_positions, &mut all_indices);
+        }
+        Mesh {
+            positions: all_positions,
+            normals: Vec::new(),
+            indices: all_indices,
+        }
+    }
+
+    /// Process one face ref and append its triangles to the accumulator.
+    fn append_face(
+        &self,
+        face_ref: &bimifc_model::AttributeValue,
+        resolver: &dyn EntityResolver,
+        all_positions: &mut Vec<f32>,
+        all_indices: &mut Vec<u32>,
+    ) {
+        let face_id = match face_ref.as_entity_ref() {
+            Some(id) => id,
+            None => return,
+        };
+        let face_entity = match resolver.get(face_id) {
+            Some(e) => e,
+            None => return,
+        };
+
+        // IfcFace has Bounds at index 0
+        let bounds = match face_entity.get(0).and_then(|v| v.as_list()) {
+            Some(b) => b,
+            None => return,
+        };
+
+        let mut outer_points: Option<Vec<Point3<f64>>> = None;
+        let mut hole_points_list: Vec<Vec<Point3<f64>>> = Vec::new();
+
+        for bound_ref in bounds {
+            let bound_id = match bound_ref.as_entity_ref() {
+                Some(id) => id,
+                None => continue,
+            };
+            let bound_entity = match resolver.get(bound_id) {
+                Some(e) => e,
+                None => continue,
+            };
+
+            // Loop at index 0, orientation at index 1
+            let loop_id = match bound_entity.get_ref(0) {
+                Some(id) => id,
+                None => continue,
+            };
+            let orientation = bound_entity
+                .get(1)
+                .map(|v| match v {
+                    bimifc_model::AttributeValue::Enum(e) => e != "F" && e != ".F.",
+                    bimifc_model::AttributeValue::Bool(b) => *b,
+                    _ => true,
+                })
+                .unwrap_or(true);
+
+            let mut points = match self.extract_loop_points(loop_id, resolver) {
+                Some(p) => p,
+                None => continue,
+            };
+            if !orientation {
+                points.reverse();
+            }
+
+            let is_outer = bound_entity.ifc_type == IfcType::IfcFaceOuterBound;
+            if is_outer || outer_points.is_none() {
+                if outer_points.is_some() && is_outer {
+                    if let Some(prev_outer) = outer_points.take() {
+                        hole_points_list.push(prev_outer);
+                    }
+                }
+                outer_points = Some(points);
+            } else {
+                hole_points_list.push(points);
+            }
+        }
+
+        if let Some(outer) = outer_points {
+            let base_idx = (all_positions.len() / 3) as u32;
+            let (positions, indices) = self.triangulate_face(&outer, &hole_points_list);
+            all_positions.extend(positions);
+            for idx in indices {
+                all_indices.push(base_idx + idx);
+            }
+        }
+    }
+}
+
 impl GeometryProcessor for FacetedBrepProcessor {
     fn process(
         &self,
@@ -169,98 +273,11 @@ impl GeometryProcessor for FacetedBrepProcessor {
             .and_then(|v| v.as_list())
             .ok_or_else(|| Error::invalid_attribute(0, "Missing CfsFaces"))?;
 
-        let mut all_positions = Vec::new();
-        let mut all_indices = Vec::new();
-
-        for face_ref in faces {
-            let face_id = match face_ref.as_entity_ref() {
-                Some(id) => id,
-                None => continue,
-            };
-
-            let face_entity = match resolver.get(face_id) {
-                Some(e) => e,
-                None => continue,
-            };
-
-            // IfcFace has Bounds at index 0
-            let bounds = match face_entity.get(0).and_then(|v| v.as_list()) {
-                Some(b) => b,
-                None => continue,
-            };
-
-            let mut outer_points: Option<Vec<Point3<f64>>> = None;
-            let mut hole_points_list: Vec<Vec<Point3<f64>>> = Vec::new();
-
-            for bound_ref in bounds {
-                let bound_id = match bound_ref.as_entity_ref() {
-                    Some(id) => id,
-                    None => continue,
-                };
-
-                let bound_entity = match resolver.get(bound_id) {
-                    Some(e) => e,
-                    None => continue,
-                };
-
-                // Get loop reference (index 0)
-                let loop_id = match bound_entity.get_ref(0) {
-                    Some(id) => id,
-                    None => continue,
-                };
-
-                // Get orientation (index 1)
-                let orientation = bound_entity
-                    .get(1)
-                    .map(|v| match v {
-                        bimifc_model::AttributeValue::Enum(e) => e != "F" && e != ".F.",
-                        bimifc_model::AttributeValue::Bool(b) => *b,
-                        _ => true,
-                    })
-                    .unwrap_or(true);
-
-                let mut points = match self.extract_loop_points(loop_id, resolver) {
-                    Some(p) => p,
-                    None => continue,
-                };
-
-                if !orientation {
-                    points.reverse();
-                }
-
-                let is_outer = bound_entity.ifc_type == IfcType::IfcFaceOuterBound;
-
-                if is_outer || outer_points.is_none() {
-                    if outer_points.is_some() && is_outer {
-                        if let Some(prev_outer) = outer_points.take() {
-                            hole_points_list.push(prev_outer);
-                        }
-                    }
-                    outer_points = Some(points);
-                } else {
-                    hole_points_list.push(points);
-                }
-            }
-
-            if let Some(outer) = outer_points {
-                let base_idx = (all_positions.len() / 3) as u32;
-                let (positions, indices) = self.triangulate_face(&outer, &hole_points_list);
-
-                all_positions.extend(positions);
-                for idx in indices {
-                    all_indices.push(base_idx + idx);
-                }
-            }
-        }
-
-        Ok(Mesh {
-            positions: all_positions,
-            normals: Vec::new(),
-            indices: all_indices,
-        })
+        Ok(self.triangulate_face_list(faces, resolver))
     }
 
     fn supported_types(&self) -> Vec<IfcType> {
         vec![IfcType::IfcFacetedBrep]
     }
 }
+

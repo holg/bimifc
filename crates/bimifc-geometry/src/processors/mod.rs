@@ -10,12 +10,14 @@
 mod extruded_area_solid;
 mod faceted_brep;
 mod revolved_area_solid;
+mod surface_model;
 mod swept_disk_solid;
 mod triangulated_face_set;
 
 pub use extruded_area_solid::ExtrudedAreaSolidProcessor;
 pub use faceted_brep::FacetedBrepProcessor;
 pub use revolved_area_solid::RevolvedAreaSolidProcessor;
+pub use surface_model::FaceBasedSurfaceModelProcessor;
 pub use swept_disk_solid::SweptDiskSolidProcessor;
 pub use triangulated_face_set::TriangulatedFaceSetProcessor;
 
