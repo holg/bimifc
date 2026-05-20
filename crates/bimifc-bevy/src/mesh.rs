@@ -895,10 +895,17 @@ fn update_mesh_federation_visibility_system(
     federation: Res<crate::FederationState>,
     selection: Res<crate::picking::SelectionState>,
     color_mapping: Res<EntityColorMapping>,
+    scene_data: Res<crate::IfcSceneData>,
     mut mesh_assets: ResMut<Assets<Mesh>>,
     batched_meshes: Query<(&Mesh3d, &BatchedMesh)>,
 ) {
     use bimifc_federation::SourceId;
+    // Resilience: never run while the scene is mid-rebuild. spawn_meshes_
+    // system flips `dirty=false` at the end of its pass; until then,
+    // EntityColorMapping and the GPU mesh buffers can be inconsistent.
+    if scene_data.dirty {
+        return;
+    }
     // Only do work when the filter actually changed; otherwise we'd
     // overwrite the same colors every frame.
     if !federation.is_changed() {
