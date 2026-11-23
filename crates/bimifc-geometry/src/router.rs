@@ -82,9 +82,8 @@ impl GeometryRouter {
     /// - `RevolvedAreaSolidProcessor` (IfcRevolvedAreaSolid)
     pub fn with_default_processors() -> Self {
         use crate::processors::{
-            ExtrudedAreaSolidProcessor, FaceBasedSurfaceModelProcessor,
-            FacetedBrepProcessor, RevolvedAreaSolidProcessor, SweptDiskSolidProcessor,
-            TriangulatedFaceSetProcessor,
+            ExtrudedAreaSolidProcessor, FaceBasedSurfaceModelProcessor, FacetedBrepProcessor,
+            RevolvedAreaSolidProcessor, SweptDiskSolidProcessor, TriangulatedFaceSetProcessor,
         };
 
         let mut router = Self::new();
@@ -218,24 +217,48 @@ impl GeometryRouter {
         element: &DecodedEntity,
         resolver: &dyn EntityResolver,
     ) -> Result<Mesh> {
+        let items = self.process_element_items(element, resolver)?;
         let mut combined_mesh = Mesh::new();
+        match items.as_slice() {
+            [] => {}
+            [(_, only)] => combined_mesh = only.clone(),
+            _ => {
+                let meshes: Vec<Mesh> = items.into_iter().map(|(_, m)| m).collect();
+                combined_mesh.merge_all(&meshes);
+            }
+        }
+        Ok(combined_mesh)
+    }
+
+    /// As [`GeometryRouter::process_element`], but keeps every
+    /// representation item's mesh separate: `(item entity id, mesh)`, each
+    /// already in the element's placed coordinates. Lets callers apply
+    /// per-item surface styles (`IfcStyledItem`), e.g. an opaque window
+    /// frame next to a transparent pane in the same body. Items that
+    /// fail to process or produce no geometry are skipped.
+    pub fn process_element_items(
+        &self,
+        element: &DecodedEntity,
+        resolver: &dyn EntityResolver,
+    ) -> Result<Vec<(u32, Mesh)>> {
+        let mut items = Vec::new();
 
         // Get Representation (typically at index 6 for products)
         let rep_id = match element.get_ref(6) {
             Some(id) => id,
-            None => return Ok(combined_mesh), // No representation
+            None => return Ok(items), // No representation
         };
 
         let representation = match resolver.get(rep_id) {
             Some(rep) => rep,
-            None => return Ok(combined_mesh),
+            None => return Ok(items),
         };
 
         // Get Representations list (index 2 in IfcProductDefinitionShape)
         // IfcProductRepresentation: 0=Name, 1=Description, 2=Representations
         let reps = match representation.get(2) {
             Some(bimifc_model::AttributeValue::List(list)) => list,
-            _ => return Ok(combined_mesh),
+            _ => return Ok(items),
         };
 
         // Process each shape representation
@@ -253,10 +276,7 @@ impl GeometryRouter {
                         }
                     }
 
-                    // Process representation items
-                    if let Some(mesh) = self.process_shape_representation(&shape_rep, resolver)? {
-                        combined_mesh.merge(&mesh);
-                    }
+                    self.process_shape_representation_items(&shape_rep, resolver, &mut items);
                 }
             }
         }
@@ -271,42 +291,56 @@ impl GeometryRouter {
                     transform[(1, 3)] *= self.unit_scale;
                     transform[(2, 3)] *= self.unit_scale;
                 }
-                crate::extrusion::apply_transform(&mut combined_mesh, &transform);
+                for (_, mesh) in items.iter_mut() {
+                    crate::extrusion::apply_transform(mesh, &transform);
+                }
             }
         }
 
-        Ok(combined_mesh)
+        Ok(items)
     }
 
-    /// Process a shape representation's items
+    /// Process a shape representation's items into one merged mesh
+    /// (`None` when nothing yields geometry).
     fn process_shape_representation(
         &self,
         shape_rep: &DecodedEntity,
         resolver: &dyn EntityResolver,
     ) -> Result<Option<Mesh>> {
+        let mut items = Vec::new();
+        self.process_shape_representation_items(shape_rep, resolver, &mut items);
+        if items.is_empty() {
+            return Ok(None);
+        }
+        let mut combined = Mesh::new();
+        let meshes: Vec<Mesh> = items.into_iter().map(|(_, m)| m).collect();
+        combined.merge_all(&meshes);
+        Ok(Some(combined))
+    }
+
+    /// Process a shape representation's items, appending one
+    /// `(item id, mesh)` per item that yields geometry.
+    fn process_shape_representation_items(
+        &self,
+        shape_rep: &DecodedEntity,
+        resolver: &dyn EntityResolver,
+        out: &mut Vec<(u32, Mesh)>,
+    ) {
         // Get Items (index 3 in IfcShapeRepresentation)
         let items = match shape_rep.get(3) {
             Some(bimifc_model::AttributeValue::List(list)) => list,
-            _ => return Ok(None),
+            _ => return,
         };
-
-        let mut combined = Mesh::new();
 
         for item_ref in items {
             if let Some(item_id) = item_ref.as_entity_ref() {
                 if let Some(item) = resolver.get(item_id) {
                     match self.process_representation_item(&item, resolver) {
-                        Ok(mesh) => combined.merge(&mesh),
-                        Err(_) => continue, // Skip items that fail to process
+                        Ok(mesh) if !mesh.is_empty() => out.push((item_id.0, mesh)),
+                        _ => continue, // Skip items that fail to process
                     }
                 }
             }
-        }
-
-        if combined.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(combined))
         }
     }
 

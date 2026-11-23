@@ -93,6 +93,11 @@ fn add_element(
         ElementKind::Stair => "IfcStair",
         ElementKind::Railing => "IfcRailing",
         ElementKind::Furniture(_) => "IfcFurnishingElement",
+        ElementKind::SanitaryTerminal(_) => "IfcFlowTerminal",
+        // IFC2x3 has no IfcLightFixture occurrence: a luminaire is an
+        // IfcFlowTerminal typed by IfcLightFixtureType.
+        ElementKind::LightFixture(_) => "IfcFlowTerminal",
+        ElementKind::Proxy(_) => "IfcBuildingElementProxy",
     };
 
     // Draw 2D footprint rectangle
@@ -122,6 +127,10 @@ fn add_element(
             z_offset: z,
             storey: state.current_storey.clone(),
             color: state.current_color,
+            psets: Vec::new(),
+            material: None,
+            identifier: None,
+            mesh: None,
         },
     });
 
@@ -491,6 +500,7 @@ fn ifc_set_project(ctx: &mut ForeignContext, args: &[Expr]) -> Expr {
             storey_name: fields[3].clone(),
             author: fields[4].clone(),
             organization: fields[5].clone(),
+            ..ProjectInfo::default()
         };
     }
     Expr::T

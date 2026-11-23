@@ -50,13 +50,10 @@ impl IfcxModel {
         // Build path<->ID mappings
         let mut path_to_id = FxHashMap::default();
         let mut id_to_path = FxHashMap::default();
-        let mut next_id = 1u32;
-
-        for path in nodes.keys() {
+        for (next_id, path) in (1u32..).zip(nodes.keys()) {
             let id = EntityId(next_id);
             path_to_id.insert(path.clone(), id);
             id_to_path.insert(id, path.clone());
-            next_id += 1;
         }
 
         // Build type index and entities

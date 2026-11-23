@@ -33,17 +33,17 @@ pub(crate) fn expr_to_entity_id(e: &Expr) -> Option<EntityId> {
 pub(crate) fn expr_to_string(e: &Expr) -> Option<String> {
     match e {
         Expr::String(s) => Some(s.clone()),
-        Expr::Symbol(s) => Some(s.clone()),
+        Expr::Symbol(s) => Some(s.to_string()),
         _ => None,
     }
 }
 
 fn entity_ids_to_list(ids: &[EntityId]) -> Expr {
-    Expr::List(ids.iter().map(|id| Expr::Integer(id.0 as i32)).collect())
+    Expr::list(ids.iter().map(|id| Expr::Integer(id.0 as i32)).collect())
 }
 
 fn dotted_pair(key: &str, value: &str) -> Expr {
-    Expr::List(vec![
+    Expr::list(vec![
         Expr::String(key.to_string()),
         Expr::String(value.to_string()),
     ])
@@ -51,11 +51,11 @@ fn dotted_pair(key: &str, value: &str) -> Expr {
 
 fn spatial_node_to_expr(node: &SpatialNode) -> Expr {
     let children: Vec<Expr> = node.children.iter().map(spatial_node_to_expr).collect();
-    Expr::List(vec![
+    Expr::list(vec![
         Expr::Integer(node.id.0 as i32),
         Expr::String(node.entity_type.clone()),
         Expr::String(node.name.clone()),
-        Expr::List(children),
+        Expr::list(children),
     ])
 }
 
@@ -202,10 +202,10 @@ fn ifc_property_sets(ctx: &mut ForeignContext, args: &[Expr]) -> Expr {
             for prop in &pset.properties {
                 items.push(dotted_pair(&prop.name, &prop.value));
             }
-            Expr::List(items)
+            Expr::list(items)
         })
         .collect();
-    Expr::List(result)
+    Expr::list(result)
 }
 
 /// (ifc-get-property id "PropertyName") → string or Nil
@@ -242,14 +242,14 @@ fn ifc_quantities(ctx: &mut ForeignContext, args: &[Expr]) -> Expr {
     let result: Vec<Expr> = quantities
         .iter()
         .map(|q| {
-            Expr::List(vec![
+            Expr::list(vec![
                 Expr::String(q.name.clone()),
                 Expr::Real(q.value),
                 Expr::String(q.unit.clone()),
             ])
         })
         .collect();
-    Expr::List(result)
+    Expr::list(result)
 }
 
 /// (ifc-storeys) → ((id "name" elevation) ...)
@@ -263,14 +263,14 @@ fn ifc_storeys(ctx: &mut ForeignContext, _args: &[Expr]) -> Expr {
     let result: Vec<Expr> = storeys
         .iter()
         .map(|s| {
-            Expr::List(vec![
+            Expr::list(vec![
                 Expr::Integer(s.id.0 as i32),
                 Expr::String(s.name.clone()),
                 Expr::Real(s.elevation as f64),
             ])
         })
         .collect();
-    Expr::List(result)
+    Expr::list(result)
 }
 
 /// (ifc-elements-in-storey storey-id) → list of IDs
@@ -332,5 +332,5 @@ fn ifc_metadata(ctx: &mut ForeignContext, _args: &[Expr]) -> Expr {
     if let Some(ref org) = meta.organization {
         pairs.push(dotted_pair("organization", org));
     }
-    Expr::List(pairs)
+    Expr::list(pairs)
 }

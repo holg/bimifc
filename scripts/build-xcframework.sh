@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
-# Build bimifc-ffi as an XCFramework for iOS integration.
-# Targets: aarch64-apple-ios (device), aarch64-apple-ios-sim (simulator on Apple Silicon)
+# Build bimifc-ffi as an XCFramework for iOS + macOS integration.
+# Targets: aarch64-apple-ios (device), aarch64-apple-ios-sim (simulator),
+#          aarch64/x86_64-apple-darwin (macOS universal, lipo'd)
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
@@ -17,8 +18,8 @@ for tool in cargo xcodebuild rustup; do
   fi
 done
 
-echo "==> Ensuring iOS targets are installed..."
-rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+echo "==> Ensuring Apple targets are installed..."
+rustup target add aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin x86_64-apple-darwin
 
 # ── Build host target (needed for uniffi-bindgen) ───────────────────
 echo "==> Building host target (debug) for uniffi-bindgen..."
@@ -30,6 +31,22 @@ cargo build --release -p bimifc-ffi --target aarch64-apple-ios
 
 echo "==> Building aarch64-apple-ios-sim (simulator, release)..."
 cargo build --release -p bimifc-ffi --target aarch64-apple-ios-sim
+
+# macOS carries the embedded Bevy viewer (feature `viewer`), so the Mac
+# app renders with the real bimifc viewer instead of a second SceneKit
+# scene. iOS stays without it: the viewer roughly triples the slice and
+# the phone has no 3D editing UI. Set VIEWER=0 to build macOS without it.
+MACOS_FEATURES=()
+if [[ "${VIEWER:-1}" != "0" ]]; then
+  MACOS_FEATURES=(--features viewer)
+  echo "==> macOS slices include the embedded Bevy viewer"
+fi
+
+echo "==> Building aarch64-apple-darwin (macOS, release)..."
+cargo build --release -p bimifc-ffi --target aarch64-apple-darwin "${MACOS_FEATURES[@]}"
+
+echo "==> Building x86_64-apple-darwin (macOS, release)..."
+cargo build --release -p bimifc-ffi --target x86_64-apple-darwin "${MACOS_FEATURES[@]}"
 
 # ── Generate Swift bindings via uniffi-bindgen ──────────────────────
 echo "==> Generating Swift bindings..."
@@ -54,17 +71,44 @@ done
 echo "==> Preparing XCFramework staging directories..."
 
 # Clean previous artifacts
-rm -rf target/xcf-ios target/xcf-sim target/BimIfcFFI.xcframework
+rm -rf target/xcf-ios target/xcf-sim target/xcf-macos target/BimIfcFFI.xcframework
 
 # --- iOS device ---
-mkdir -p target/xcf-ios/Headers target/xcf-ios/Modules
+mkdir -p target/xcf-ios/Headers
 cp target/swift-bindings/bimifc_ffiFFI.h        target/xcf-ios/Headers/
-cp target/swift-bindings/bimifc_ffiFFI.modulemap target/xcf-ios/Modules/module.modulemap
+# module.modulemap must live inside Headers/ — xcodebuild -create-xcframework
+# only copies the -headers directory, and Clang finds the module there.
+cp target/swift-bindings/bimifc_ffiFFI.modulemap target/xcf-ios/Headers/module.modulemap
 
 # --- iOS simulator ---
-mkdir -p target/xcf-sim/Headers target/xcf-sim/Modules
+mkdir -p target/xcf-sim/Headers
 cp target/swift-bindings/bimifc_ffiFFI.h        target/xcf-sim/Headers/
-cp target/swift-bindings/bimifc_ffiFFI.modulemap target/xcf-sim/Modules/module.modulemap
+cp target/swift-bindings/bimifc_ffiFFI.modulemap target/xcf-sim/Headers/module.modulemap
+
+# --- macOS (universal) ---
+mkdir -p target/xcf-macos/Headers
+cp target/swift-bindings/bimifc_ffiFFI.h        target/xcf-macos/Headers/
+cp target/swift-bindings/bimifc_ffiFFI.modulemap target/xcf-macos/Headers/module.modulemap
+# The embedded viewer's C API is hand-written (not UniFFI), so ship its
+# header and name it in the modulemap or Swift cannot see the symbols.
+if [[ "${VIEWER:-1}" != "0" ]]; then
+  cp crates/bimifc-bevy/include/bimifc_viewer.h target/xcf-macos/Headers/
+  python3 - "target/xcf-macos/Headers/module.modulemap" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+if "bimifc_viewer.h" not in s:
+    s = s.replace('header "bimifc_ffiFFI.h"',
+                  'header "bimifc_ffiFFI.h"\n    header "bimifc_viewer.h"', 1)
+    open(p, "w").write(s)
+PY
+fi
+
+echo "==> Creating universal macOS library (lipo)..."
+lipo -create \
+  target/aarch64-apple-darwin/release/libbimifc_ffi.a \
+  target/x86_64-apple-darwin/release/libbimifc_ffi.a \
+  -output target/xcf-macos/libbimifc_ffi.a
 
 # ── Create XCFramework ──────────────────────────────────────────────
 echo "==> Creating XCFramework..."
@@ -74,6 +118,8 @@ xcodebuild -create-xcframework \
   -headers target/xcf-ios/Headers \
   -library target/aarch64-apple-ios-sim/release/libbimifc_ffi.a \
   -headers target/xcf-sim/Headers \
+  -library target/xcf-macos/libbimifc_ffi.a \
+  -headers target/xcf-macos/Headers \
   -output target/BimIfcFFI.xcframework
 
 # ── Done ────────────────────────────────────────────────────────────

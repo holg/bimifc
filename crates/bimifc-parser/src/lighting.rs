@@ -209,6 +209,54 @@ pub fn extract_lighting_data(resolver: &dyn EntityResolver) -> LightingExport {
         export.light_fixtures.push(fixture_data);
     }
 
+    // IFC2X3 pattern: fixtures are IFCFLOWTERMINAL occurrences typed as
+    // IFCLIGHTFIXTURETYPE via IFCRELDEFINESBYTYPE (IfcLightFixture is IFC4+).
+    let rel_defines = resolver.entities_by_type(&IfcType::IfcRelDefinesByType);
+    // A fixture can be named by more than one IfcRelDefinesByType (GLDF
+    // exports do this for multi-emitter products); count each once.
+    let mut seen_fixtures: std::collections::HashSet<u64> = std::collections::HashSet::new();
+    for rel in &rel_defines {
+        let Some(type_ref) = rel.get_ref(5) else {
+            continue;
+        };
+        let Some(type_entity) = resolver.get(type_ref) else {
+            continue;
+        };
+        if type_entity.ifc_type != IfcType::IfcLightFixtureType {
+            continue;
+        }
+        let Some(related) = rel.get_list(4) else {
+            continue;
+        };
+        for item in related {
+            let AttributeValue::EntityRef(obj_id) = item else {
+                continue;
+            };
+            let Some(obj) = resolver.get(*obj_id) else {
+                continue;
+            };
+            // Only the 2x3 shape here: IFC4's IfcLightFixture occurrences
+            // were already collected in the pass above, and accepting
+            // them again would count every IFC4 fixture twice.
+            if obj.ifc_type != IfcType::IfcFlowTerminal {
+                continue;
+            }
+            if !seen_fixtures.insert(obj_id.0 as u64) {
+                continue;
+            }
+            let mut fixture_data = extract_fixture(&obj, resolver);
+            fixture_data.fixture_type = Some(extract_fixture_type(&type_entity));
+            for source in &fixture_data.light_sources {
+                if let Some(flux) = source.luminous_flux {
+                    total_flux += flux;
+                    has_flux = true;
+                }
+            }
+            export.summary.total_light_sources += fixture_data.light_sources.len();
+            export.light_fixtures.push(fixture_data);
+        }
+    }
+
     export.summary.total_fixtures = export.light_fixtures.len();
     if has_flux {
         export.summary.total_luminous_flux = Some(total_flux);
@@ -248,12 +296,25 @@ fn extract_fixture(entity: &DecodedEntity, resolver: &dyn EntityResolver) -> Lig
     // Get position from placement
     let position = extract_position(entity, resolver);
 
-    // Get fixture type
-    let fixture_type = entity.get_ref(5).and_then(|type_ref| {
-        resolver
-            .get(type_ref)
-            .map(|type_entity| extract_fixture_type(&type_entity))
-    });
+    // Get fixture type. Attribute 5 is ObjectPlacement, not a type
+    // reference — an occurrence is linked to its type only through
+    // IfcRelDefinesByType, so resolve it that way. (The IFC2x3 pass
+    // below already has the relation in hand and fills this in; IFC4
+    // fixtures reach here without one.)
+    let fixture_type = resolver
+        .entities_by_type(&IfcType::IfcRelDefinesByType)
+        .into_iter()
+        .find(|rel| {
+            rel.get_list(4).is_some_and(|related| {
+                related
+                    .iter()
+                    .any(|item| matches!(item, AttributeValue::EntityRef(id) if *id == entity.id))
+            })
+        })
+        .and_then(|rel| rel.get_ref(5))
+        .and_then(|type_ref| resolver.get(type_ref))
+        .filter(|type_entity| type_entity.ifc_type == IfcType::IfcLightFixtureType)
+        .map(|type_entity| extract_fixture_type(&type_entity));
 
     // Extract light sources associated with this fixture
     // In IFC, light sources are typically referenced through the representation

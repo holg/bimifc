@@ -55,9 +55,7 @@ impl ViewFilter {
         match self {
             ViewFilter::All => true,
             ViewFilter::Architecture => tri_discipline == Discipline::Other,
-            ViewFilter::Discipline(d) => {
-                tri_discipline == d || tri_discipline == Discipline::Other
-            }
+            ViewFilter::Discipline(d) => tri_discipline == d || tri_discipline == Discipline::Other,
         }
     }
 
@@ -86,11 +84,19 @@ pub fn classify_discipline_name(type_name: &str) -> Discipline {
     let upper = type_name.to_ascii_uppercase();
     match upper.as_str() {
         // Concrete electrical
-        "IFCCABLESEGMENT" | "IFCCABLECARRIERSEGMENT" | "IFCCABLECARRIERFITTING"
-        | "IFCELECTRICAPPLIANCE" | "IFCELECTRICDISTRIBUTIONBOARD" | "IFCJUNCTIONBOX"
-        | "IFCOUTLET" | "IFCSWITCHINGDEVICE" => Discipline::Electrical,
+        "IFCCABLESEGMENT"
+        | "IFCCABLECARRIERSEGMENT"
+        | "IFCCABLECARRIERFITTING"
+        | "IFCELECTRICAPPLIANCE"
+        | "IFCELECTRICDISTRIBUTIONBOARD"
+        | "IFCJUNCTIONBOX"
+        | "IFCOUTLET"
+        | "IFCSWITCHINGDEVICE" => Discipline::Electrical,
         // Concrete plumbing
-        "IFCPIPESEGMENT" | "IFCPIPEFITTING" | "IFCSANITARYTERMINAL" | "IFCVALVE"
+        "IFCPIPESEGMENT"
+        | "IFCPIPEFITTING"
+        | "IFCSANITARYTERMINAL"
+        | "IFCVALVE"
         | "IFCWASTETERMINAL" => Discipline::Plumbing,
         // Concrete HVAC
         "IFCAIRTERMINAL" | "IFCAIRTERMINALBOX" | "IFCSPACEHEATER" | "IFCDUCTSEGMENT"
@@ -107,14 +113,16 @@ pub fn classify_discipline_name(type_name: &str) -> Discipline {
 /// `IfcRelDefinesByType` shape: `(GlobalId, OwnerHistory, Name, Desc,
 /// RelatedObjects[], RelatingType)`. We fan-out the RelatedObjects so
 /// each instance gets its own entry. O(rels) with a small constant.
-fn build_type_definition_index(
-    resolver: &dyn bimifc_model::EntityResolver,
-) -> HashMap<u32, u32> {
+fn build_type_definition_index(resolver: &dyn bimifc_model::EntityResolver) -> HashMap<u32, u32> {
     let mut index = HashMap::new();
     let rels = resolver.entities_by_type(&bimifc_model::IfcType::IfcRelDefinesByType);
     for rel in rels {
-        let Some(type_ref) = rel.get_ref(5) else { continue };
-        let Some(related) = rel.get_refs(4) else { continue };
+        let Some(type_ref) = rel.get_ref(5) else {
+            continue;
+        };
+        let Some(related) = rel.get_refs(4) else {
+            continue;
+        };
         for r in related {
             index.insert(r.0, type_ref.0);
         }
@@ -134,16 +142,30 @@ fn build_type_definition_index(
 pub fn classify_by_type_name(type_class_upper: &str, type_name: Option<&str>) -> Discipline {
     // Concrete IFC4-style type-object classes carry the discipline directly.
     match type_class_upper {
-        "IFCDUCTSEGMENTTYPE" | "IFCDUCTFITTINGTYPE" | "IFCAIRTERMINALTYPE"
-        | "IFCAIRTERMINALBOXTYPE" | "IFCFANTYPE" | "IFCHEATEXCHANGERTYPE"
-        | "IFCCOILTYPE" | "IFCBOILERTYPE" | "IFCCHILLERTYPE"
-        | "IFCDAMPERTYPE" | "IFCSPACEHEATERTYPE" => return Discipline::Hvac,
-        "IFCPIPESEGMENTTYPE" | "IFCPIPEFITTINGTYPE" | "IFCSANITARYTERMINALTYPE"
-        | "IFCVALVETYPE" | "IFCWASTETERMINALTYPE" | "IFCPUMPTYPE"
+        "IFCDUCTSEGMENTTYPE"
+        | "IFCDUCTFITTINGTYPE"
+        | "IFCAIRTERMINALTYPE"
+        | "IFCAIRTERMINALBOXTYPE"
+        | "IFCFANTYPE"
+        | "IFCHEATEXCHANGERTYPE"
+        | "IFCCOILTYPE"
+        | "IFCBOILERTYPE"
+        | "IFCCHILLERTYPE"
+        | "IFCDAMPERTYPE"
+        | "IFCSPACEHEATERTYPE" => return Discipline::Hvac,
+        "IFCPIPESEGMENTTYPE"
+        | "IFCPIPEFITTINGTYPE"
+        | "IFCSANITARYTERMINALTYPE"
+        | "IFCVALVETYPE"
+        | "IFCWASTETERMINALTYPE"
+        | "IFCPUMPTYPE"
         | "IFCTANKTYPE" => return Discipline::Plumbing,
-        "IFCCABLESEGMENTTYPE" | "IFCCABLECARRIERSEGMENTTYPE"
-        | "IFCCABLECARRIERFITTINGTYPE" | "IFCJUNCTIONBOXTYPE"
-        | "IFCSWITCHINGDEVICETYPE" | "IFCOUTLETTYPE" => return Discipline::Electrical,
+        "IFCCABLESEGMENTTYPE"
+        | "IFCCABLECARRIERSEGMENTTYPE"
+        | "IFCCABLECARRIERFITTINGTYPE"
+        | "IFCJUNCTIONBOXTYPE"
+        | "IFCSWITCHINGDEVICETYPE"
+        | "IFCOUTLETTYPE" => return Discipline::Electrical,
         "IFCLIGHTFIXTURETYPE" | "IFCLAMPTYPE" => return Discipline::Lighting,
         _ => {}
     }
@@ -169,22 +191,35 @@ pub fn classify_by_name(name: &str) -> Discipline {
     if lower.contains("troffer") || lower.contains("fixture") || lower.contains(" lamp") {
         return Discipline::Lighting;
     }
-    if lower.contains("diffuser") || lower.contains("duct") || lower.contains("hvac")
-        || lower.contains("supply air") || lower.contains("return air")
-        || lower.contains("vav") || lower.contains("fan ") || lower.contains("coil")
+    if lower.contains("diffuser")
+        || lower.contains("duct")
+        || lower.contains("hvac")
+        || lower.contains("supply air")
+        || lower.contains("return air")
+        || lower.contains("vav")
+        || lower.contains("fan ")
+        || lower.contains("coil")
         || lower.contains("damper")
     {
         return Discipline::Hvac;
     }
-    if lower.contains("pipe") || lower.contains("plumb") || lower.contains("sanitary")
-        || lower.contains("waste") || lower.contains("water")
-        || lower.contains("hydronic") || lower.contains("sprinkler")
+    if lower.contains("pipe")
+        || lower.contains("plumb")
+        || lower.contains("sanitary")
+        || lower.contains("waste")
+        || lower.contains("water")
+        || lower.contains("hydronic")
+        || lower.contains("sprinkler")
     {
         return Discipline::Plumbing;
     }
-    if lower.contains("cable") || lower.contains("conduit") || lower.contains("electric")
-        || lower.contains("circuit") || lower.contains("panel")
-        || lower.contains("junction") || lower.contains("outlet")
+    if lower.contains("cable")
+        || lower.contains("conduit")
+        || lower.contains("electric")
+        || lower.contains("circuit")
+        || lower.contains("panel")
+        || lower.contains("junction")
+        || lower.contains("outlet")
     {
         return Discipline::Electrical;
     }
@@ -395,7 +430,7 @@ impl Scene {
             //   3. The instance Name attribute (Revit-style exports)
             let mut discipline = classify_discipline_name(type_name);
             if discipline == Discipline::Other {
-                if let Some(type_id) = type_index.get(&(*id)) {
+                if let Some(type_id) = type_index.get(id) {
                     if let Some(type_entity) = resolver.get(EntityId(*type_id)) {
                         // `IfcType::name()` returns the wire-format upper-case
                         // name and handles Unknown(_) correctly (returns the
@@ -463,7 +498,7 @@ impl Scene {
         };
 
         // Create triangles
-        for tri in mesh.indices.chunks_exact(3) {
+        for tri in mesh.indices.as_chunks::<3>().0 {
             let i0 = tri[0] as usize;
             let i1 = tri[1] as usize;
             let i2 = tri[2] as usize;

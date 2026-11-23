@@ -8,7 +8,6 @@
 
 use bevy::prelude::*;
 use eulumdat::Eulumdat;
-use eulumdat_bevy::photometric::PhotometricData;
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Mutex;
@@ -153,6 +152,43 @@ impl Plugin for PhotometricLightingPlugin {
     }
 }
 
+/// Colour temperature (K) of the first lamp set, from its colour appearance
+/// ("3000K", "LED 4000 K CRI90"): the first number of 4–5 digits between
+/// 1000 and 20000.
+fn lamp_cct(ldt: &Eulumdat) -> Option<f32> {
+    ldt.lamp_sets
+        .first()?
+        .color_appearance
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|t| (4..=5).contains(&t.len()))
+        .filter_map(|t| t.parse::<f32>().ok())
+        .find(|k| (1000.0..=20000.0).contains(k))
+}
+
+/// Light colour of a black body at `kelvin` (Tanner Helland's fit, sRGB).
+fn kelvin_to_color(kelvin: f32) -> Color {
+    let t = kelvin.clamp(1000.0, 40000.0) / 100.0;
+    let r = if t <= 66.0 {
+        255.0
+    } else {
+        329.698_73 * (t - 60.0).powf(-0.133_204_76)
+    };
+    let g = if t <= 66.0 {
+        99.470_8 * t.ln() - 161.119_57
+    } else {
+        288.122_16 * (t - 60.0).powf(-0.075_514_846)
+    };
+    let b = if t >= 66.0 {
+        255.0
+    } else if t <= 19.0 {
+        0.0
+    } else {
+        138.517_73 * (t - 10.0).ln() - 305.044_8
+    };
+    let c = |v: f32| v.clamp(0.0, 255.0) / 255.0;
+    Color::srgb(c(r), c(g), c(b))
+}
+
 /// Poll for pending lights — parse LDT but don't spawn yet (wait for mode switch).
 fn poll_pending_lights(mut cache: ResMut<LdtCache>, mut state: ResMut<PhotometricState>) {
     let Some(pending) = take_pending_lights() else {
@@ -167,10 +203,10 @@ fn poll_pending_lights(mut cache: ResMut<LdtCache>, mut state: ResMut<Photometri
             continue;
         };
 
-        let total_flux = ldt.total_flux() as f32;
-        let lor = ldt.light_output_ratio() as f32;
-        let color_temp = ldt.color_temperature().unwrap_or(4000.0);
-        let color = eulumdat_bevy::photometric::kelvin_to_color(color_temp);
+        let total_flux = ldt.luminous_flux() as f32;
+        let lor = (ldt.light_output_ratio / 100.0) as f32;
+        let color_temp = lamp_cct(&ldt).unwrap_or(4000.0);
+        let color = kelvin_to_color(color_temp);
         let n = light.fixture_count.max(1) as f32;
 
         // Combined sector lumens (e.g. 36 × 6500 lm × 0.78 LOR ≈ 182,520 lm per sector)

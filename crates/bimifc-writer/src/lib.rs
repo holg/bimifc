@@ -19,6 +19,10 @@
 //!             z_offset: 0.0,
 //!             storey: String::new(),
 //!             color: None,
+//!             psets: Vec::new(),
+//!             material: None,
+//!             identifier: None,
+//!             mesh: None,
 //!         },
 //!     ],
 //!     Rect { x: 0.0, y: 0.0, width: 5.0, height: 4.0 },
@@ -26,13 +30,20 @@
 //! );
 //!
 //! let ifc_content = write_ifc(&room);
-//! assert!(ifc_content.contains("IFCWALLSTANDARDCASE"));
+//! // IFC4 by default: IfcWallStandardCase is deprecated there.
+//! assert!(ifc_content.contains("FILE_SCHEMA(('IFC4'))"));
+//! assert!(ifc_content.contains("IFCWALL('"));
 //! ```
 
 mod guid;
 mod model;
+mod pset;
 mod step;
 mod writer;
 
 pub use model::*;
+pub use pset::{write_element_quantities, write_property_set, IfcProperty, IfcQuantity, IfcValue};
+// `ElementPset` is defined in `model` and re-exported via `model::*`;
+// `IfcProperty`/`IfcValue` come from `pset`.
+pub use step::{IdAlloc, StepBuilder};
 pub use writer::write_ifc;

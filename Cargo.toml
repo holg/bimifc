@@ -34,3 +34,12 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
+# Local development against the sibling checkouts (eulumdat-rs, gldf-rs,
+# l3d-rs beside bimifc): every crate in the graph uses these instead of the
+# crates.io versions. Keep this section LAST: CI deletes everything from
+# here on ("Remove patch section" in .github/workflows/ci.yml) and builds
+# against crates.io.
+[patch.crates-io]
+eulumdat = { path = "../eulumdat-rs/crates/eulumdat" }
+gldf-rs = { path = "../gldf-rs/crates/gldf-rs-lib" }
+l3d_rs = { path = "../l3d-rs/crates/l3d_rs" }

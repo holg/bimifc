@@ -221,3 +221,62 @@ pub async fn fetch_ifc_file(url: &str) -> Result<String, String> {
         .as_string()
         .ok_or_else(|| "Response is not a string".to_string())
 }
+
+/// Fetch a URL as bytes (IFC texture images next to the IFC file).
+pub async fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_futures::JsFuture;
+
+    let window = web_sys::window().ok_or("No window object")?;
+    let resp_value = JsFuture::from(window.fetch_with_str(url))
+        .await
+        .map_err(|e| format!("Fetch failed: {:?}", e))?;
+    let resp: web_sys::Response = resp_value
+        .dyn_into()
+        .map_err(|_| "Response is not a Response object")?;
+    if !resp.ok() {
+        return Err(format!(
+            "HTTP error: {} {}",
+            resp.status(),
+            resp.status_text()
+        ));
+    }
+    let buf = JsFuture::from(
+        resp.array_buffer()
+            .map_err(|e| format!("No body: {:?}", e))?,
+    )
+    .await
+    .map_err(|e| format!("Body failed: {:?}", e))?;
+    Ok(js_sys::Uint8Array::new(&buf).to_vec())
+}
+
+thread_local! {
+    /// URL of the IFC file being loaded (from `?file=`): texture images are
+    /// resolved relative to it. `None` for files opened from disk.
+    static IFC_BASE_URL: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Remember (or forget) where the current IFC file came from.
+pub fn set_ifc_base_url(url: Option<String>) {
+    IFC_BASE_URL.with(|u| *u.borrow_mut() = url);
+}
+
+/// Resolve a texture reference (e.g. `vischering/atlas_0.jpg`) against the
+/// current IFC file's URL. Absolute URLs pass through; `None` without a base.
+pub fn resolve_ifc_relative(reference: &str) -> Option<String> {
+    if reference.starts_with("http://")
+        || reference.starts_with("https://")
+        || reference.starts_with('/')
+    {
+        return Some(reference.to_string());
+    }
+    IFC_BASE_URL.with(|u| {
+        u.borrow().as_ref().map(|base| {
+            let dir = match base.rfind('/') {
+                Some(i) => &base[..=i],
+                None => "",
+            };
+            format!("{}{}", dir, reference)
+        })
+    })
+}

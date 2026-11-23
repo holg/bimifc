@@ -152,9 +152,10 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+				};
 			};
 			buildConfigurationList = E9E5F45B64893BB844294301 /* Build configuration list for PBXProject "BimIFC" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -164,6 +165,7 @@
 			mainGroup = AD875350F4081E933FDFCAEF;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
+			productRefGroup = B262D4058ABE54D651DB5299 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (

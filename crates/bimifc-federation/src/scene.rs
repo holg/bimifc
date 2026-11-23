@@ -28,7 +28,9 @@ use crate::source::{Discipline, SourceInfo, ViewFilter};
 /// Opaque stable identifier for a loaded file. The first file gets
 /// id `0`, the next `1`, etc. The renderer copies this onto each
 /// mesh it spawns from that file.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize, Deserialize,
+)]
 pub struct SourceId(pub u32);
 
 /// Registry of loaded IFC files + the current viewport filter.
@@ -78,7 +80,10 @@ impl FederatedScene {
         // remain valid (renderers' mesh tags stay correct). Caller
         // should also tell the renderer to drop the meshes for this
         // source — see the renderer-side counterpart.
-        Some(std::mem::replace(&mut self.sources[idx], SourceInfo::new("(removed)")))
+        Some(std::mem::replace(
+            &mut self.sources[idx],
+            SourceInfo::new("(removed)"),
+        ))
     }
 
     pub fn clear(&mut self) {
@@ -171,7 +176,8 @@ mod tests {
 
         scene.filter = ViewFilter::Discipline(Discipline::Hvac);
         assert!(scene.visible(federated, Discipline::Hvac));
-        assert!(scene.visible(federated, Discipline::Other)); // arch context
+        // Discipline filters isolate — arch shell is hidden.
+        assert!(!scene.visible(federated, Discipline::Other));
         assert!(!scene.visible(federated, Discipline::Plumbing));
     }
 

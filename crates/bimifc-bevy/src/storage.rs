@@ -239,11 +239,7 @@ fn deserialize_geometry_binary(data: &[u8]) -> Option<Vec<crate::IfcMesh>> {
 
         meshes.push(crate::IfcMesh {
             entity_id,
-            geometry: Arc::new(MeshGeometry {
-                positions,
-                normals,
-                indices,
-            }),
+            geometry: Arc::new(MeshGeometry::new(positions, normals, indices)),
             color,
             transform,
             entity_type,

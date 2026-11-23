@@ -7,11 +7,18 @@ pub struct IdAlloc {
     next: u32,
 }
 
+impl Default for IdAlloc {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IdAlloc {
     pub fn new() -> Self {
         Self { next: 1 }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> u32 {
         let id = self.next;
         self.next += 1;
@@ -22,6 +29,12 @@ impl IdAlloc {
 /// Accumulates STEP DATA section lines.
 pub struct StepBuilder {
     lines: Vec<String>,
+}
+
+impl Default for StepBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl StepBuilder {

@@ -17,7 +17,7 @@ path = "src/main.rs"
 
 [dependencies]
 acadlisp = { version = "0.2.0", path = "../../../acadlisp" }
-bimifc-geometry = { version = "0.3.0", path = "../bimifc-geometry" }
-bimifc-model = { version = "0.3.0", path = "../bimifc-model" }
-bimifc-parser = { version = "0.3.0", path = "../bimifc-parser" }
-bimifc-writer = { version = "0.2.0", path = "../bimifc-writer" }
+bimifc-geometry = { version = "0.3.1", path = "../bimifc-geometry" }
+bimifc-model = { version = "0.3.1", path = "../bimifc-model" }
+bimifc-parser = { version = "0.3.1", path = "../bimifc-parser" }
+bimifc-writer = { version = "0.3.0", path = "../bimifc-writer" }

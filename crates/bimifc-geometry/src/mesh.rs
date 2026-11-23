@@ -131,7 +131,7 @@ impl Mesh {
         let mut max = Point3::new(f32::MIN, f32::MIN, f32::MIN);
 
         // Use chunks for better cache locality
-        self.positions.chunks_exact(3).for_each(|chunk| {
+        self.positions.as_chunks::<3>().0.iter().for_each(|chunk| {
             let (x, y, z) = (chunk[0], chunk[1], chunk[2]);
             min.x = min.x.min(x);
             min.y = min.y.min(y);

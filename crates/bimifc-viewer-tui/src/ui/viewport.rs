@@ -158,9 +158,14 @@ impl<'a> Viewport<'a> {
 impl Widget for Viewport<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         match self.view_mode {
-            ViewMode::Iso3D => {
-                render_iso3d(self.scene, self.orbit, self.focused, self.discipline, area, buf)
-            }
+            ViewMode::Iso3D => render_iso3d(
+                self.scene,
+                self.orbit,
+                self.focused,
+                self.discipline,
+                area,
+                buf,
+            ),
             ViewMode::FloorPlan => {
                 render_floorplan_braille(
                     self.scene,

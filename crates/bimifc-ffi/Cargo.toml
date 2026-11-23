@@ -1,6 +1,6 @@
 [package]
 name = "bimifc-ffi"
-version = "0.2.0"
+version = "0.3.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -15,11 +15,26 @@ crate-type = ["staticlib", "cdylib"]
 name = "uniffi-bindgen"
 path = "uniffi-bindgen.rs"
 
+[features]
+default = []
+# Embed the Bevy IFC viewer (its `create_bevy_app` C API) in the same
+# static library the Swift apps already link, so a host NSView/UIView can
+# render with the real viewer instead of a second, hand-maintained
+# SceneKit scene. Apple targets only.
+viewer = ["dep:bimifc-bevy"]
+
 [dependencies]
-bimifc-geometry = { version = "0.3.0", path = "../bimifc-geometry" }
-bimifc-model = { version = "0.3.0", path = "../bimifc-model" }
-bimifc-parser = { version = "0.3.0", path = "../bimifc-parser" }
-bimifc-writer = { version = "0.2.0", path = "../bimifc-writer" }
+bimifc-bevy = { version = "0.3.0", path = "../bimifc-bevy", default-features = false, features = ["native-view", "color-palette"], optional = true }
+bimifc-geometry = { version = "0.3.1", path = "../bimifc-geometry" }
+bimifc-model = { version = "0.3.1", path = "../bimifc-model" }
+bimifc-parser = { version = "0.3.1", path = "../bimifc-parser" }
+bimifc-writer = { version = "0.3.0", path = "../bimifc-writer" }
+# GLDF container parsing + L3D meshing, and LDT/IES photometry + radiosity
+# engine. Local builds take the sibling checkouts (`[patch.crates-io]` in
+# the workspace Cargo.toml).
+gldf-rs = { version = "0.5", default-features = false, features = ["l3d", "eulumdat"] }
+eulumdat = "0.8"
+base64 = "0.22"
 thiserror = "2"
 uniffi = { version = "0.29", features = ["cli"] }
 

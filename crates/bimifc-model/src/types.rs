@@ -349,6 +349,11 @@ pub enum IfcType {
     // ========================================================================
     IfcLightFixture,
     IfcLightFixtureType,
+    /// IFC4 occurrence for a sanitary fixture (basin, WC, …). In IFC2x3
+    /// the same thing is an `IfcFlowTerminal` typed by
+    /// `IfcSanitaryTerminalType`, which is why both are needed.
+    IfcSanitaryTerminal,
+    IfcSanitaryTerminalType,
     IfcLightSource,
     IfcLightSourceAmbient,
     IfcLightSourceDirectional,
@@ -669,6 +674,8 @@ impl IfcType {
             // Lighting
             "IFCLIGHTFIXTURE" => IfcType::IfcLightFixture,
             "IFCLIGHTFIXTURETYPE" => IfcType::IfcLightFixtureType,
+            "IFCSANITARYTERMINAL" => IfcType::IfcSanitaryTerminal,
+            "IFCSANITARYTERMINALTYPE" => IfcType::IfcSanitaryTerminalType,
             "IFCLIGHTSOURCE" => IfcType::IfcLightSource,
             "IFCLIGHTSOURCEAMBIENT" => IfcType::IfcLightSourceAmbient,
             "IFCLIGHTSOURCEDIRECTIONAL" => IfcType::IfcLightSourceDirectional,
@@ -794,6 +801,8 @@ impl IfcType {
                     IfcType::IfcAirTerminal => "IFCAIRTERMINAL",
                     IfcType::IfcDistributionElement => "IFCDISTRIBUTIONELEMENT",
                     IfcType::IfcOpeningElement => "IFCOPENINGELEMENT",
+                    IfcType::IfcSanitaryTerminal => "IFCSANITARYTERMINAL",
+                    IfcType::IfcSanitaryTerminalType => "IFCSANITARYTERMINALTYPE",
                     IfcType::IfcLightFixture => "IFCLIGHTFIXTURE",
                     IfcType::IfcLightFixtureType => "IFCLIGHTFIXTURETYPE",
                     IfcType::IfcLightSourceGoniometric => "IFCLIGHTSOURCEGONIOMETRIC",
@@ -982,7 +991,6 @@ fn is_non_geometric_spatial(t: &IfcType) -> bool {
 }
 
 impl IfcType {
-
     /// Check if this type is a spatial structure element
     pub fn is_spatial(&self) -> bool {
         matches!(

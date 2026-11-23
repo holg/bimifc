@@ -20,10 +20,10 @@ use std::path::Path;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum Discipline {
-    /// Architectural / structural / generic — shown under every
-    /// filter except [`ViewFilter::Discipline`] for a *non*-Other
-    /// discipline (where it still shows as context — see
-    /// [`ViewFilter::shows`]).
+    /// Architectural / structural / generic — shown under
+    /// [`ViewFilter::All`] and [`ViewFilter::Architecture`], hidden
+    /// under any [`ViewFilter::Discipline`] (which isolates that
+    /// discipline alone — see [`ViewFilter::shows`]).
     #[default]
     Other = 0,
     Electrical = 1,
@@ -59,10 +59,9 @@ impl Discipline {
 /// triangle (or per mesh, per source — whatever granularity the
 /// renderer keeps) to decide visibility.
 ///
-/// Architectural + per-discipline variants intentionally keep the
-/// per-entity `Discipline::Other` triangles visible too, so the user
-/// retains spatial orientation when filtering down to (say) just the
-/// HVAC layer.
+/// Each filter isolates exactly one slice of the federation: the
+/// building shell, or one MEP discipline. Use [`ViewFilter::All`] to
+/// see them all overlaid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum ViewFilter {
     /// Show every triangle. The default architectural+MEP combined view.
@@ -71,8 +70,8 @@ pub enum ViewFilter {
     /// Hide all MEP — only the building shell remains. Inverse of the
     /// other discipline filters.
     Architecture,
-    /// Show triangles tagged with this discipline plus the always-
-    /// visible architectural context.
+    /// Show only triangles tagged with this discipline. Architectural
+    /// shell is hidden so the MEP layer stands on its own.
     Discipline(Discipline),
 }
 
@@ -82,12 +81,14 @@ impl ViewFilter {
     /// Rule summary:
     /// - `All`            → yes, always.
     /// - `Architecture`   → only if the tag is `Other`.
-    /// - `Discipline(d)`  → if the tag is `d` OR `Other`.
+    /// - `Discipline(d)`  → only if the tag is `d`. Isolates the selected
+    ///   discipline; the architectural shell is hidden so the user sees
+    ///   the MEP system on its own.
     pub fn shows(self, tag: Discipline) -> bool {
         match self {
             ViewFilter::All => true,
             ViewFilter::Architecture => tag == Discipline::Other,
-            ViewFilter::Discipline(d) => tag == d || tag == Discipline::Other,
+            ViewFilter::Discipline(d) => tag == d,
         }
     }
 
@@ -178,7 +179,11 @@ pub fn discipline_from_filename(path: impl AsRef<Path>) -> Option<Discipline> {
     if stem.contains("light") || stem.contains("lumin") || stem.contains("_lit") {
         return Some(Discipline::Lighting);
     }
-    if stem.contains("electr") || stem.contains("_el") || stem.contains("_eled") || stem.contains("_elec") {
+    if stem.contains("electr")
+        || stem.contains("_el")
+        || stem.contains("_eled")
+        || stem.contains("_elec")
+    {
         return Some(Discipline::Electrical);
     }
     if stem.contains("hvac")
@@ -259,9 +264,9 @@ mod tests {
 
         let hvac = ViewFilter::Discipline(Discipline::Hvac);
         assert!(hvac.shows(Discipline::Hvac));
-        // Architectural context is kept under any discipline filter.
-        assert!(hvac.shows(Discipline::Other));
-        // …but other MEP disciplines are hidden.
+        // Discipline filters isolate — architectural shell is hidden.
+        assert!(!hvac.shows(Discipline::Other));
+        // Other MEP disciplines are hidden too.
         assert!(!hvac.shows(Discipline::Plumbing));
     }
 }

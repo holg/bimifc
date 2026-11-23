@@ -72,11 +72,7 @@ pub fn render_properties(
         });
 }
 
-fn render_empty_state(
-    ui: &mut egui::Ui,
-    rich: &RichModel,
-    scene: Option<&IfcSceneData>,
-) {
+fn render_empty_state(ui: &mut egui::Ui, rich: &RichModel, scene: Option<&IfcSceneData>) {
     ui.label("(nothing selected)");
     ui.add_space(8.0);
     if let Some(path) = &rich.source_path {
@@ -233,7 +229,11 @@ fn render_photometric_placeholder(ui: &mut egui::Ui, detail: &EntityDetail) {
             .small(),
         );
     } else {
-        ui.label(egui::RichText::new("No Pset_Photometry on this fixture.").small().weak());
+        ui.label(
+            egui::RichText::new("No Pset_Photometry on this fixture.")
+                .small()
+                .weak(),
+        );
     }
     ui.add_space(6.0);
 }

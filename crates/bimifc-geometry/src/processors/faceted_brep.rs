@@ -280,4 +280,3 @@ impl GeometryProcessor for FacetedBrepProcessor {
         vec![IfcType::IfcFacetedBrep]
     }
 }
-

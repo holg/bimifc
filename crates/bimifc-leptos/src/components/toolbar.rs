@@ -182,6 +182,34 @@ pub fn Toolbar() -> impl IntoView {
                     .collect::<Vec<_>>()}
             </div>
 
+            // Texture layers (IFC4 texture maps with several textures), shown
+            // only when the model has them: e.g. Photo / Night / Illuminance.
+            {move || {
+                let names = state.ui.texture_layers.get();
+                (!names.is_empty()).then(|| view! {
+                    <div class="toolbar-separator"></div>
+                    <div class="toolbar-group" title="Texture layer">
+                        {names.into_iter().enumerate().map(|(i, name)| {
+                            let class = move || if state.ui.texture_layer.get() == i { "tool-btn active" } else { "tool-btn" };
+                            let title = format!("Show the {} layer on the textured surfaces", name);
+                            view! {
+                                <button
+                                    class=class
+                                    style="width:auto;padding:0 8px;font-size:12px"
+                                    on:click=move |_| {
+                                        state.ui.texture_layer.set(i);
+                                        bridge::set_texture_layer(i);
+                                    }
+                                    title=title
+                                >
+                                    {name}
+                                </button>
+                            }
+                        }).collect::<Vec<_>>()}
+                    </div>
+                })
+            }}
+
             // Spacer
             <div class="toolbar-spacer"></div>
 
@@ -362,10 +390,7 @@ fn classify_entity_for_federation(
         if let Ok(type_entity) = decoder.decode_by_id(EntityId(type_id)) {
             let type_class_upper = type_entity.ifc_type.name().to_string();
             let type_name_attr = type_entity.get_string(2);
-            let d = bimifc_federation::classify_by_type_name(
-                &type_class_upper,
-                type_name_attr,
-            );
+            let d = bimifc_federation::classify_by_type_name(&type_class_upper, type_name_attr);
             if d != Discipline::Other {
                 return d as u8;
             }
@@ -447,7 +472,7 @@ fn extract_properties_and_quantities(
                 // IfcPropertySet: (GlobalId, OwnerHistory, Name, Description, HasProperties)
                 let pset_name = prop_def
                     .get_string(2)
-                    .map(|s| s.to_string())
+                    .map(ifc_text)
                     .unwrap_or_else(|| format!("PropertySet #{}", prop_def_id));
 
                 let mut properties = Vec::new();
@@ -458,20 +483,17 @@ fn extract_properties_and_quantities(
                         if let Ok(prop) = decoder.decode_by_id(EntityId(prop_id)) {
                             // IfcPropertySingleValue: (Name, Description, NominalValue, Unit)
                             if prop.ifc_type == IfcType::IfcPropertySingleValue {
-                                let name = prop
-                                    .get_string(0)
-                                    .map(|s| s.to_string())
-                                    .unwrap_or_default();
+                                let name = prop.get_string(0).map(ifc_text).unwrap_or_default();
 
                                 // Get value - can be various types
                                 let value = if let Some(val) = prop.get(2) {
-                                    format_property_value(val)
+                                    ifc_text(&format_property_value(val))
                                 } else {
                                     String::new()
                                 };
 
                                 // Get unit if present
-                                let unit = prop.get_string(3).map(|s| s.to_string());
+                                let unit = prop.get_string(3).map(ifc_text);
 
                                 if !name.is_empty() {
                                     properties.push(PropertyValue { name, value, unit });
@@ -492,7 +514,7 @@ fn extract_properties_and_quantities(
                 // IfcElementQuantity: (GlobalId, OwnerHistory, Name, Description, MethodOfMeasurement, Quantities)
                 let qset_name = prop_def
                     .get_string(2)
-                    .map(|s| s.to_string())
+                    .map(ifc_text)
                     .unwrap_or_else(|| format!("Quantities #{}", prop_def_id));
 
                 // Get Quantities list (attribute 5)
@@ -555,6 +577,11 @@ fn extract_properties_and_quantities(
 }
 
 /// Format a property value for display
+/// Display text of an IFC string: decodes the \X2\…\X0\ (and \S\) escapes.
+fn ifc_text(s: &str) -> String {
+    crate::components::properties_panel::decode_ifc_string(s)
+}
+
 fn format_property_value(val: &AttributeValue) -> String {
     match val {
         AttributeValue::String(s) => s.clone(),
@@ -619,7 +646,21 @@ fn format_property_value(val: &AttributeValue) -> String {
     }
 }
 
-/// Load model from cache and send to Bevy
+/// Is this entity a luminaire?
+///
+/// IFC4 has a concrete `IfcLightFixture`, but IFC2x3 — which most
+/// exporters still write, ours included — has no such occurrence class:
+/// a luminaire is an `IfcFlowTerminal` typed by an `IfcLightFixtureType`.
+/// The loader already resolves that type relation into the Lighting
+/// discipline tag, so trust it. Matching only the IFC4 class silently
+/// skipped every 2x3 luminaire, so its photometry was never read and no
+/// polar plot appeared.
+fn is_light_fixture(entity_type: &str, discipline: u8) -> bool {
+    const LIGHTING: u8 = 4; // bimifc_federation::Discipline::Lighting
+    entity_type.eq_ignore_ascii_case("IfcLightFixture")
+        || (entity_type.eq_ignore_ascii_case("IfcFlowTerminal") && discipline == LIGHTING)
+}
+
 fn load_from_cache(
     cached: bridge::CachedModel,
     state: crate::state::ViewerState,
@@ -751,6 +792,10 @@ pub fn parse_and_process_ifc(
     let mut element_to_type: HashMap<u32, u32> = HashMap::new();
     // Surface style colors: geometry item ID -> [r, g, b, a]
     let mut styled_item_colors: HashMap<u32, [f32; 4]> = HashMap::new();
+    // IFC4 texture maps: face set ID -> (IfcSurfaceTexture IDs, IfcTextureVertexList ID)
+    let mut faceset_textures: HashMap<u32, (Vec<u32>, u32)> = HashMap::new();
+    // IfcImageTexture ID -> (layer name, URL reference)
+    let mut image_textures: HashMap<u32, (String, String)> = HashMap::new();
 
     // Scan for spatial structure
     for line in content.lines() {
@@ -781,7 +826,7 @@ pub fn parse_and_process_ifc(
                 if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
                     let name = entity
                         .get_string(2)
-                        .map(|s| s.to_string())
+                        .map(ifc_text)
                         .unwrap_or_else(|| "Project".to_string());
                     spatial_entities.insert(
                         id,
@@ -798,7 +843,7 @@ pub fn parse_and_process_ifc(
                 if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
                     let name = entity
                         .get_string(2)
-                        .map(|s| s.to_string())
+                        .map(ifc_text)
                         .unwrap_or_else(|| "Site".to_string());
                     spatial_entities.insert(
                         id,
@@ -815,7 +860,7 @@ pub fn parse_and_process_ifc(
                 if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
                     let name = entity
                         .get_string(2)
-                        .map(|s| s.to_string())
+                        .map(ifc_text)
                         .unwrap_or_else(|| "Building".to_string());
                     spatial_entities.insert(
                         id,
@@ -832,7 +877,7 @@ pub fn parse_and_process_ifc(
                 if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
                     let name = entity
                         .get_string(2)
-                        .map(|s| s.to_string())
+                        .map(ifc_text)
                         .unwrap_or_else(|| format!("Storey #{}", id));
                     let elevation = entity.get_float(9).map(|e| e as f32);
                     spatial_entities.insert(
@@ -850,7 +895,7 @@ pub fn parse_and_process_ifc(
                 if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
                     let name = entity
                         .get_string(2)
-                        .map(|s| s.to_string())
+                        .map(ifc_text)
                         .unwrap_or_else(|| format!("Space #{}", id));
                     spatial_entities.insert(
                         id,
@@ -867,7 +912,7 @@ pub fn parse_and_process_ifc(
                 if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
                     let name = entity
                         .get_string(2)
-                        .map(|s| s.to_string())
+                        .map(ifc_text)
                         .unwrap_or_else(|| format!("{} #{}", type_name, id));
                     spatial_entities.insert(
                         id,
@@ -979,8 +1024,91 @@ pub fn parse_and_process_ifc(
                     }
                 }
             }
+            "IFCIMAGETEXTURE" => {
+                // IfcImageTexture: (RepeatS, RepeatT, Mode, TextureTransform,
+                // Parameter, URLReference). A "layer=<name>" parameter names
+                // the layer; else the Mode, else a number.
+                if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
+                    let url = entity
+                        .get_string(5)
+                        .map(|s| s.to_string())
+                        .unwrap_or_default();
+                    let layer = entity
+                        .get(4)
+                        .and_then(|v| v.as_list())
+                        .and_then(|list| {
+                            list.iter()
+                                .filter_map(|v| v.as_string())
+                                .find_map(|p| p.strip_prefix("layer=").map(str::to_string))
+                        })
+                        .or_else(|| entity.get_string(2).map(ifc_text))
+                        .unwrap_or_else(|| format!("Texture {}", image_textures.len() + 1));
+                    image_textures.insert(id, (layer, url));
+                }
+            }
+            "IFCINDEXEDTRIANGLETEXTUREMAP" => {
+                // (Maps, MappedTo, TexCoords, TexCoordIndex). Supported: no
+                // TexCoordIndex — one texture vertex per point of the face set.
+                if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
+                    let indexed = !matches!(
+                        entity.get(3),
+                        None | Some(bimifc_model::AttributeValue::Null)
+                    );
+                    if let (false, Some(maps), Some(target), Some(tc)) = (
+                        indexed,
+                        get_ref_list(&entity, 0),
+                        entity.get_ref(1),
+                        entity.get_ref(2),
+                    ) {
+                        faceset_textures.insert(target.0, (maps, tc.0));
+                    }
+                }
+            }
             _ => {}
         }
+    }
+
+    // Texture sets: the distinct Maps lists (one per atlas page / image set),
+    // in face-set order so the layout is stable. Layers: the Maps positions,
+    // named after the first set's textures.
+    let mut texture_sets: Vec<Vec<u32>> = Vec::new();
+    let mut faceset_set: HashMap<u32, usize> = HashMap::new();
+    {
+        let mut ids: Vec<&u32> = faceset_textures.keys().collect();
+        ids.sort();
+        for fs in ids {
+            let maps = &faceset_textures[fs].0;
+            let k = match texture_sets.iter().position(|m| m == maps) {
+                Some(k) => k,
+                None => {
+                    texture_sets.push(maps.clone());
+                    texture_sets.len() - 1
+                }
+            };
+            faceset_set.insert(*fs, k);
+        }
+    }
+    let texture_layer_names: Vec<String> = texture_sets
+        .first()
+        .map(|maps| {
+            maps.iter()
+                .enumerate()
+                .map(|(j, t)| {
+                    image_textures
+                        .get(t)
+                        .map(|(n, _)| n.clone())
+                        .unwrap_or_else(|| format!("Texture {}", j + 1))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    if !texture_sets.is_empty() {
+        bridge::log_info(&format!(
+            "[IFC Textures] {} textured face sets, {} texture set(s), layers {:?}",
+            faceset_textures.len(),
+            texture_sets.len(),
+            texture_layer_names
+        ));
     }
 
     bridge::log_info(&format!(
@@ -1050,8 +1178,8 @@ pub fn parse_and_process_ifc(
         if type_upper == "IFCELEMENTASSEMBLY" {
             if let Ok(entity) = decoder.decode_by_id(EntityId(id)) {
                 let global_id = entity.get_string(0).map(|s| s.to_string());
-                let name = entity.get_string(2).map(|s| s.to_string());
-                let description = entity.get_string(3).map(|s| s.to_string());
+                let name = entity.get_string(2).map(ifc_text);
+                let description = entity.get_string(3).map(ifc_text);
 
                 let (storey_name, storey_elevation) =
                     if let Some(&storey_id) = element_to_storey.get(&id) {
@@ -1085,8 +1213,8 @@ pub fn parse_and_process_ifc(
             match decoder.decode_by_id(EntityId(id)) {
                 Ok(entity) => {
                     let global_id = entity.get_string(0).map(|s| s.to_string());
-                    let name = entity.get_string(2).map(|s| s.to_string());
-                    let description = entity.get_string(3).map(|s| s.to_string());
+                    let name = entity.get_string(2).map(ifc_text);
+                    let description = entity.get_string(3).map(ifc_text);
 
                     let (storey_name, storey_elevation) =
                         if let Some(&storey_id) = element_to_storey.get(&id) {
@@ -1156,8 +1284,36 @@ pub fn parse_and_process_ifc(
                                         has_ifc_color
                                     ));
                                 }
-                                let color = ifc_color
+                                let mut color = ifc_color
                                     .unwrap_or_else(|| get_element_color(type_name, color_palette));
+                                // IFC4 texture map on the element's (single) face set:
+                                // texture coordinates into the layer atlas, white
+                                // vertex colour so the texture shows as is.
+                                let mut uvs: Vec<f32> = Vec::new();
+                                if !faceset_textures.is_empty() {
+                                    if let Some(fs) = single_body_item(&entity, &mut decoder) {
+                                        if let (Some((_, tc)), Some(set)) =
+                                            (faceset_textures.get(&fs), faceset_set.get(&fs))
+                                        {
+                                            if let Some(st) = texture_vertices(*tc, &mut decoder) {
+                                                if st.len() == positions.len() / 3 {
+                                                    uvs = st
+                                                        .iter()
+                                                        .flat_map(|[s_, t_]| {
+                                                            bridge::atlas_uv(
+                                                                *s_,
+                                                                *t_,
+                                                                *set,
+                                                                texture_sets.len(),
+                                                            )
+                                                        })
+                                                        .collect();
+                                                    color = [1.0, 1.0, 1.0, 1.0];
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                                 let transform = [
                                     1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
                                     0.0, 0.0, 0.0, 1.0,
@@ -1177,6 +1333,7 @@ pub fn parse_and_process_ifc(
                                     name: name.clone(),
                                     has_ifc_color,
                                     discipline: discipline_tag,
+                                    uvs,
                                 });
 
                                 processed += 1;
@@ -1245,6 +1402,44 @@ pub fn parse_and_process_ifc(
     }
     // Send geometry to Bevy (clone for cache)
     bridge::save_geometry(geometry_data.clone());
+
+    // Texture layers: fetch the images next to the IFC file, hand them to Bevy.
+    state.ui.texture_layers.set(texture_layer_names.clone());
+    state.ui.texture_layer.set(0);
+    if !texture_sets.is_empty() {
+        let mut fetch: Vec<(usize, usize, String)> = Vec::new(); // (layer, set, url)
+        for (k, maps) in texture_sets.iter().enumerate() {
+            for (j, t) in maps.iter().enumerate() {
+                if let Some(url) = image_textures
+                    .get(t)
+                    .and_then(|(_, r)| crate::utils::resolve_ifc_relative(r))
+                {
+                    fetch.push((j, k, url));
+                }
+            }
+        }
+        let (n_layers, n_sets) = (texture_layer_names.len(), texture_sets.len());
+        let names = texture_layer_names.clone();
+        bridge::log_info(&format!("[IFC Textures] fetching {} image(s)", fetch.len()));
+        leptos::task::spawn_local(async move {
+            let mut layers: Vec<(String, Vec<Vec<u8>>)> = names
+                .into_iter()
+                .map(|n| (n, vec![Vec::new(); n_sets]))
+                .collect();
+            for (j, k, url) in fetch {
+                match crate::utils::fetch_bytes(&url).await {
+                    Ok(bytes) => {
+                        if j < n_layers && k < n_sets {
+                            layers[j].1[k] = bytes;
+                        }
+                    }
+                    Err(e) => bridge::log_error(&format!("[IFC Textures] {}: {}", url, e)),
+                }
+            }
+            bridge::log_info("[IFC Textures] images fetched, decoding in the renderer");
+            bridge::set_textures(n_sets, layers, 0);
+        });
+    }
     bridge::log(&format!(
         "[Leptos] Transferred {} meshes to Bevy",
         geometry_count
@@ -1403,7 +1598,7 @@ pub fn parse_and_process_ifc(
 
             // Extract base64-encoded LDT from Pset_GLDF_LDTRawContent (GLDF exports)
             // These contain LDT_1_Content, LDT_2_Content, etc. as base64-encoded EULUMDAT
-            if photometry_ldt.is_none() && e.entity_type.eq_ignore_ascii_case("IfcLightFixture") {
+            if photometry_ldt.is_none() && is_light_fixture(&e.entity_type, e.discipline) {
                 use base64::Engine;
                 let mut ldt_contents: Vec<String> = Vec::new();
                 for ps in &property_sets {
@@ -1460,7 +1655,7 @@ pub fn parse_and_process_ifc(
             // For light fixtures without LDT but with goniometric distribution data,
             // convert IFC distribution curves to LDT via shared conversion so they
             // get full photometric metrics (beam/field angles, LOR, efficacy).
-            if photometry_ldt.is_none() && e.entity_type.eq_ignore_ascii_case("IfcLightFixture") {
+            if photometry_ldt.is_none() && is_light_fixture(&e.entity_type, e.discipline) {
                 if let Some(fixture) = lighting_export.light_fixtures.iter().find(|f| f.id == e.id)
                 {
                     let ldt_sources: Vec<String> = fixture
@@ -1540,10 +1735,18 @@ pub fn parse_and_process_ifc(
     {
         use std::collections::HashSet;
 
-        // Build fixture lookup: id → (world position, decoded LDT, name)
+        // Build fixture lookup: id → (world position, decoded LDT, name).
+        // The discipline tag lives on `EntityData` (it is computed during
+        // the geometry pass); `EntityInfo` carries the resolved LDT. Both
+        // are keyed by the same entity id, so join on that.
+        let discipline_by_id: HashMap<u64, u8> =
+            entity_data.iter().map(|e| (e.id, e.discipline)).collect();
         let fixture_set: HashSet<u64> = entity_infos
             .iter()
-            .filter(|e| e.entity_type.eq_ignore_ascii_case("IfcLightFixture"))
+            .filter(|e| {
+                let discipline = discipline_by_id.get(&e.id).copied().unwrap_or(0);
+                is_light_fixture(&e.entity_type, discipline)
+            })
             .filter(|e| e.photometry_ldt.is_some())
             .map(|e| e.id)
             .collect();
@@ -1752,7 +1955,10 @@ pub fn parse_and_process_ifc(
         spatial_tree_json,
         storeys_json,
     };
-    bridge::save_model_to_cache(&file_hash, &file_name, &cached_model);
+    // Textured models are not cached: the cache keeps no texture references.
+    if texture_sets.is_empty() {
+        bridge::save_model_to_cache(&file_hash, &file_name, &cached_model);
+    }
 
     let total_time = now_ms() - load_start;
     bridge::log_info(&format!(
@@ -1767,6 +1973,39 @@ pub fn parse_and_process_ifc(
 
 /// Look up IFC surface style color for an entity via its representation items.
 /// Follows: entity\[6\] → IfcProductDefinitionShape\[2\] → IfcShapeRepresentation\[3\] → items
+/// The element's only Body item (one representation item in total), if any.
+fn single_body_item(
+    entity: &bimifc_model::DecodedEntity,
+    decoder: &mut EntityDecoder,
+) -> Option<u32> {
+    let rep_id = entity.get_ref(6)?;
+    let representation = decoder.decode_by_id(rep_id).ok()?;
+    let reps = representation.get(2)?.as_list()?.to_vec();
+    let mut found: Option<u32> = None;
+    for rep_ref in reps {
+        let shape_rep = decoder.decode_by_id(rep_ref.as_entity_ref()?).ok()?;
+        for item in shape_rep.get(3)?.as_list()? {
+            if found.is_some() {
+                return None;
+            }
+            found = Some(item.as_entity_ref()?.0);
+        }
+    }
+    found
+}
+
+/// IfcTextureVertexList: its (S, T) pairs.
+fn texture_vertices(id: u32, decoder: &mut EntityDecoder) -> Option<Vec<[f32; 2]>> {
+    let tvl = decoder.decode_by_id(EntityId(id)).ok()?;
+    let list = tvl.get(0)?.as_list()?;
+    let mut out = Vec::with_capacity(list.len());
+    for pair in list {
+        let p = pair.as_list()?;
+        out.push([p.first()?.as_float()? as f32, p.get(1)?.as_float()? as f32]);
+    }
+    Some(out)
+}
+
 fn get_styled_color(
     entity: &bimifc_model::DecodedEntity,
     styled_colors: &HashMap<u32, [f32; 4]>,

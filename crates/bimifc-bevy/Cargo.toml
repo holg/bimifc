@@ -27,17 +27,18 @@ external-ui = []
 webgl2 = []
 native-view = []
 color-palette = []
-photometric = ["eulumdat", "eulumdat-bevy"]
+photometric = ["eulumdat"]
 
 [dependencies]
 bimifc-federation = { version = "0.1.0", path = "../bimifc-federation" }
-bimifc-geometry = { version = "0.3.0", path = "../bimifc-geometry" }
-bimifc-model = { version = "0.3.0", path = "../bimifc-model" }
-bimifc-parser = { version = "0.3.0", path = "../bimifc-parser" }
+bimifc-geometry = { version = "0.3.1", path = "../bimifc-geometry" }
+bimifc-model = { version = "0.3.1", path = "../bimifc-model" }
+bimifc-parser = { version = "0.3.1", path = "../bimifc-parser" }
 
 # Photometric lighting (optional, gated behind "photometric" feature)
-eulumdat = { version = "0.5", default-features = false, optional = true }
-eulumdat-bevy = { version = "0.5", default-features = false, features = ["photometric"], optional = true }
+# (plain eulumdat, no eulumdat-bevy: that one follows Candelabra's Bevy
+# version, bimifc keeps its own)
+eulumdat = { version = "0.8", default-features = false, optional = true }
 
 # Math library
 nalgebra = { version = "0.33", default-features = false, features = ["std"] }
@@ -55,6 +56,8 @@ rustc-hash = "1.1"
 
 # Zero-copy byte casting
 bytemuck = { version = "1.14", features = ["derive"] }
+# IFC4 texture layers (textures.rs): decode JPEG / PNG texture images
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 
 # Window handles for native embedding
 raw-window-handle = "0.6"
@@ -86,6 +89,8 @@ bevy = { version = "0.18", default-features = false, features = [
     "bevy_asset",
     "bevy_winit",
     "bevy_core_pipeline",
+    "bevy_anti_alias",
+    "bevy_post_process",
     "bevy_pbr",
     "bevy_render",
     "bevy_state",
@@ -150,6 +155,8 @@ bevy = { version = "0.18", default-features = false, features = [
     "bevy_asset",
     "bevy_winit",
     "bevy_core_pipeline",
+    "bevy_anti_alias",
+    "bevy_post_process",
     "bevy_pbr",
     "bevy_render",
     "bevy_state",
@@ -171,6 +178,8 @@ bevy = { version = "0.18", default-features = false, features = [
     "bevy_asset",
     "bevy_winit",
     "bevy_core_pipeline",
+    "bevy_anti_alias",
+    "bevy_post_process",
     "bevy_pbr",
     "bevy_render",
     "bevy_state",

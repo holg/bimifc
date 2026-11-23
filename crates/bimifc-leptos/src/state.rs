@@ -158,19 +158,32 @@ impl MepView {
             // branch isn't reachable but match must be exhaustive.
             MepView::Architecture => false,
             MepView::Electrical => {
-                lower.contains("cable") || lower.contains("conduit") || lower.contains("electric")
-                    || lower.contains("circuit") || lower.contains("panel")
-                    || lower.contains("junction") || lower.contains("outlet")
+                lower.contains("cable")
+                    || lower.contains("conduit")
+                    || lower.contains("electric")
+                    || lower.contains("circuit")
+                    || lower.contains("panel")
+                    || lower.contains("junction")
+                    || lower.contains("outlet")
             }
             MepView::Plumbing => {
-                lower.contains("pipe") || lower.contains("plumb") || lower.contains("sanitary")
-                    || lower.contains("waste") || lower.contains("water")
-                    || lower.contains("hydronic") || lower.contains("sprinkler")
+                lower.contains("pipe")
+                    || lower.contains("plumb")
+                    || lower.contains("sanitary")
+                    || lower.contains("waste")
+                    || lower.contains("water")
+                    || lower.contains("hydronic")
+                    || lower.contains("sprinkler")
             }
             MepView::Hvac => {
-                lower.contains("duct") || lower.contains("diffuser") || lower.contains("hvac")
-                    || lower.contains("supply air") || lower.contains("return air")
-                    || lower.contains("vav") || lower.contains("fan ") || lower.contains("coil")
+                lower.contains("duct")
+                    || lower.contains("diffuser")
+                    || lower.contains("hvac")
+                    || lower.contains("supply air")
+                    || lower.contains("return air")
+                    || lower.contains("vav")
+                    || lower.contains("fan ")
+                    || lower.contains("coil")
                     || lower.contains("damper")
             }
             MepView::Lighting => {
@@ -544,6 +557,11 @@ pub struct UiState {
     pub color_palette: RwSignal<ColorPalette>,
     pub lisp_panel_visible: RwSignal<bool>,
     pub mep_view: RwSignal<MepView>,
+    /// Texture layers of the loaded model (IFC4 texture maps with several
+    /// textures, e.g. Photo / Night / Illuminance); empty = none.
+    pub texture_layers: RwSignal<Vec<String>>,
+    /// Index into `texture_layers` shown on the textured surfaces.
+    pub texture_layer: RwSignal<usize>,
 }
 
 impl UiState {
@@ -558,6 +576,8 @@ impl UiState {
             color_palette: RwSignal::new(ColorPalette::default()),
             lisp_panel_visible: RwSignal::new(false),
             mep_view: RwSignal::new(MepView::All),
+            texture_layers: RwSignal::new(Vec::new()),
+            texture_layer: RwSignal::new(0),
         }
     }
 

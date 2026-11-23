@@ -416,6 +416,22 @@ fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterInt64: FfiConverterPrimitive {
+    typealias FfiType = Int64
+    typealias SwiftType = Int64
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Int64 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: Int64, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterFloat: FfiConverterPrimitive {
     typealias FfiType = Float
     typealias SwiftType = Float
@@ -510,6 +526,274 @@ fileprivate struct FfiConverterString: FfiConverter {
     }
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterData: FfiConverterRustBuffer {
+    typealias SwiftType = Data
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Data {
+        let len: Int32 = try readInt(&buf)
+        return Data(try readBytes(&buf, count: Int(len)))
+    }
+
+    public static func write(_ value: Data, into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        writeBytes(&buf, value)
+    }
+}
+
+
+
+
+/**
+ * A parsed GLDF luminaire container.
+ */
+public protocol GldfLuminaireProtocol: AnyObject, Sendable {
+    
+    /**
+     * IDs of all emitters defined in the container (fallback when a variant
+     * carries no explicit emitter reference).
+     */
+    func emitterIds()  -> [String]
+    
+    func manufacturer()  -> String
+    
+    /**
+     * Triangulated L3D geometry of the luminaire (first model geometry),
+     * in metres, with computed smooth vertex normals.
+     */
+    func mesh()  -> MeshData?
+    
+    /**
+     * Localized product name (first locale), falling back to the product number.
+     */
+    func name()  -> String
+    
+    /**
+     * Raw LDT (Eulumdat) photometry text for an emitter, when present.
+     */
+    func photometryLdt(emitterId: String)  -> String?
+    
+    /**
+     * Photometric key figures for an emitter.
+     */
+    func photometrySummary(emitterId: String)  -> FfiPhotometrySummary?
+    
+    /**
+     * Raw bytes of the first product image in the container, for library UI.
+     */
+    func previewImage()  -> Data?
+    
+    /**
+     * Product variants with their geometry and emitter references.
+     */
+    func variants()  -> [FfiGldfVariant]
+    
+}
+/**
+ * A parsed GLDF luminaire container.
+ */
+open class GldfLuminaire: GldfLuminaireProtocol, @unchecked Sendable {
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoPointer {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_bimifc_ffi_fn_clone_gldfluminaire(self.pointer, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
+        try! rustCall { uniffi_bimifc_ffi_fn_free_gldfluminaire(pointer, $0) }
+    }
+
+    
+    /**
+     * Parse a `.gldf` container from raw bytes.
+     */
+public static func fromBytes(data: Data)throws  -> GldfLuminaire  {
+    return try  FfiConverterTypeGldfLuminaire_lift(try rustCallWithError(FfiConverterTypeLightingError_lift) {
+    uniffi_bimifc_ffi_fn_constructor_gldfluminaire_from_bytes(
+        FfiConverterData.lower(data),$0
+    )
+})
+}
+    
+
+    
+    /**
+     * IDs of all emitters defined in the container (fallback when a variant
+     * carries no explicit emitter reference).
+     */
+open func emitterIds() -> [String]  {
+    return try!  FfiConverterSequenceString.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_gldfluminaire_emitter_ids(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+open func manufacturer() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_gldfluminaire_manufacturer(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Triangulated L3D geometry of the luminaire (first model geometry),
+     * in metres, with computed smooth vertex normals.
+     */
+open func mesh() -> MeshData?  {
+    return try!  FfiConverterOptionTypeMeshData.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_gldfluminaire_mesh(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Localized product name (first locale), falling back to the product number.
+     */
+open func name() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_gldfluminaire_name(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Raw LDT (Eulumdat) photometry text for an emitter, when present.
+     */
+open func photometryLdt(emitterId: String) -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_gldfluminaire_photometry_ldt(self.uniffiClonePointer(),
+        FfiConverterString.lower(emitterId),$0
+    )
+})
+}
+    
+    /**
+     * Photometric key figures for an emitter.
+     */
+open func photometrySummary(emitterId: String) -> FfiPhotometrySummary?  {
+    return try!  FfiConverterOptionTypeFfiPhotometrySummary.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_gldfluminaire_photometry_summary(self.uniffiClonePointer(),
+        FfiConverterString.lower(emitterId),$0
+    )
+})
+}
+    
+    /**
+     * Raw bytes of the first product image in the container, for library UI.
+     */
+open func previewImage() -> Data?  {
+    return try!  FfiConverterOptionData.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_gldfluminaire_preview_image(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Product variants with their geometry and emitter references.
+     */
+open func variants() -> [FfiGldfVariant]  {
+    return try!  FfiConverterSequenceTypeFfiGldfVariant.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_gldfluminaire_variants(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeGldfLuminaire: FfiConverter {
+
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = GldfLuminaire
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> GldfLuminaire {
+        return GldfLuminaire(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: GldfLuminaire) -> UnsafeMutableRawPointer {
+        return value.uniffiClonePointer()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> GldfLuminaire {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: GldfLuminaire, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeGldfLuminaire_lift(_ pointer: UnsafeMutableRawPointer) throws -> GldfLuminaire {
+    return try FfiConverterTypeGldfLuminaire.lift(pointer)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeGldfLuminaire_lower(_ value: GldfLuminaire) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeGldfLuminaire.lower(value)
+}
+
+
+
 
 
 
@@ -525,9 +809,30 @@ public protocol IfcModelProtocol: AnyObject, Sendable {
      */
     func allGeometryIds()  -> [UInt32]
     
+    /**
+     * Like `batch_geometry` but includes color (IFC-authored or type default)
+     * and entity transform. This is the full-featured method matching the web viewer.
+     */
+    func batchColoredGeometry(ids: [UInt32])  -> [ColoredEntityMesh]
+    
     func batchGeometry(ids: [UInt32])  -> [EntityMesh]
     
+    /**
+     * Find which storey contains a given element.
+     */
+    func containingStorey(elementId: UInt32)  -> UInt32?
+    
     func countByType(typeName: String)  -> UInt32
+    
+    /**
+     * Get default color for an IFC type name (e.g. "IfcWall" → cream).
+     */
+    func defaultColorForType(ifcType: String)  -> ColorRgba
+    
+    /**
+     * Get storey name and elevation for an element (convenience).
+     */
+    func elementStoreyInfo(elementId: UInt32)  -> StoreyInfo?
     
     func elementsInStorey(storeyId: UInt32)  -> [UInt32]
     
@@ -541,9 +846,54 @@ public protocol IfcModelProtocol: AnyObject, Sendable {
     
     func entityName(id: UInt32)  -> String?
     
+    /**
+     * Get the ObjectType for an entity (more specific than IFC type).
+     */
+    func entityObjectType(id: UInt32)  -> String?
+    
+    /**
+     * Get world position [x, y, z] for an entity (unit-scaled).
+     */
+    func entityPosition(id: UInt32)  -> [Float]?
+    
+    /**
+     * Get the IFC-authored surface color for an entity (from IfcStyledItem chain).
+     */
+    func entitySurfaceColor(id: UInt32)  -> ColorRgba?
+    
+    /**
+     * Get the Tag for an entity.
+     */
+    func entityTag(id: UInt32)  -> String?
+    
+    /**
+     * Get the 4x4 world transform (column-major, 16 floats) for an entity.
+     */
+    func entityTransform(id: UInt32)  -> [Float]?
+    
     func getEntity(id: UInt32)  -> EntityInfo?
     
     func getGeometry(id: UInt32)  -> MeshData?
+    
+    /**
+     * Get a single property by name across all property sets of an entity.
+     */
+    func getProperty(id: UInt32, name: String)  -> Property?
+    
+    /**
+     * Get a single quantity by name for an entity.
+     */
+    func getQuantity(id: UInt32, name: String)  -> Quantity?
+    
+    /**
+     * Get goniometric (photometric) source data for an entity.
+     */
+    func goniometricSources(id: UInt32)  -> [GoniometricInfo]
+    
+    /**
+     * Convert goniometric data for an entity to EULUMDAT/LDT string.
+     */
+    func goniometricToLdt(id: UInt32)  -> String?
     
     /**
      * Get light fixture info with positions and photometric data.
@@ -568,6 +918,11 @@ public protocol IfcModelProtocol: AnyObject, Sendable {
     func spatialTree()  -> SpatialNode?
     
     func storeys()  -> [StoreyInfo]
+    
+    /**
+     * Get entity count per IFC type (useful for type breakdowns).
+     */
+    func typeStatistics()  -> [TypeCount]
     
     func unitScale()  -> Double
     
@@ -671,6 +1026,18 @@ open func allGeometryIds() -> [UInt32]  {
 })
 }
     
+    /**
+     * Like `batch_geometry` but includes color (IFC-authored or type default)
+     * and entity transform. This is the full-featured method matching the web viewer.
+     */
+open func batchColoredGeometry(ids: [UInt32]) -> [ColoredEntityMesh]  {
+    return try!  FfiConverterSequenceTypeColoredEntityMesh.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcmodel_batch_colored_geometry(self.uniffiClonePointer(),
+        FfiConverterSequenceUInt32.lower(ids),$0
+    )
+})
+}
+    
 open func batchGeometry(ids: [UInt32]) -> [EntityMesh]  {
     return try!  FfiConverterSequenceTypeEntityMesh.lift(try! rustCall() {
     uniffi_bimifc_ffi_fn_method_ifcmodel_batch_geometry(self.uniffiClonePointer(),
@@ -679,10 +1046,43 @@ open func batchGeometry(ids: [UInt32]) -> [EntityMesh]  {
 })
 }
     
+    /**
+     * Find which storey contains a given element.
+     */
+open func containingStorey(elementId: UInt32) -> UInt32?  {
+    return try!  FfiConverterOptionUInt32.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcmodel_containing_storey(self.uniffiClonePointer(),
+        FfiConverterUInt32.lower(elementId),$0
+    )
+})
+}
+    
 open func countByType(typeName: String) -> UInt32  {
     return try!  FfiConverterUInt32.lift(try! rustCall() {
     uniffi_bimifc_ffi_fn_method_ifcmodel_count_by_type(self.uniffiClonePointer(),
         FfiConverterString.lower(typeName),$0
+    )
+})
+}
+    
+    /**
+     * Get default color for an IFC type name (e.g. "IfcWall" → cream).
+     */
+open func defaultColorForType(ifcType: String) -> ColorRgba  {
+    return try!  FfiConverterTypeColorRgba_lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcmodel_default_color_for_type(self.uniffiClonePointer(),
+        FfiConverterString.lower(ifcType),$0
+    )
+})
+}
+    
+    /**
+     * Get storey name and elevation for an element (convenience).
+     */
+open func elementStoreyInfo(elementId: UInt32) -> StoreyInfo?  {
+    return try!  FfiConverterOptionTypeStoreyInfo.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcmodel_element_storey_info(self.uniffiClonePointer(),
+        FfiConverterUInt32.lower(elementId),$0
     )
 })
 }
@@ -734,6 +1134,61 @@ open func entityName(id: UInt32) -> String?  {
 })
 }
     
+    /**
+     * Get the ObjectType for an entity (more specific than IFC type).
+     */
+open func entityObjectType(id: UInt32) -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcmodel_entity_object_type(self.uniffiClonePointer(),
+        FfiConverterUInt32.lower(id),$0
+    )
+})
+}
+    
+    /**
+     * Get world position [x, y, z] for an entity (unit-scaled).
+     */
+open func entityPosition(id: UInt32) -> [Float]?  {
+    return try!  FfiConverterOptionSequenceFloat.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcmodel_entity_position(self.uniffiClonePointer(),
+        FfiConverterUInt32.lower(id),$0
+    )
+})
+}
+    
+    /**
+     * Get the IFC-authored surface color for an entity (from IfcStyledItem chain).
+     */
+open func entitySurfaceColor(id: UInt32) -> ColorRgba?  {
+    return try!  FfiConverterOptionTypeColorRgba.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcmodel_entity_surface_color(self.uniffiClonePointer(),
+        FfiConverterUInt32.lower(id),$0
+    )
+})
+}
+    
+    /**
+     * Get the Tag for an entity.
+     */
+open func entityTag(id: UInt32) -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcmodel_entity_tag(self.uniffiClonePointer(),
+        FfiConverterUInt32.lower(id),$0
+    )
+})
+}
+    
+    /**
+     * Get the 4x4 world transform (column-major, 16 floats) for an entity.
+     */
+open func entityTransform(id: UInt32) -> [Float]?  {
+    return try!  FfiConverterOptionSequenceFloat.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcmodel_entity_transform(self.uniffiClonePointer(),
+        FfiConverterUInt32.lower(id),$0
+    )
+})
+}
+    
 open func getEntity(id: UInt32) -> EntityInfo?  {
     return try!  FfiConverterOptionTypeEntityInfo.lift(try! rustCall() {
     uniffi_bimifc_ffi_fn_method_ifcmodel_get_entity(self.uniffiClonePointer(),
@@ -745,6 +1200,52 @@ open func getEntity(id: UInt32) -> EntityInfo?  {
 open func getGeometry(id: UInt32) -> MeshData?  {
     return try!  FfiConverterOptionTypeMeshData.lift(try! rustCall() {
     uniffi_bimifc_ffi_fn_method_ifcmodel_get_geometry(self.uniffiClonePointer(),
+        FfiConverterUInt32.lower(id),$0
+    )
+})
+}
+    
+    /**
+     * Get a single property by name across all property sets of an entity.
+     */
+open func getProperty(id: UInt32, name: String) -> Property?  {
+    return try!  FfiConverterOptionTypeProperty.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcmodel_get_property(self.uniffiClonePointer(),
+        FfiConverterUInt32.lower(id),
+        FfiConverterString.lower(name),$0
+    )
+})
+}
+    
+    /**
+     * Get a single quantity by name for an entity.
+     */
+open func getQuantity(id: UInt32, name: String) -> Quantity?  {
+    return try!  FfiConverterOptionTypeQuantity.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcmodel_get_quantity(self.uniffiClonePointer(),
+        FfiConverterUInt32.lower(id),
+        FfiConverterString.lower(name),$0
+    )
+})
+}
+    
+    /**
+     * Get goniometric (photometric) source data for an entity.
+     */
+open func goniometricSources(id: UInt32) -> [GoniometricInfo]  {
+    return try!  FfiConverterSequenceTypeGoniometricInfo.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcmodel_goniometric_sources(self.uniffiClonePointer(),
+        FfiConverterUInt32.lower(id),$0
+    )
+})
+}
+    
+    /**
+     * Convert goniometric data for an entity to EULUMDAT/LDT string.
+     */
+open func goniometricToLdt(id: UInt32) -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcmodel_goniometric_to_ldt(self.uniffiClonePointer(),
         FfiConverterUInt32.lower(id),$0
     )
 })
@@ -822,6 +1323,16 @@ open func storeys() -> [StoreyInfo]  {
 })
 }
     
+    /**
+     * Get entity count per IFC type (useful for type breakdowns).
+     */
+open func typeStatistics() -> [TypeCount]  {
+    return try!  FfiConverterSequenceTypeTypeCount.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcmodel_type_statistics(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
 open func unitScale() -> Double  {
     return try!  FfiConverterDouble.lift(try! rustCall() {
     uniffi_bimifc_ffi_fn_method_ifcmodel_unit_scale(self.uniffiClonePointer(),$0
@@ -883,6 +1394,688 @@ public func FfiConverterTypeIfcModel_lower(_ value: IfcModel) -> UnsafeMutableRa
 }
 
 
+
+
+
+
+/**
+ * IFC file writer — converts RoomPlan geometry to IFC 2x3 STEP format.
+ */
+public protocol IfcWriterProtocol: AnyObject, Sendable {
+    
+    /**
+     * Generate IFC 2x3 content from room elements.
+     *
+     * Returns the complete IFC file as a string.
+     */
+    func writeIfc(elements: [FfiRoomElement], boundingBox: FfiRect, dimensions: FfiRoomDimensions, project: FfiProjectInfo)  -> String
+    
+    /**
+     * Generate IFC and write directly to a file path.
+     */
+    func writeIfcToFile(elements: [FfiRoomElement], boundingBox: FfiRect, dimensions: FfiRoomDimensions, project: FfiProjectInfo, path: String) throws 
+    
+    /**
+     * Generate IFC 2x3 content from room elements plus placed light
+     * fixtures (GLDF luminaires → `IFCLIGHTFIXTURETYPE` + `IFCFLOWTERMINAL`).
+     */
+    func writeIfcWithLights(elements: [FfiRoomElement], lightFixtures: [FfiLightFixtureInput], boundingBox: FfiRect, dimensions: FfiRoomDimensions, project: FfiProjectInfo)  -> String
+    
+    /**
+     * Like `write_ifc_with_lights`, writing directly to a file path.
+     */
+    func writeIfcWithLightsToFile(elements: [FfiRoomElement], lightFixtures: [FfiLightFixtureInput], boundingBox: FfiRect, dimensions: FfiRoomDimensions, project: FfiProjectInfo, path: String) throws 
+    
+    /**
+     * Full export: room elements, per-room `IFCSPACE` outlines and placed
+     * light fixtures. Spaces get first-level space boundaries to the
+     * walls/doors/windows around them.
+     */
+    func writeIfcWithSpaces(elements: [FfiRoomElement], spaces: [FfiSpace], lightFixtures: [FfiLightFixtureInput], boundingBox: FfiRect, dimensions: FfiRoomDimensions, project: FfiProjectInfo)  -> String
+    
+    /**
+     * Like `write_ifc_with_spaces`, writing directly to a file path.
+     */
+    func writeIfcWithSpacesToFile(elements: [FfiRoomElement], spaces: [FfiSpace], lightFixtures: [FfiLightFixtureInput], boundingBox: FfiRect, dimensions: FfiRoomDimensions, project: FfiProjectInfo, path: String) throws 
+    
+    /**
+     * Low-level: emit a standalone property set as a STEP DATA fragment.
+     *
+     * Returns the STEP lines for an `IFCOWNERHISTORY` (#1), the property
+     * entities, and an `IFCPROPERTYSET` referencing them — with no
+     * `IFCRELDEFINESBYPROPERTIES` (no element to attach to). Intended for
+     * callers assembling an IFC file by hand; renumber/splice as needed.
+     * Returns an empty string if `properties` is empty.
+     */
+    func writePropertySet(psetName: String, properties: [FfiIfcProperty])  -> String
+    
+}
+/**
+ * IFC file writer — converts RoomPlan geometry to IFC 2x3 STEP format.
+ */
+open class IfcWriter: IfcWriterProtocol, @unchecked Sendable {
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoPointer {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_bimifc_ffi_fn_clone_ifcwriter(self.pointer, $0) }
+    }
+    /**
+     * Create a new IFC writer.
+     */
+public convenience init() {
+    let pointer =
+        try! rustCall() {
+    uniffi_bimifc_ffi_fn_constructor_ifcwriter_new($0
+    )
+}
+    self.init(unsafeFromRawPointer: pointer)
+}
+
+    deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
+        try! rustCall { uniffi_bimifc_ffi_fn_free_ifcwriter(pointer, $0) }
+    }
+
+    
+
+    
+    /**
+     * Generate IFC 2x3 content from room elements.
+     *
+     * Returns the complete IFC file as a string.
+     */
+open func writeIfc(elements: [FfiRoomElement], boundingBox: FfiRect, dimensions: FfiRoomDimensions, project: FfiProjectInfo) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcwriter_write_ifc(self.uniffiClonePointer(),
+        FfiConverterSequenceTypeFfiRoomElement.lower(elements),
+        FfiConverterTypeFfiRect_lower(boundingBox),
+        FfiConverterTypeFfiRoomDimensions_lower(dimensions),
+        FfiConverterTypeFfiProjectInfo_lower(project),$0
+    )
+})
+}
+    
+    /**
+     * Generate IFC and write directly to a file path.
+     */
+open func writeIfcToFile(elements: [FfiRoomElement], boundingBox: FfiRect, dimensions: FfiRoomDimensions, project: FfiProjectInfo, path: String)throws   {try rustCallWithError(FfiConverterTypeIfcError_lift) {
+    uniffi_bimifc_ffi_fn_method_ifcwriter_write_ifc_to_file(self.uniffiClonePointer(),
+        FfiConverterSequenceTypeFfiRoomElement.lower(elements),
+        FfiConverterTypeFfiRect_lower(boundingBox),
+        FfiConverterTypeFfiRoomDimensions_lower(dimensions),
+        FfiConverterTypeFfiProjectInfo_lower(project),
+        FfiConverterString.lower(path),$0
+    )
+}
+}
+    
+    /**
+     * Generate IFC 2x3 content from room elements plus placed light
+     * fixtures (GLDF luminaires → `IFCLIGHTFIXTURETYPE` + `IFCFLOWTERMINAL`).
+     */
+open func writeIfcWithLights(elements: [FfiRoomElement], lightFixtures: [FfiLightFixtureInput], boundingBox: FfiRect, dimensions: FfiRoomDimensions, project: FfiProjectInfo) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcwriter_write_ifc_with_lights(self.uniffiClonePointer(),
+        FfiConverterSequenceTypeFfiRoomElement.lower(elements),
+        FfiConverterSequenceTypeFfiLightFixtureInput.lower(lightFixtures),
+        FfiConverterTypeFfiRect_lower(boundingBox),
+        FfiConverterTypeFfiRoomDimensions_lower(dimensions),
+        FfiConverterTypeFfiProjectInfo_lower(project),$0
+    )
+})
+}
+    
+    /**
+     * Like `write_ifc_with_lights`, writing directly to a file path.
+     */
+open func writeIfcWithLightsToFile(elements: [FfiRoomElement], lightFixtures: [FfiLightFixtureInput], boundingBox: FfiRect, dimensions: FfiRoomDimensions, project: FfiProjectInfo, path: String)throws   {try rustCallWithError(FfiConverterTypeIfcError_lift) {
+    uniffi_bimifc_ffi_fn_method_ifcwriter_write_ifc_with_lights_to_file(self.uniffiClonePointer(),
+        FfiConverterSequenceTypeFfiRoomElement.lower(elements),
+        FfiConverterSequenceTypeFfiLightFixtureInput.lower(lightFixtures),
+        FfiConverterTypeFfiRect_lower(boundingBox),
+        FfiConverterTypeFfiRoomDimensions_lower(dimensions),
+        FfiConverterTypeFfiProjectInfo_lower(project),
+        FfiConverterString.lower(path),$0
+    )
+}
+}
+    
+    /**
+     * Full export: room elements, per-room `IFCSPACE` outlines and placed
+     * light fixtures. Spaces get first-level space boundaries to the
+     * walls/doors/windows around them.
+     */
+open func writeIfcWithSpaces(elements: [FfiRoomElement], spaces: [FfiSpace], lightFixtures: [FfiLightFixtureInput], boundingBox: FfiRect, dimensions: FfiRoomDimensions, project: FfiProjectInfo) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcwriter_write_ifc_with_spaces(self.uniffiClonePointer(),
+        FfiConverterSequenceTypeFfiRoomElement.lower(elements),
+        FfiConverterSequenceTypeFfiSpace.lower(spaces),
+        FfiConverterSequenceTypeFfiLightFixtureInput.lower(lightFixtures),
+        FfiConverterTypeFfiRect_lower(boundingBox),
+        FfiConverterTypeFfiRoomDimensions_lower(dimensions),
+        FfiConverterTypeFfiProjectInfo_lower(project),$0
+    )
+})
+}
+    
+    /**
+     * Like `write_ifc_with_spaces`, writing directly to a file path.
+     */
+open func writeIfcWithSpacesToFile(elements: [FfiRoomElement], spaces: [FfiSpace], lightFixtures: [FfiLightFixtureInput], boundingBox: FfiRect, dimensions: FfiRoomDimensions, project: FfiProjectInfo, path: String)throws   {try rustCallWithError(FfiConverterTypeIfcError_lift) {
+    uniffi_bimifc_ffi_fn_method_ifcwriter_write_ifc_with_spaces_to_file(self.uniffiClonePointer(),
+        FfiConverterSequenceTypeFfiRoomElement.lower(elements),
+        FfiConverterSequenceTypeFfiSpace.lower(spaces),
+        FfiConverterSequenceTypeFfiLightFixtureInput.lower(lightFixtures),
+        FfiConverterTypeFfiRect_lower(boundingBox),
+        FfiConverterTypeFfiRoomDimensions_lower(dimensions),
+        FfiConverterTypeFfiProjectInfo_lower(project),
+        FfiConverterString.lower(path),$0
+    )
+}
+}
+    
+    /**
+     * Low-level: emit a standalone property set as a STEP DATA fragment.
+     *
+     * Returns the STEP lines for an `IFCOWNERHISTORY` (#1), the property
+     * entities, and an `IFCPROPERTYSET` referencing them — with no
+     * `IFCRELDEFINESBYPROPERTIES` (no element to attach to). Intended for
+     * callers assembling an IFC file by hand; renumber/splice as needed.
+     * Returns an empty string if `properties` is empty.
+     */
+open func writePropertySet(psetName: String, properties: [FfiIfcProperty]) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_bimifc_ffi_fn_method_ifcwriter_write_property_set(self.uniffiClonePointer(),
+        FfiConverterString.lower(psetName),
+        FfiConverterSequenceTypeFfiIfcProperty.lower(properties),$0
+    )
+})
+}
+    
+
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeIfcWriter: FfiConverter {
+
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = IfcWriter
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> IfcWriter {
+        return IfcWriter(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: IfcWriter) -> UnsafeMutableRawPointer {
+        return value.uniffiClonePointer()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> IfcWriter {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: IfcWriter, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIfcWriter_lift(_ pointer: UnsafeMutableRawPointer) throws -> IfcWriter {
+    return try FfiConverterTypeIfcWriter.lift(pointer)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeIfcWriter_lower(_ value: IfcWriter) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeIfcWriter.lower(value)
+}
+
+
+
+
+
+
+/**
+ * Room-illuminance calculator: box room, cached form factors, radiosity
+ * interreflection. Construct once per room, `solve` per luminaire change,
+ * `grid`/`stats` per readout.
+ */
+public protocol LuxCalculatorProtocol: AnyObject, Sendable {
+    
+    /**
+     * Illuminance (lux) on a horizontal, upward-facing grid at height `z`.
+     * Returns `nx*ny` values in row-major order (y rows, x columns), cell
+     * centres spanning the room. Requires a prior `solve`.
+     */
+    func grid(z: Double, nx: UInt32, ny: UInt32) throws  -> [Double]
+    
+    /**
+     * Solve direct + interreflected illuminance for the given luminaires.
+     */
+    func solve(luminaires: [FfiLuxLuminaire]) throws 
+    
+    /**
+     * Workplane statistics at height `z`, over a 24×24 evaluation grid.
+     */
+    func stats(z: Double) throws  -> FfiLuxStats
+    
+}
+/**
+ * Room-illuminance calculator: box room, cached form factors, radiosity
+ * interreflection. Construct once per room, `solve` per luminaire change,
+ * `grid`/`stats` per readout.
+ */
+open class LuxCalculator: LuxCalculatorProtocol, @unchecked Sendable {
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoPointer {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_bimifc_ffi_fn_clone_luxcalculator(self.pointer, $0) }
+    }
+    /**
+     * Build the room mesh and cache its form factors (the expensive part —
+     * geometry-only, reusable across solves).
+     */
+public convenience init(length: Double, width: Double, height: Double, reflCeiling: Double, reflWall: Double, reflFloor: Double, divisions: UInt32) {
+    let pointer =
+        try! rustCall() {
+    uniffi_bimifc_ffi_fn_constructor_luxcalculator_new(
+        FfiConverterDouble.lower(length),
+        FfiConverterDouble.lower(width),
+        FfiConverterDouble.lower(height),
+        FfiConverterDouble.lower(reflCeiling),
+        FfiConverterDouble.lower(reflWall),
+        FfiConverterDouble.lower(reflFloor),
+        FfiConverterUInt32.lower(divisions),$0
+    )
+}
+    self.init(unsafeFromRawPointer: pointer)
+}
+
+    deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
+        try! rustCall { uniffi_bimifc_ffi_fn_free_luxcalculator(pointer, $0) }
+    }
+
+    
+
+    
+    /**
+     * Illuminance (lux) on a horizontal, upward-facing grid at height `z`.
+     * Returns `nx*ny` values in row-major order (y rows, x columns), cell
+     * centres spanning the room. Requires a prior `solve`.
+     */
+open func grid(z: Double, nx: UInt32, ny: UInt32)throws  -> [Double]  {
+    return try  FfiConverterSequenceDouble.lift(try rustCallWithError(FfiConverterTypeLightingError_lift) {
+    uniffi_bimifc_ffi_fn_method_luxcalculator_grid(self.uniffiClonePointer(),
+        FfiConverterDouble.lower(z),
+        FfiConverterUInt32.lower(nx),
+        FfiConverterUInt32.lower(ny),$0
+    )
+})
+}
+    
+    /**
+     * Solve direct + interreflected illuminance for the given luminaires.
+     */
+open func solve(luminaires: [FfiLuxLuminaire])throws   {try rustCallWithError(FfiConverterTypeLightingError_lift) {
+    uniffi_bimifc_ffi_fn_method_luxcalculator_solve(self.uniffiClonePointer(),
+        FfiConverterSequenceTypeFfiLuxLuminaire.lower(luminaires),$0
+    )
+}
+}
+    
+    /**
+     * Workplane statistics at height `z`, over a 24×24 evaluation grid.
+     */
+open func stats(z: Double)throws  -> FfiLuxStats  {
+    return try  FfiConverterTypeFfiLuxStats_lift(try rustCallWithError(FfiConverterTypeLightingError_lift) {
+    uniffi_bimifc_ffi_fn_method_luxcalculator_stats(self.uniffiClonePointer(),
+        FfiConverterDouble.lower(z),$0
+    )
+})
+}
+    
+
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeLuxCalculator: FfiConverter {
+
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = LuxCalculator
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> LuxCalculator {
+        return LuxCalculator(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: LuxCalculator) -> UnsafeMutableRawPointer {
+        return value.uniffiClonePointer()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LuxCalculator {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: LuxCalculator, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLuxCalculator_lift(_ pointer: UnsafeMutableRawPointer) throws -> LuxCalculator {
+    return try FfiConverterTypeLuxCalculator.lift(pointer)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLuxCalculator_lower(_ value: LuxCalculator) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeLuxCalculator.lower(value)
+}
+
+
+
+
+/**
+ * RGBA color [r, g, b, a] in 0.0–1.0 range.
+ */
+public struct ColorRgba {
+    public var r: Float
+    public var g: Float
+    public var b: Float
+    public var a: Float
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(r: Float, g: Float, b: Float, a: Float) {
+        self.r = r
+        self.g = g
+        self.b = b
+        self.a = a
+    }
+}
+
+#if compiler(>=6)
+extension ColorRgba: Sendable {}
+#endif
+
+
+extension ColorRgba: Equatable, Hashable {
+    public static func ==(lhs: ColorRgba, rhs: ColorRgba) -> Bool {
+        if lhs.r != rhs.r {
+            return false
+        }
+        if lhs.g != rhs.g {
+            return false
+        }
+        if lhs.b != rhs.b {
+            return false
+        }
+        if lhs.a != rhs.a {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(r)
+        hasher.combine(g)
+        hasher.combine(b)
+        hasher.combine(a)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeColorRgba: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ColorRgba {
+        return
+            try ColorRgba(
+                r: FfiConverterFloat.read(from: &buf), 
+                g: FfiConverterFloat.read(from: &buf), 
+                b: FfiConverterFloat.read(from: &buf), 
+                a: FfiConverterFloat.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ColorRgba, into buf: inout [UInt8]) {
+        FfiConverterFloat.write(value.r, into: &buf)
+        FfiConverterFloat.write(value.g, into: &buf)
+        FfiConverterFloat.write(value.b, into: &buf)
+        FfiConverterFloat.write(value.a, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeColorRgba_lift(_ buf: RustBuffer) throws -> ColorRgba {
+    return try FfiConverterTypeColorRgba.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeColorRgba_lower(_ value: ColorRgba) -> RustBuffer {
+    return FfiConverterTypeColorRgba.lower(value)
+}
+
+
+/**
+ * Entity mesh with its IFC-authored or default color.
+ */
+public struct ColoredEntityMesh {
+    public var entityId: UInt32
+    public var ifcType: String
+    public var name: String
+    public var mesh: MeshData
+    public var color: ColorRgba
+    /**
+     * 4x4 column-major transform matrix (16 floats), if available.
+     */
+    public var transform: [Float]?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(entityId: UInt32, ifcType: String, name: String, mesh: MeshData, color: ColorRgba, 
+        /**
+         * 4x4 column-major transform matrix (16 floats), if available.
+         */transform: [Float]?) {
+        self.entityId = entityId
+        self.ifcType = ifcType
+        self.name = name
+        self.mesh = mesh
+        self.color = color
+        self.transform = transform
+    }
+}
+
+#if compiler(>=6)
+extension ColoredEntityMesh: Sendable {}
+#endif
+
+
+extension ColoredEntityMesh: Equatable, Hashable {
+    public static func ==(lhs: ColoredEntityMesh, rhs: ColoredEntityMesh) -> Bool {
+        if lhs.entityId != rhs.entityId {
+            return false
+        }
+        if lhs.ifcType != rhs.ifcType {
+            return false
+        }
+        if lhs.name != rhs.name {
+            return false
+        }
+        if lhs.mesh != rhs.mesh {
+            return false
+        }
+        if lhs.color != rhs.color {
+            return false
+        }
+        if lhs.transform != rhs.transform {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(entityId)
+        hasher.combine(ifcType)
+        hasher.combine(name)
+        hasher.combine(mesh)
+        hasher.combine(color)
+        hasher.combine(transform)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeColoredEntityMesh: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ColoredEntityMesh {
+        return
+            try ColoredEntityMesh(
+                entityId: FfiConverterUInt32.read(from: &buf), 
+                ifcType: FfiConverterString.read(from: &buf), 
+                name: FfiConverterString.read(from: &buf), 
+                mesh: FfiConverterTypeMeshData.read(from: &buf), 
+                color: FfiConverterTypeColorRgba.read(from: &buf), 
+                transform: FfiConverterOptionSequenceFloat.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ColoredEntityMesh, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.entityId, into: &buf)
+        FfiConverterString.write(value.ifcType, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterTypeMeshData.write(value.mesh, into: &buf)
+        FfiConverterTypeColorRgba.write(value.color, into: &buf)
+        FfiConverterOptionSequenceFloat.write(value.transform, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeColoredEntityMesh_lift(_ buf: RustBuffer) throws -> ColoredEntityMesh {
+    return try FfiConverterTypeColoredEntityMesh.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeColoredEntityMesh_lower(_ value: ColoredEntityMesh) -> RustBuffer {
+    return FfiConverterTypeColoredEntityMesh.lower(value)
+}
 
 
 public struct EntityInfo {
@@ -1046,6 +2239,1767 @@ public func FfiConverterTypeEntityMesh_lift(_ buf: RustBuffer) throws -> EntityM
 #endif
 public func FfiConverterTypeEntityMesh_lower(_ value: EntityMesh) -> RustBuffer {
     return FfiConverterTypeEntityMesh.lower(value)
+}
+
+
+/**
+ * RGBA surface colour, components 0.0–1.0. Alpha < 1 renders transparent.
+ */
+public struct FfiColor {
+    public var r: Float
+    public var g: Float
+    public var b: Float
+    public var a: Float
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(r: Float, g: Float, b: Float, a: Float) {
+        self.r = r
+        self.g = g
+        self.b = b
+        self.a = a
+    }
+}
+
+#if compiler(>=6)
+extension FfiColor: Sendable {}
+#endif
+
+
+extension FfiColor: Equatable, Hashable {
+    public static func ==(lhs: FfiColor, rhs: FfiColor) -> Bool {
+        if lhs.r != rhs.r {
+            return false
+        }
+        if lhs.g != rhs.g {
+            return false
+        }
+        if lhs.b != rhs.b {
+            return false
+        }
+        if lhs.a != rhs.a {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(r)
+        hasher.combine(g)
+        hasher.combine(b)
+        hasher.combine(a)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiColor: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiColor {
+        return
+            try FfiColor(
+                r: FfiConverterFloat.read(from: &buf), 
+                g: FfiConverterFloat.read(from: &buf), 
+                b: FfiConverterFloat.read(from: &buf), 
+                a: FfiConverterFloat.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiColor, into buf: inout [UInt8]) {
+        FfiConverterFloat.write(value.r, into: &buf)
+        FfiConverterFloat.write(value.g, into: &buf)
+        FfiConverterFloat.write(value.b, into: &buf)
+        FfiConverterFloat.write(value.a, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiColor_lift(_ buf: RustBuffer) throws -> FfiColor {
+    return try FfiConverterTypeFfiColor.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiColor_lower(_ value: FfiColor) -> RustBuffer {
+    return FfiConverterTypeFfiColor.lower(value)
+}
+
+
+/**
+ * Triangle mesh for `FfiRoomElement.mesh`.
+ */
+public struct FfiElementMesh {
+    /**
+     * Flattened vertex positions [x, y, z, x, y, z, …].
+     */
+    public var positions: [Double]
+    /**
+     * Triangle list, three indices per face, counter-clockwise outside.
+     */
+    public var indices: [UInt32]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Flattened vertex positions [x, y, z, x, y, z, …].
+         */positions: [Double], 
+        /**
+         * Triangle list, three indices per face, counter-clockwise outside.
+         */indices: [UInt32]) {
+        self.positions = positions
+        self.indices = indices
+    }
+}
+
+#if compiler(>=6)
+extension FfiElementMesh: Sendable {}
+#endif
+
+
+extension FfiElementMesh: Equatable, Hashable {
+    public static func ==(lhs: FfiElementMesh, rhs: FfiElementMesh) -> Bool {
+        if lhs.positions != rhs.positions {
+            return false
+        }
+        if lhs.indices != rhs.indices {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(positions)
+        hasher.combine(indices)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiElementMesh: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiElementMesh {
+        return
+            try FfiElementMesh(
+                positions: FfiConverterSequenceDouble.read(from: &buf), 
+                indices: FfiConverterSequenceUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiElementMesh, into buf: inout [UInt8]) {
+        FfiConverterSequenceDouble.write(value.positions, into: &buf)
+        FfiConverterSequenceUInt32.write(value.indices, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiElementMesh_lift(_ buf: RustBuffer) throws -> FfiElementMesh {
+    return try FfiConverterTypeFfiElementMesh.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiElementMesh_lower(_ value: FfiElementMesh) -> RustBuffer {
+    return FfiConverterTypeFfiElementMesh.lower(value)
+}
+
+
+/**
+ * A property set attached to an element on export.
+ */
+public struct FfiElementPset {
+    public var name: String
+    public var properties: [FfiIfcProperty]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(name: String, properties: [FfiIfcProperty]) {
+        self.name = name
+        self.properties = properties
+    }
+}
+
+#if compiler(>=6)
+extension FfiElementPset: Sendable {}
+#endif
+
+
+extension FfiElementPset: Equatable, Hashable {
+    public static func ==(lhs: FfiElementPset, rhs: FfiElementPset) -> Bool {
+        if lhs.name != rhs.name {
+            return false
+        }
+        if lhs.properties != rhs.properties {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(properties)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiElementPset: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiElementPset {
+        return
+            try FfiElementPset(
+                name: FfiConverterString.read(from: &buf), 
+                properties: FfiConverterSequenceTypeFfiIfcProperty.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiElementPset, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterSequenceTypeFfiIfcProperty.write(value.properties, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiElementPset_lift(_ buf: RustBuffer) throws -> FfiElementPset {
+    return try FfiConverterTypeFfiElementPset.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiElementPset_lower(_ value: FfiElementPset) -> RustBuffer {
+    return FfiConverterTypeFfiElementPset.lower(value)
+}
+
+
+/**
+ * A product variant inside a GLDF container.
+ */
+public struct FfiGldfVariant {
+    public var id: String
+    public var name: String
+    public var geometryId: String?
+    public var emitterIds: [String]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: String, name: String, geometryId: String?, emitterIds: [String]) {
+        self.id = id
+        self.name = name
+        self.geometryId = geometryId
+        self.emitterIds = emitterIds
+    }
+}
+
+#if compiler(>=6)
+extension FfiGldfVariant: Sendable {}
+#endif
+
+
+extension FfiGldfVariant: Equatable, Hashable {
+    public static func ==(lhs: FfiGldfVariant, rhs: FfiGldfVariant) -> Bool {
+        if lhs.id != rhs.id {
+            return false
+        }
+        if lhs.name != rhs.name {
+            return false
+        }
+        if lhs.geometryId != rhs.geometryId {
+            return false
+        }
+        if lhs.emitterIds != rhs.emitterIds {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(name)
+        hasher.combine(geometryId)
+        hasher.combine(emitterIds)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiGldfVariant: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiGldfVariant {
+        return
+            try FfiGldfVariant(
+                id: FfiConverterString.read(from: &buf), 
+                name: FfiConverterString.read(from: &buf), 
+                geometryId: FfiConverterOptionString.read(from: &buf), 
+                emitterIds: FfiConverterSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiGldfVariant, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterOptionString.write(value.geometryId, into: &buf)
+        FfiConverterSequenceString.write(value.emitterIds, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiGldfVariant_lift(_ buf: RustBuffer) throws -> FfiGldfVariant {
+    return try FfiConverterTypeFfiGldfVariant.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiGldfVariant_lower(_ value: FfiGldfVariant) -> RustBuffer {
+    return FfiConverterTypeFfiGldfVariant.lower(value)
+}
+
+
+/**
+ * One named property inside a property set for export.
+ */
+public struct FfiIfcProperty {
+    public var name: String
+    /**
+     * Optional description; conventionally carries a bSDD id as `bSDD:<id>`.
+     */
+    public var description: String?
+    public var value: FfiIfcValue
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(name: String, 
+        /**
+         * Optional description; conventionally carries a bSDD id as `bSDD:<id>`.
+         */description: String?, value: FfiIfcValue) {
+        self.name = name
+        self.description = description
+        self.value = value
+    }
+}
+
+#if compiler(>=6)
+extension FfiIfcProperty: Sendable {}
+#endif
+
+
+extension FfiIfcProperty: Equatable, Hashable {
+    public static func ==(lhs: FfiIfcProperty, rhs: FfiIfcProperty) -> Bool {
+        if lhs.name != rhs.name {
+            return false
+        }
+        if lhs.description != rhs.description {
+            return false
+        }
+        if lhs.value != rhs.value {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(description)
+        hasher.combine(value)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiIfcProperty: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiIfcProperty {
+        return
+            try FfiIfcProperty(
+                name: FfiConverterString.read(from: &buf), 
+                description: FfiConverterOptionString.read(from: &buf), 
+                value: FfiConverterTypeFfiIfcValue.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiIfcProperty, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterOptionString.write(value.description, into: &buf)
+        FfiConverterTypeFfiIfcValue.write(value.value, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiIfcProperty_lift(_ buf: RustBuffer) throws -> FfiIfcProperty {
+    return try FfiConverterTypeFfiIfcProperty.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiIfcProperty_lower(_ value: FfiIfcProperty) -> RustBuffer {
+    return FfiConverterTypeFfiIfcProperty.lower(value)
+}
+
+
+/**
+ * A placed light fixture for IFC export. Position in the same plan frame
+ * as `FfiRoomElement` rects (x/y), z = mounting height above the floor.
+ */
+public struct FfiLightFixtureInput {
+    public var name: String
+    public var x: Double
+    public var y: Double
+    public var z: Double
+    /**
+     * Rotation about the vertical axis in radians.
+     */
+    public var rotation: Double
+    public var fluxLm: Double
+    public var cctK: Double?
+    /**
+     * Raw LDT photometry text (base64-encoded into the IFC by the writer).
+     */
+    public var ldt: String?
+    public var ldtFileName: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(name: String, x: Double, y: Double, z: Double, 
+        /**
+         * Rotation about the vertical axis in radians.
+         */rotation: Double, fluxLm: Double, cctK: Double?, 
+        /**
+         * Raw LDT photometry text (base64-encoded into the IFC by the writer).
+         */ldt: String?, ldtFileName: String?) {
+        self.name = name
+        self.x = x
+        self.y = y
+        self.z = z
+        self.rotation = rotation
+        self.fluxLm = fluxLm
+        self.cctK = cctK
+        self.ldt = ldt
+        self.ldtFileName = ldtFileName
+    }
+}
+
+#if compiler(>=6)
+extension FfiLightFixtureInput: Sendable {}
+#endif
+
+
+extension FfiLightFixtureInput: Equatable, Hashable {
+    public static func ==(lhs: FfiLightFixtureInput, rhs: FfiLightFixtureInput) -> Bool {
+        if lhs.name != rhs.name {
+            return false
+        }
+        if lhs.x != rhs.x {
+            return false
+        }
+        if lhs.y != rhs.y {
+            return false
+        }
+        if lhs.z != rhs.z {
+            return false
+        }
+        if lhs.rotation != rhs.rotation {
+            return false
+        }
+        if lhs.fluxLm != rhs.fluxLm {
+            return false
+        }
+        if lhs.cctK != rhs.cctK {
+            return false
+        }
+        if lhs.ldt != rhs.ldt {
+            return false
+        }
+        if lhs.ldtFileName != rhs.ldtFileName {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(x)
+        hasher.combine(y)
+        hasher.combine(z)
+        hasher.combine(rotation)
+        hasher.combine(fluxLm)
+        hasher.combine(cctK)
+        hasher.combine(ldt)
+        hasher.combine(ldtFileName)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiLightFixtureInput: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiLightFixtureInput {
+        return
+            try FfiLightFixtureInput(
+                name: FfiConverterString.read(from: &buf), 
+                x: FfiConverterDouble.read(from: &buf), 
+                y: FfiConverterDouble.read(from: &buf), 
+                z: FfiConverterDouble.read(from: &buf), 
+                rotation: FfiConverterDouble.read(from: &buf), 
+                fluxLm: FfiConverterDouble.read(from: &buf), 
+                cctK: FfiConverterOptionDouble.read(from: &buf), 
+                ldt: FfiConverterOptionString.read(from: &buf), 
+                ldtFileName: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiLightFixtureInput, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterDouble.write(value.x, into: &buf)
+        FfiConverterDouble.write(value.y, into: &buf)
+        FfiConverterDouble.write(value.z, into: &buf)
+        FfiConverterDouble.write(value.rotation, into: &buf)
+        FfiConverterDouble.write(value.fluxLm, into: &buf)
+        FfiConverterOptionDouble.write(value.cctK, into: &buf)
+        FfiConverterOptionString.write(value.ldt, into: &buf)
+        FfiConverterOptionString.write(value.ldtFileName, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiLightFixtureInput_lift(_ buf: RustBuffer) throws -> FfiLightFixtureInput {
+    return try FfiConverterTypeFfiLightFixtureInput.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiLightFixtureInput_lower(_ value: FfiLightFixtureInput) -> RustBuffer {
+    return FfiConverterTypeFfiLightFixtureInput.lower(value)
+}
+
+
+/**
+ * One placed luminaire for the lux solve. Position in calculator space
+ * (z-up, metres, origin at a room corner — see module docs). `ldt` is the
+ * raw Eulumdat text; luminaires sharing identical text share one parse.
+ */
+public struct FfiLuxLuminaire {
+    public var x: Double
+    public var y: Double
+    public var z: Double
+    public var fluxLm: Double
+    public var ldt: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(x: Double, y: Double, z: Double, fluxLm: Double, ldt: String) {
+        self.x = x
+        self.y = y
+        self.z = z
+        self.fluxLm = fluxLm
+        self.ldt = ldt
+    }
+}
+
+#if compiler(>=6)
+extension FfiLuxLuminaire: Sendable {}
+#endif
+
+
+extension FfiLuxLuminaire: Equatable, Hashable {
+    public static func ==(lhs: FfiLuxLuminaire, rhs: FfiLuxLuminaire) -> Bool {
+        if lhs.x != rhs.x {
+            return false
+        }
+        if lhs.y != rhs.y {
+            return false
+        }
+        if lhs.z != rhs.z {
+            return false
+        }
+        if lhs.fluxLm != rhs.fluxLm {
+            return false
+        }
+        if lhs.ldt != rhs.ldt {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(x)
+        hasher.combine(y)
+        hasher.combine(z)
+        hasher.combine(fluxLm)
+        hasher.combine(ldt)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiLuxLuminaire: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiLuxLuminaire {
+        return
+            try FfiLuxLuminaire(
+                x: FfiConverterDouble.read(from: &buf), 
+                y: FfiConverterDouble.read(from: &buf), 
+                z: FfiConverterDouble.read(from: &buf), 
+                fluxLm: FfiConverterDouble.read(from: &buf), 
+                ldt: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiLuxLuminaire, into buf: inout [UInt8]) {
+        FfiConverterDouble.write(value.x, into: &buf)
+        FfiConverterDouble.write(value.y, into: &buf)
+        FfiConverterDouble.write(value.z, into: &buf)
+        FfiConverterDouble.write(value.fluxLm, into: &buf)
+        FfiConverterString.write(value.ldt, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiLuxLuminaire_lift(_ buf: RustBuffer) throws -> FfiLuxLuminaire {
+    return try FfiConverterTypeFfiLuxLuminaire.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiLuxLuminaire_lower(_ value: FfiLuxLuminaire) -> RustBuffer {
+    return FfiConverterTypeFfiLuxLuminaire.lower(value)
+}
+
+
+/**
+ * Workplane statistics over the evaluated grid.
+ */
+public struct FfiLuxStats {
+    public var eAvg: Double
+    public var eMin: Double
+    public var eMax: Double
+    /**
+     * EN-style overall uniformity U₀ = E_min / E_avg.
+     */
+    public var u0: Double
+    public var iterations: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(eAvg: Double, eMin: Double, eMax: Double, 
+        /**
+         * EN-style overall uniformity U₀ = E_min / E_avg.
+         */u0: Double, iterations: UInt32) {
+        self.eAvg = eAvg
+        self.eMin = eMin
+        self.eMax = eMax
+        self.u0 = u0
+        self.iterations = iterations
+    }
+}
+
+#if compiler(>=6)
+extension FfiLuxStats: Sendable {}
+#endif
+
+
+extension FfiLuxStats: Equatable, Hashable {
+    public static func ==(lhs: FfiLuxStats, rhs: FfiLuxStats) -> Bool {
+        if lhs.eAvg != rhs.eAvg {
+            return false
+        }
+        if lhs.eMin != rhs.eMin {
+            return false
+        }
+        if lhs.eMax != rhs.eMax {
+            return false
+        }
+        if lhs.u0 != rhs.u0 {
+            return false
+        }
+        if lhs.iterations != rhs.iterations {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(eAvg)
+        hasher.combine(eMin)
+        hasher.combine(eMax)
+        hasher.combine(u0)
+        hasher.combine(iterations)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiLuxStats: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiLuxStats {
+        return
+            try FfiLuxStats(
+                eAvg: FfiConverterDouble.read(from: &buf), 
+                eMin: FfiConverterDouble.read(from: &buf), 
+                eMax: FfiConverterDouble.read(from: &buf), 
+                u0: FfiConverterDouble.read(from: &buf), 
+                iterations: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiLuxStats, into buf: inout [UInt8]) {
+        FfiConverterDouble.write(value.eAvg, into: &buf)
+        FfiConverterDouble.write(value.eMin, into: &buf)
+        FfiConverterDouble.write(value.eMax, into: &buf)
+        FfiConverterDouble.write(value.u0, into: &buf)
+        FfiConverterUInt32.write(value.iterations, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiLuxStats_lift(_ buf: RustBuffer) throws -> FfiLuxStats {
+    return try FfiConverterTypeFfiLuxStats.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiLuxStats_lower(_ value: FfiLuxStats) -> RustBuffer {
+    return FfiConverterTypeFfiLuxStats.lower(value)
+}
+
+
+/**
+ * Photometric key figures for one emitter.
+ */
+public struct FfiPhotometrySummary {
+    /**
+     * Total luminous flux in lumens (rated if present, else integrated
+     * from the LDT).
+     */
+    public var fluxLm: Double
+    /**
+     * Correlated colour temperature in kelvin, when derivable.
+     */
+    public var cctK: Double?
+    /**
+     * "fixed", "changeable", or "sensor".
+     */
+    public var sourceType: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Total luminous flux in lumens (rated if present, else integrated
+         * from the LDT).
+         */fluxLm: Double, 
+        /**
+         * Correlated colour temperature in kelvin, when derivable.
+         */cctK: Double?, 
+        /**
+         * "fixed", "changeable", or "sensor".
+         */sourceType: String) {
+        self.fluxLm = fluxLm
+        self.cctK = cctK
+        self.sourceType = sourceType
+    }
+}
+
+#if compiler(>=6)
+extension FfiPhotometrySummary: Sendable {}
+#endif
+
+
+extension FfiPhotometrySummary: Equatable, Hashable {
+    public static func ==(lhs: FfiPhotometrySummary, rhs: FfiPhotometrySummary) -> Bool {
+        if lhs.fluxLm != rhs.fluxLm {
+            return false
+        }
+        if lhs.cctK != rhs.cctK {
+            return false
+        }
+        if lhs.sourceType != rhs.sourceType {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(fluxLm)
+        hasher.combine(cctK)
+        hasher.combine(sourceType)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiPhotometrySummary: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiPhotometrySummary {
+        return
+            try FfiPhotometrySummary(
+                fluxLm: FfiConverterDouble.read(from: &buf), 
+                cctK: FfiConverterOptionDouble.read(from: &buf), 
+                sourceType: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiPhotometrySummary, into buf: inout [UInt8]) {
+        FfiConverterDouble.write(value.fluxLm, into: &buf)
+        FfiConverterOptionDouble.write(value.cctK, into: &buf)
+        FfiConverterString.write(value.sourceType, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiPhotometrySummary_lift(_ buf: RustBuffer) throws -> FfiPhotometrySummary {
+    return try FfiConverterTypeFfiPhotometrySummary.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiPhotometrySummary_lower(_ value: FfiPhotometrySummary) -> RustBuffer {
+    return FfiConverterTypeFfiPhotometrySummary.lower(value)
+}
+
+
+/**
+ * A 2D plan point in meters.
+ */
+public struct FfiPoint2 {
+    public var x: Double
+    public var y: Double
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(x: Double, y: Double) {
+        self.x = x
+        self.y = y
+    }
+}
+
+#if compiler(>=6)
+extension FfiPoint2: Sendable {}
+#endif
+
+
+extension FfiPoint2: Equatable, Hashable {
+    public static func ==(lhs: FfiPoint2, rhs: FfiPoint2) -> Bool {
+        if lhs.x != rhs.x {
+            return false
+        }
+        if lhs.y != rhs.y {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(x)
+        hasher.combine(y)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiPoint2: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiPoint2 {
+        return
+            try FfiPoint2(
+                x: FfiConverterDouble.read(from: &buf), 
+                y: FfiConverterDouble.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiPoint2, into buf: inout [UInt8]) {
+        FfiConverterDouble.write(value.x, into: &buf)
+        FfiConverterDouble.write(value.y, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiPoint2_lift(_ buf: RustBuffer) throws -> FfiPoint2 {
+    return try FfiConverterTypeFfiPoint2.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiPoint2_lower(_ value: FfiPoint2) -> RustBuffer {
+    return FfiConverterTypeFfiPoint2.lower(value)
+}
+
+
+/**
+ * Project metadata for the IFC file header.
+ */
+public struct FfiProjectInfo {
+    public var projectName: String
+    public var siteName: String
+    public var buildingName: String
+    public var storeyName: String
+    public var author: String
+    public var organization: String
+    /**
+     * Exporting application name, written to `IfcApplication` and the
+     * STEP header (default: the writer crate).
+     */
+    public var applicationName: String
+    /**
+     * Exporting application version (e.g. the app bundle version).
+     */
+    public var applicationVersion: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(projectName: String, siteName: String, buildingName: String, storeyName: String, author: String, organization: String, 
+        /**
+         * Exporting application name, written to `IfcApplication` and the
+         * STEP header (default: the writer crate).
+         */applicationName: String = "bimifc-writer", 
+        /**
+         * Exporting application version (e.g. the app bundle version).
+         */applicationVersion: String = "") {
+        self.projectName = projectName
+        self.siteName = siteName
+        self.buildingName = buildingName
+        self.storeyName = storeyName
+        self.author = author
+        self.organization = organization
+        self.applicationName = applicationName
+        self.applicationVersion = applicationVersion
+    }
+}
+
+#if compiler(>=6)
+extension FfiProjectInfo: Sendable {}
+#endif
+
+
+extension FfiProjectInfo: Equatable, Hashable {
+    public static func ==(lhs: FfiProjectInfo, rhs: FfiProjectInfo) -> Bool {
+        if lhs.projectName != rhs.projectName {
+            return false
+        }
+        if lhs.siteName != rhs.siteName {
+            return false
+        }
+        if lhs.buildingName != rhs.buildingName {
+            return false
+        }
+        if lhs.storeyName != rhs.storeyName {
+            return false
+        }
+        if lhs.author != rhs.author {
+            return false
+        }
+        if lhs.organization != rhs.organization {
+            return false
+        }
+        if lhs.applicationName != rhs.applicationName {
+            return false
+        }
+        if lhs.applicationVersion != rhs.applicationVersion {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(projectName)
+        hasher.combine(siteName)
+        hasher.combine(buildingName)
+        hasher.combine(storeyName)
+        hasher.combine(author)
+        hasher.combine(organization)
+        hasher.combine(applicationName)
+        hasher.combine(applicationVersion)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiProjectInfo: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiProjectInfo {
+        return
+            try FfiProjectInfo(
+                projectName: FfiConverterString.read(from: &buf), 
+                siteName: FfiConverterString.read(from: &buf), 
+                buildingName: FfiConverterString.read(from: &buf), 
+                storeyName: FfiConverterString.read(from: &buf), 
+                author: FfiConverterString.read(from: &buf), 
+                organization: FfiConverterString.read(from: &buf), 
+                applicationName: FfiConverterString.read(from: &buf), 
+                applicationVersion: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiProjectInfo, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.projectName, into: &buf)
+        FfiConverterString.write(value.siteName, into: &buf)
+        FfiConverterString.write(value.buildingName, into: &buf)
+        FfiConverterString.write(value.storeyName, into: &buf)
+        FfiConverterString.write(value.author, into: &buf)
+        FfiConverterString.write(value.organization, into: &buf)
+        FfiConverterString.write(value.applicationName, into: &buf)
+        FfiConverterString.write(value.applicationVersion, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiProjectInfo_lift(_ buf: RustBuffer) throws -> FfiProjectInfo {
+    return try FfiConverterTypeFfiProjectInfo.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiProjectInfo_lower(_ value: FfiProjectInfo) -> RustBuffer {
+    return FfiConverterTypeFfiProjectInfo.lower(value)
+}
+
+
+/**
+ * 2D rectangle matching CGRect semantics.
+ */
+public struct FfiRect {
+    public var x: Double
+    public var y: Double
+    public var width: Double
+    public var height: Double
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(x: Double, y: Double, width: Double, height: Double) {
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+    }
+}
+
+#if compiler(>=6)
+extension FfiRect: Sendable {}
+#endif
+
+
+extension FfiRect: Equatable, Hashable {
+    public static func ==(lhs: FfiRect, rhs: FfiRect) -> Bool {
+        if lhs.x != rhs.x {
+            return false
+        }
+        if lhs.y != rhs.y {
+            return false
+        }
+        if lhs.width != rhs.width {
+            return false
+        }
+        if lhs.height != rhs.height {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(x)
+        hasher.combine(y)
+        hasher.combine(width)
+        hasher.combine(height)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiRect: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiRect {
+        return
+            try FfiRect(
+                x: FfiConverterDouble.read(from: &buf), 
+                y: FfiConverterDouble.read(from: &buf), 
+                width: FfiConverterDouble.read(from: &buf), 
+                height: FfiConverterDouble.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiRect, into buf: inout [UInt8]) {
+        FfiConverterDouble.write(value.x, into: &buf)
+        FfiConverterDouble.write(value.y, into: &buf)
+        FfiConverterDouble.write(value.width, into: &buf)
+        FfiConverterDouble.write(value.height, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiRect_lift(_ buf: RustBuffer) throws -> FfiRect {
+    return try FfiConverterTypeFfiRect.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiRect_lower(_ value: FfiRect) -> RustBuffer {
+    return FfiConverterTypeFfiRect.lower(value)
+}
+
+
+/**
+ * Room dimensions in meters.
+ */
+public struct FfiRoomDimensions {
+    public var width: Double
+    public var height: Double
+    public var depth: Double
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(width: Double, height: Double, depth: Double) {
+        self.width = width
+        self.height = height
+        self.depth = depth
+    }
+}
+
+#if compiler(>=6)
+extension FfiRoomDimensions: Sendable {}
+#endif
+
+
+extension FfiRoomDimensions: Equatable, Hashable {
+    public static func ==(lhs: FfiRoomDimensions, rhs: FfiRoomDimensions) -> Bool {
+        if lhs.width != rhs.width {
+            return false
+        }
+        if lhs.height != rhs.height {
+            return false
+        }
+        if lhs.depth != rhs.depth {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(width)
+        hasher.combine(height)
+        hasher.combine(depth)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiRoomDimensions: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiRoomDimensions {
+        return
+            try FfiRoomDimensions(
+                width: FfiConverterDouble.read(from: &buf), 
+                height: FfiConverterDouble.read(from: &buf), 
+                depth: FfiConverterDouble.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiRoomDimensions, into buf: inout [UInt8]) {
+        FfiConverterDouble.write(value.width, into: &buf)
+        FfiConverterDouble.write(value.height, into: &buf)
+        FfiConverterDouble.write(value.depth, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiRoomDimensions_lift(_ buf: RustBuffer) throws -> FfiRoomDimensions {
+    return try FfiConverterTypeFfiRoomDimensions.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiRoomDimensions_lower(_ value: FfiRoomDimensions) -> RustBuffer {
+    return FfiConverterTypeFfiRoomDimensions.lower(value)
+}
+
+
+/**
+ * A single room element for IFC export.
+ */
+public struct FfiRoomElement {
+    public var kind: FfiElementKind
+    public var rect: FfiRect
+    /**
+     * Rotation in radians.
+     */
+    public var rotation: Double
+    public var label: String?
+    /**
+     * Extrusion height in meters (0 = use default).
+     */
+    public var height: Double
+    /**
+     * Property sets attached to this element (empty = none). The writer
+     * derives `Pset_WallCommon` / `Pset_DoorCommon` / `Pset_WindowCommon`
+     * and `BaseQuantities` itself; a set supplied here with the same
+     * name wins.
+     */
+    public var psets: [FfiElementPset]
+    /**
+     * Elevation of the element base in meters (default 0).
+     */
+    public var zOffset: Double
+    /**
+     * Storey name (empty = project default storey).
+     */
+    public var storey: String
+    /**
+     * Material name; `None` picks a per-kind default (masonry walls,
+     * wooden doors, glass windows, …).
+     */
+    public var material: String?
+    /**
+     * Stable source identifier (e.g. the RoomPlan surface/object UUID).
+     * When set, the IFC GlobalId is derived from it so re-exporting the
+     * same scan keeps the same ids. `None` generates a random GlobalId.
+     */
+    public var identifier: String?
+    /**
+     * Surface colour; `None` uses the writer's per-kind palette
+     * (light-grey walls, wooden doors, glass windows, mid-grey furniture).
+     */
+    public var color: FfiColor?
+    /**
+     * Optional triangle mesh written as `IfcFacetedBrep` instead of the
+     * extruded box (e.g. a RoomPlan `.model` USDZ object). Coordinates
+     * are element-local: origin at the rect centre on the base, X along
+     * `rect.width`, Y along `rect.height`, Z up, meters.
+     */
+    public var mesh: FfiElementMesh?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(kind: FfiElementKind, rect: FfiRect, 
+        /**
+         * Rotation in radians.
+         */rotation: Double, label: String?, 
+        /**
+         * Extrusion height in meters (0 = use default).
+         */height: Double, 
+        /**
+         * Property sets attached to this element (empty = none). The writer
+         * derives `Pset_WallCommon` / `Pset_DoorCommon` / `Pset_WindowCommon`
+         * and `BaseQuantities` itself; a set supplied here with the same
+         * name wins.
+         */psets: [FfiElementPset], 
+        /**
+         * Elevation of the element base in meters (default 0).
+         */zOffset: Double = Double(0.0), 
+        /**
+         * Storey name (empty = project default storey).
+         */storey: String = "", 
+        /**
+         * Material name; `None` picks a per-kind default (masonry walls,
+         * wooden doors, glass windows, …).
+         */material: String? = nil, 
+        /**
+         * Stable source identifier (e.g. the RoomPlan surface/object UUID).
+         * When set, the IFC GlobalId is derived from it so re-exporting the
+         * same scan keeps the same ids. `None` generates a random GlobalId.
+         */identifier: String? = nil, 
+        /**
+         * Surface colour; `None` uses the writer's per-kind palette
+         * (light-grey walls, wooden doors, glass windows, mid-grey furniture).
+         */color: FfiColor? = nil, 
+        /**
+         * Optional triangle mesh written as `IfcFacetedBrep` instead of the
+         * extruded box (e.g. a RoomPlan `.model` USDZ object). Coordinates
+         * are element-local: origin at the rect centre on the base, X along
+         * `rect.width`, Y along `rect.height`, Z up, meters.
+         */mesh: FfiElementMesh? = nil) {
+        self.kind = kind
+        self.rect = rect
+        self.rotation = rotation
+        self.label = label
+        self.height = height
+        self.psets = psets
+        self.zOffset = zOffset
+        self.storey = storey
+        self.material = material
+        self.identifier = identifier
+        self.color = color
+        self.mesh = mesh
+    }
+}
+
+#if compiler(>=6)
+extension FfiRoomElement: Sendable {}
+#endif
+
+
+extension FfiRoomElement: Equatable, Hashable {
+    public static func ==(lhs: FfiRoomElement, rhs: FfiRoomElement) -> Bool {
+        if lhs.kind != rhs.kind {
+            return false
+        }
+        if lhs.rect != rhs.rect {
+            return false
+        }
+        if lhs.rotation != rhs.rotation {
+            return false
+        }
+        if lhs.label != rhs.label {
+            return false
+        }
+        if lhs.height != rhs.height {
+            return false
+        }
+        if lhs.psets != rhs.psets {
+            return false
+        }
+        if lhs.zOffset != rhs.zOffset {
+            return false
+        }
+        if lhs.storey != rhs.storey {
+            return false
+        }
+        if lhs.material != rhs.material {
+            return false
+        }
+        if lhs.identifier != rhs.identifier {
+            return false
+        }
+        if lhs.color != rhs.color {
+            return false
+        }
+        if lhs.mesh != rhs.mesh {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(kind)
+        hasher.combine(rect)
+        hasher.combine(rotation)
+        hasher.combine(label)
+        hasher.combine(height)
+        hasher.combine(psets)
+        hasher.combine(zOffset)
+        hasher.combine(storey)
+        hasher.combine(material)
+        hasher.combine(identifier)
+        hasher.combine(color)
+        hasher.combine(mesh)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiRoomElement: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiRoomElement {
+        return
+            try FfiRoomElement(
+                kind: FfiConverterTypeFfiElementKind.read(from: &buf), 
+                rect: FfiConverterTypeFfiRect.read(from: &buf), 
+                rotation: FfiConverterDouble.read(from: &buf), 
+                label: FfiConverterOptionString.read(from: &buf), 
+                height: FfiConverterDouble.read(from: &buf), 
+                psets: FfiConverterSequenceTypeFfiElementPset.read(from: &buf), 
+                zOffset: FfiConverterDouble.read(from: &buf), 
+                storey: FfiConverterString.read(from: &buf), 
+                material: FfiConverterOptionString.read(from: &buf), 
+                identifier: FfiConverterOptionString.read(from: &buf), 
+                color: FfiConverterOptionTypeFfiColor.read(from: &buf), 
+                mesh: FfiConverterOptionTypeFfiElementMesh.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiRoomElement, into buf: inout [UInt8]) {
+        FfiConverterTypeFfiElementKind.write(value.kind, into: &buf)
+        FfiConverterTypeFfiRect.write(value.rect, into: &buf)
+        FfiConverterDouble.write(value.rotation, into: &buf)
+        FfiConverterOptionString.write(value.label, into: &buf)
+        FfiConverterDouble.write(value.height, into: &buf)
+        FfiConverterSequenceTypeFfiElementPset.write(value.psets, into: &buf)
+        FfiConverterDouble.write(value.zOffset, into: &buf)
+        FfiConverterString.write(value.storey, into: &buf)
+        FfiConverterOptionString.write(value.material, into: &buf)
+        FfiConverterOptionString.write(value.identifier, into: &buf)
+        FfiConverterOptionTypeFfiColor.write(value.color, into: &buf)
+        FfiConverterOptionTypeFfiElementMesh.write(value.mesh, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiRoomElement_lift(_ buf: RustBuffer) throws -> FfiRoomElement {
+    return try FfiConverterTypeFfiRoomElement.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiRoomElement_lower(_ value: FfiRoomElement) -> RustBuffer {
+    return FfiConverterTypeFfiRoomElement.lower(value)
+}
+
+
+/**
+ * A room outline exported as `IFCSPACE`, with derived
+ * `Pset_SpaceCommon`, `BaseQuantities` and `IfcRelSpaceBoundary` links
+ * to the walls, doors and windows that enclose it.
+ */
+public struct FfiSpace {
+    /**
+     * Short name / number (IfcSpace.Name).
+     */
+    public var name: String
+    /**
+     * Long name (IfcSpace.LongName), e.g. "Living Room".
+     */
+    public var longName: String?
+    /**
+     * Closed outline in the same plan frame as element rects; at least
+     * 3 points, closing point optional.
+     */
+    public var polygon: [FfiPoint2]
+    /**
+     * Space height in meters (0 = room height).
+     */
+    public var height: Double
+    /**
+     * Floor elevation in meters.
+     */
+    public var zOffset: Double
+    /**
+     * Storey name (empty = project default storey).
+     */
+    public var storey: String
+    /**
+     * Extra property sets attached to the space.
+     */
+    public var psets: [FfiElementPset]
+    /**
+     * Stable source identifier (e.g. the RoomPlan floor UUID); see
+     * `FfiRoomElement.identifier`.
+     */
+    public var identifier: String?
+    /**
+     * When set, an `IfcSlab` of this thickness (meters) is generated
+     * under the space from the same polygon.
+     */
+    public var slabThickness: Double?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Short name / number (IfcSpace.Name).
+         */name: String, 
+        /**
+         * Long name (IfcSpace.LongName), e.g. "Living Room".
+         */longName: String? = nil, 
+        /**
+         * Closed outline in the same plan frame as element rects; at least
+         * 3 points, closing point optional.
+         */polygon: [FfiPoint2], 
+        /**
+         * Space height in meters (0 = room height).
+         */height: Double = Double(0.0), 
+        /**
+         * Floor elevation in meters.
+         */zOffset: Double = Double(0.0), 
+        /**
+         * Storey name (empty = project default storey).
+         */storey: String = "", 
+        /**
+         * Extra property sets attached to the space.
+         */psets: [FfiElementPset] = [], 
+        /**
+         * Stable source identifier (e.g. the RoomPlan floor UUID); see
+         * `FfiRoomElement.identifier`.
+         */identifier: String? = nil, 
+        /**
+         * When set, an `IfcSlab` of this thickness (meters) is generated
+         * under the space from the same polygon.
+         */slabThickness: Double? = nil) {
+        self.name = name
+        self.longName = longName
+        self.polygon = polygon
+        self.height = height
+        self.zOffset = zOffset
+        self.storey = storey
+        self.psets = psets
+        self.identifier = identifier
+        self.slabThickness = slabThickness
+    }
+}
+
+#if compiler(>=6)
+extension FfiSpace: Sendable {}
+#endif
+
+
+extension FfiSpace: Equatable, Hashable {
+    public static func ==(lhs: FfiSpace, rhs: FfiSpace) -> Bool {
+        if lhs.name != rhs.name {
+            return false
+        }
+        if lhs.longName != rhs.longName {
+            return false
+        }
+        if lhs.polygon != rhs.polygon {
+            return false
+        }
+        if lhs.height != rhs.height {
+            return false
+        }
+        if lhs.zOffset != rhs.zOffset {
+            return false
+        }
+        if lhs.storey != rhs.storey {
+            return false
+        }
+        if lhs.psets != rhs.psets {
+            return false
+        }
+        if lhs.identifier != rhs.identifier {
+            return false
+        }
+        if lhs.slabThickness != rhs.slabThickness {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(longName)
+        hasher.combine(polygon)
+        hasher.combine(height)
+        hasher.combine(zOffset)
+        hasher.combine(storey)
+        hasher.combine(psets)
+        hasher.combine(identifier)
+        hasher.combine(slabThickness)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiSpace: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiSpace {
+        return
+            try FfiSpace(
+                name: FfiConverterString.read(from: &buf), 
+                longName: FfiConverterOptionString.read(from: &buf), 
+                polygon: FfiConverterSequenceTypeFfiPoint2.read(from: &buf), 
+                height: FfiConverterDouble.read(from: &buf), 
+                zOffset: FfiConverterDouble.read(from: &buf), 
+                storey: FfiConverterString.read(from: &buf), 
+                psets: FfiConverterSequenceTypeFfiElementPset.read(from: &buf), 
+                identifier: FfiConverterOptionString.read(from: &buf), 
+                slabThickness: FfiConverterOptionDouble.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiSpace, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterOptionString.write(value.longName, into: &buf)
+        FfiConverterSequenceTypeFfiPoint2.write(value.polygon, into: &buf)
+        FfiConverterDouble.write(value.height, into: &buf)
+        FfiConverterDouble.write(value.zOffset, into: &buf)
+        FfiConverterString.write(value.storey, into: &buf)
+        FfiConverterSequenceTypeFfiElementPset.write(value.psets, into: &buf)
+        FfiConverterOptionString.write(value.identifier, into: &buf)
+        FfiConverterOptionDouble.write(value.slabThickness, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiSpace_lift(_ buf: RustBuffer) throws -> FfiSpace {
+    return try FfiConverterTypeFfiSpace.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiSpace_lower(_ value: FfiSpace) -> RustBuffer {
+    return FfiConverterTypeFfiSpace.lower(value)
+}
+
+
+/**
+ * Goniometric photometric data for a light source.
+ */
+public struct GoniometricInfo {
+    public var name: String
+    public var colourTemperature: Double
+    public var luminousFlux: Double
+    public var emitterType: String
+    public var distributionType: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(name: String, colourTemperature: Double, luminousFlux: Double, emitterType: String, distributionType: String) {
+        self.name = name
+        self.colourTemperature = colourTemperature
+        self.luminousFlux = luminousFlux
+        self.emitterType = emitterType
+        self.distributionType = distributionType
+    }
+}
+
+#if compiler(>=6)
+extension GoniometricInfo: Sendable {}
+#endif
+
+
+extension GoniometricInfo: Equatable, Hashable {
+    public static func ==(lhs: GoniometricInfo, rhs: GoniometricInfo) -> Bool {
+        if lhs.name != rhs.name {
+            return false
+        }
+        if lhs.colourTemperature != rhs.colourTemperature {
+            return false
+        }
+        if lhs.luminousFlux != rhs.luminousFlux {
+            return false
+        }
+        if lhs.emitterType != rhs.emitterType {
+            return false
+        }
+        if lhs.distributionType != rhs.distributionType {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(colourTemperature)
+        hasher.combine(luminousFlux)
+        hasher.combine(emitterType)
+        hasher.combine(distributionType)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeGoniometricInfo: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> GoniometricInfo {
+        return
+            try GoniometricInfo(
+                name: FfiConverterString.read(from: &buf), 
+                colourTemperature: FfiConverterDouble.read(from: &buf), 
+                luminousFlux: FfiConverterDouble.read(from: &buf), 
+                emitterType: FfiConverterString.read(from: &buf), 
+                distributionType: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: GoniometricInfo, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterDouble.write(value.colourTemperature, into: &buf)
+        FfiConverterDouble.write(value.luminousFlux, into: &buf)
+        FfiConverterString.write(value.emitterType, into: &buf)
+        FfiConverterString.write(value.distributionType, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeGoniometricInfo_lift(_ buf: RustBuffer) throws -> GoniometricInfo {
+    return try FfiConverterTypeGoniometricInfo.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeGoniometricInfo_lower(_ value: GoniometricInfo) -> RustBuffer {
+    return FfiConverterTypeGoniometricInfo.lower(value)
 }
 
 
@@ -1377,13 +4331,23 @@ public struct Property {
     public var name: String
     public var value: String
     public var unit: String?
+    /**
+     * Raw IFC value/measure type token if the value was typed
+     * (e.g. "IFCPOWERMEASURE", "IFCLABEL"); `None` for bare values.
+     */
+    public var valueType: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(name: String, value: String, unit: String?) {
+    public init(name: String, value: String, unit: String?, 
+        /**
+         * Raw IFC value/measure type token if the value was typed
+         * (e.g. "IFCPOWERMEASURE", "IFCLABEL"); `None` for bare values.
+         */valueType: String?) {
         self.name = name
         self.value = value
         self.unit = unit
+        self.valueType = valueType
     }
 }
 
@@ -1403,6 +4367,9 @@ extension Property: Equatable, Hashable {
         if lhs.unit != rhs.unit {
             return false
         }
+        if lhs.valueType != rhs.valueType {
+            return false
+        }
         return true
     }
 
@@ -1410,6 +4377,7 @@ extension Property: Equatable, Hashable {
         hasher.combine(name)
         hasher.combine(value)
         hasher.combine(unit)
+        hasher.combine(valueType)
     }
 }
 
@@ -1424,7 +4392,8 @@ public struct FfiConverterTypeProperty: FfiConverterRustBuffer {
             try Property(
                 name: FfiConverterString.read(from: &buf), 
                 value: FfiConverterString.read(from: &buf), 
-                unit: FfiConverterOptionString.read(from: &buf)
+                unit: FfiConverterOptionString.read(from: &buf), 
+                valueType: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -1432,6 +4401,7 @@ public struct FfiConverterTypeProperty: FfiConverterRustBuffer {
         FfiConverterString.write(value.name, into: &buf)
         FfiConverterString.write(value.value, into: &buf)
         FfiConverterOptionString.write(value.unit, into: &buf)
+        FfiConverterOptionString.write(value.valueType, into: &buf)
     }
 }
 
@@ -1803,6 +4773,478 @@ public func FfiConverterTypeStoreyInfo_lower(_ value: StoreyInfo) -> RustBuffer 
 }
 
 
+/**
+ * Type statistics: count of entities per IFC type.
+ */
+public struct TypeCount {
+    public var ifcType: String
+    public var count: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(ifcType: String, count: UInt32) {
+        self.ifcType = ifcType
+        self.count = count
+    }
+}
+
+#if compiler(>=6)
+extension TypeCount: Sendable {}
+#endif
+
+
+extension TypeCount: Equatable, Hashable {
+    public static func ==(lhs: TypeCount, rhs: TypeCount) -> Bool {
+        if lhs.ifcType != rhs.ifcType {
+            return false
+        }
+        if lhs.count != rhs.count {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(ifcType)
+        hasher.combine(count)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTypeCount: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TypeCount {
+        return
+            try TypeCount(
+                ifcType: FfiConverterString.read(from: &buf), 
+                count: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TypeCount, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.ifcType, into: &buf)
+        FfiConverterUInt32.write(value.count, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTypeCount_lift(_ buf: RustBuffer) throws -> TypeCount {
+    return try FfiConverterTypeTypeCount.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTypeCount_lower(_ value: TypeCount) -> RustBuffer {
+    return FfiConverterTypeTypeCount.lower(value)
+}
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Element type for IFC export.
+ */
+
+public enum FfiElementKind {
+    
+    case wall
+    case door
+    case window
+    case opening
+    case furniture(category: String
+    )
+    case stair
+    case column
+    case railing
+    /**
+     * Sanitary fixture — IFCFLOWTERMINAL + IFCSANITARYTERMINALTYPE.
+     */
+    case sanitaryTerminal(category: String
+    )
+    /**
+     * Generic element — IFCBUILDINGELEMENTPROXY.
+     */
+    case proxy(category: String
+    )
+}
+
+
+#if compiler(>=6)
+extension FfiElementKind: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiElementKind: FfiConverterRustBuffer {
+    typealias SwiftType = FfiElementKind
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiElementKind {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .wall
+        
+        case 2: return .door
+        
+        case 3: return .window
+        
+        case 4: return .opening
+        
+        case 5: return .furniture(category: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 6: return .stair
+        
+        case 7: return .column
+        
+        case 8: return .railing
+        
+        case 9: return .sanitaryTerminal(category: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 10: return .proxy(category: try FfiConverterString.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: FfiElementKind, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .wall:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .door:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .window:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .opening:
+            writeInt(&buf, Int32(4))
+        
+        
+        case let .furniture(category):
+            writeInt(&buf, Int32(5))
+            FfiConverterString.write(category, into: &buf)
+            
+        
+        case .stair:
+            writeInt(&buf, Int32(6))
+        
+        
+        case .column:
+            writeInt(&buf, Int32(7))
+        
+        
+        case .railing:
+            writeInt(&buf, Int32(8))
+        
+        
+        case let .sanitaryTerminal(category):
+            writeInt(&buf, Int32(9))
+            FfiConverterString.write(category, into: &buf)
+            
+        
+        case let .proxy(category):
+            writeInt(&buf, Int32(10))
+            FfiConverterString.write(category, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiElementKind_lift(_ buf: RustBuffer) throws -> FfiElementKind {
+    return try FfiConverterTypeFfiElementKind.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiElementKind_lower(_ value: FfiElementKind) -> RustBuffer {
+    return FfiConverterTypeFfiElementKind.lower(value)
+}
+
+
+extension FfiElementKind: Equatable, Hashable {}
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * A typed IFC property value. Mirrors `bimifc_writer::IfcValue` 1:1 so
+ * exported values carry their IFC measure type (units show up in BIM tools).
+ */
+
+public enum FfiIfcValue {
+    
+    /**
+     * IFCLABEL — short string (≤255 chars).
+     */
+    case label(value: String
+    )
+    /**
+     * IFCTEXT — longer prose.
+     */
+    case text(value: String
+    )
+    /**
+     * IFCIDENTIFIER — machine-oriented id string.
+     */
+    case identifier(value: String
+    )
+    /**
+     * IFCINTEGER
+     */
+    case integer(value: Int64
+    )
+    /**
+     * IFCREAL
+     */
+    case real(value: Double
+    )
+    /**
+     * IFCBOOLEAN
+     */
+    case boolean(value: Bool
+    )
+    /**
+     * IFCPOWERMEASURE — watts.
+     */
+    case powerMeasure(value: Double
+    )
+    /**
+     * IFCELECTRICVOLTAGEMEASURE — volts.
+     */
+    case electricVoltageMeasure(value: Double
+    )
+    /**
+     * IFCELECTRICCURRENTMEASURE — amperes.
+     */
+    case electricCurrentMeasure(value: Double
+    )
+    /**
+     * IFCFREQUENCYMEASURE — hertz.
+     */
+    case frequencyMeasure(value: Double
+    )
+    /**
+     * IFCMASSMEASURE — kilograms.
+     */
+    case massMeasure(value: Double
+    )
+    /**
+     * IFCPOSITIVELENGTHMEASURE — meters.
+     */
+    case positiveLengthMeasure(value: Double
+    )
+    /**
+     * IFCTHERMODYNAMICTEMPERATUREMEASURE — kelvin.
+     */
+    case thermodynamicTemperatureMeasure(value: Double
+    )
+    /**
+     * IFCLUMINOUSFLUXMEASURE — lumens.
+     */
+    case luminousFluxMeasure(value: Double
+    )
+    /**
+     * IFCPLANEANGLEMEASURE — radians.
+     */
+    case planeAngleMeasure(value: Double
+    )
+}
+
+
+#if compiler(>=6)
+extension FfiIfcValue: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiIfcValue: FfiConverterRustBuffer {
+    typealias SwiftType = FfiIfcValue
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiIfcValue {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .label(value: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 2: return .text(value: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 3: return .identifier(value: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 4: return .integer(value: try FfiConverterInt64.read(from: &buf)
+        )
+        
+        case 5: return .real(value: try FfiConverterDouble.read(from: &buf)
+        )
+        
+        case 6: return .boolean(value: try FfiConverterBool.read(from: &buf)
+        )
+        
+        case 7: return .powerMeasure(value: try FfiConverterDouble.read(from: &buf)
+        )
+        
+        case 8: return .electricVoltageMeasure(value: try FfiConverterDouble.read(from: &buf)
+        )
+        
+        case 9: return .electricCurrentMeasure(value: try FfiConverterDouble.read(from: &buf)
+        )
+        
+        case 10: return .frequencyMeasure(value: try FfiConverterDouble.read(from: &buf)
+        )
+        
+        case 11: return .massMeasure(value: try FfiConverterDouble.read(from: &buf)
+        )
+        
+        case 12: return .positiveLengthMeasure(value: try FfiConverterDouble.read(from: &buf)
+        )
+        
+        case 13: return .thermodynamicTemperatureMeasure(value: try FfiConverterDouble.read(from: &buf)
+        )
+        
+        case 14: return .luminousFluxMeasure(value: try FfiConverterDouble.read(from: &buf)
+        )
+        
+        case 15: return .planeAngleMeasure(value: try FfiConverterDouble.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: FfiIfcValue, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .label(value):
+            writeInt(&buf, Int32(1))
+            FfiConverterString.write(value, into: &buf)
+            
+        
+        case let .text(value):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(value, into: &buf)
+            
+        
+        case let .identifier(value):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(value, into: &buf)
+            
+        
+        case let .integer(value):
+            writeInt(&buf, Int32(4))
+            FfiConverterInt64.write(value, into: &buf)
+            
+        
+        case let .real(value):
+            writeInt(&buf, Int32(5))
+            FfiConverterDouble.write(value, into: &buf)
+            
+        
+        case let .boolean(value):
+            writeInt(&buf, Int32(6))
+            FfiConverterBool.write(value, into: &buf)
+            
+        
+        case let .powerMeasure(value):
+            writeInt(&buf, Int32(7))
+            FfiConverterDouble.write(value, into: &buf)
+            
+        
+        case let .electricVoltageMeasure(value):
+            writeInt(&buf, Int32(8))
+            FfiConverterDouble.write(value, into: &buf)
+            
+        
+        case let .electricCurrentMeasure(value):
+            writeInt(&buf, Int32(9))
+            FfiConverterDouble.write(value, into: &buf)
+            
+        
+        case let .frequencyMeasure(value):
+            writeInt(&buf, Int32(10))
+            FfiConverterDouble.write(value, into: &buf)
+            
+        
+        case let .massMeasure(value):
+            writeInt(&buf, Int32(11))
+            FfiConverterDouble.write(value, into: &buf)
+            
+        
+        case let .positiveLengthMeasure(value):
+            writeInt(&buf, Int32(12))
+            FfiConverterDouble.write(value, into: &buf)
+            
+        
+        case let .thermodynamicTemperatureMeasure(value):
+            writeInt(&buf, Int32(13))
+            FfiConverterDouble.write(value, into: &buf)
+            
+        
+        case let .luminousFluxMeasure(value):
+            writeInt(&buf, Int32(14))
+            FfiConverterDouble.write(value, into: &buf)
+            
+        
+        case let .planeAngleMeasure(value):
+            writeInt(&buf, Int32(15))
+            FfiConverterDouble.write(value, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiIfcValue_lift(_ buf: RustBuffer) throws -> FfiIfcValue {
+    return try FfiConverterTypeFfiIfcValue.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiIfcValue_lower(_ value: FfiIfcValue) -> RustBuffer {
+    return FfiConverterTypeFfiIfcValue.lower(value)
+}
+
+
+extension FfiIfcValue: Equatable, Hashable {}
+
+
+
+
+
+
+
 public enum IfcError: Swift.Error {
 
     
@@ -1898,6 +5340,126 @@ extension IfcError: Foundation.LocalizedError {
 
 
 
+
+public enum LightingError: Swift.Error {
+
+    
+    
+    case ParseError(message: String
+    )
+    case NotFound(message: String
+    )
+    case CalcError(message: String
+    )
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeLightingError: FfiConverterRustBuffer {
+    typealias SwiftType = LightingError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LightingError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        
+
+        
+        case 1: return .ParseError(
+            message: try FfiConverterString.read(from: &buf)
+            )
+        case 2: return .NotFound(
+            message: try FfiConverterString.read(from: &buf)
+            )
+        case 3: return .CalcError(
+            message: try FfiConverterString.read(from: &buf)
+            )
+
+         default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: LightingError, into buf: inout [UInt8]) {
+        switch value {
+
+        
+
+        
+        
+        case let .ParseError(message):
+            writeInt(&buf, Int32(1))
+            FfiConverterString.write(message, into: &buf)
+            
+        
+        case let .NotFound(message):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(message, into: &buf)
+            
+        
+        case let .CalcError(message):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(message, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLightingError_lift(_ buf: RustBuffer) throws -> LightingError {
+    return try FfiConverterTypeLightingError.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLightingError_lower(_ value: LightingError) -> RustBuffer {
+    return FfiConverterTypeLightingError.lower(value)
+}
+
+
+extension LightingError: Equatable, Hashable {}
+
+
+
+
+extension LightingError: Foundation.LocalizedError {
+    public var errorDescription: String? {
+        String(reflecting: self)
+    }
+}
+
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionUInt32: FfiConverterRustBuffer {
+    typealias SwiftType = UInt32?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterUInt32.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterUInt32.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
@@ -1973,6 +5535,54 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionData: FfiConverterRustBuffer {
+    typealias SwiftType = Data?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterData.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterData.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeColorRgba: FfiConverterRustBuffer {
+    typealias SwiftType = ColorRgba?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeColorRgba.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeColorRgba.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeEntityInfo: FfiConverterRustBuffer {
     typealias SwiftType = EntityInfo?
 
@@ -1989,6 +5599,78 @@ fileprivate struct FfiConverterOptionTypeEntityInfo: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeEntityInfo.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeFfiColor: FfiConverterRustBuffer {
+    typealias SwiftType = FfiColor?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeFfiColor.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeFfiColor.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeFfiElementMesh: FfiConverterRustBuffer {
+    typealias SwiftType = FfiElementMesh?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeFfiElementMesh.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeFfiElementMesh.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeFfiPhotometrySummary: FfiConverterRustBuffer {
+    typealias SwiftType = FfiPhotometrySummary?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeFfiPhotometrySummary.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeFfiPhotometrySummary.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -2021,6 +5703,54 @@ fileprivate struct FfiConverterOptionTypeMeshData: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeProperty: FfiConverterRustBuffer {
+    typealias SwiftType = Property?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeProperty.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeProperty.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeQuantity: FfiConverterRustBuffer {
+    typealias SwiftType = Quantity?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeQuantity.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeQuantity.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeSpatialNode: FfiConverterRustBuffer {
     typealias SwiftType = SpatialNode?
 
@@ -2037,6 +5767,54 @@ fileprivate struct FfiConverterOptionTypeSpatialNode: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeSpatialNode.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeStoreyInfo: FfiConverterRustBuffer {
+    typealias SwiftType = StoreyInfo?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeStoreyInfo.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeStoreyInfo.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionSequenceFloat: FfiConverterRustBuffer {
+    typealias SwiftType = [Float]?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterSequenceFloat.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterSequenceFloat.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -2095,6 +5873,81 @@ fileprivate struct FfiConverterSequenceFloat: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceDouble: FfiConverterRustBuffer {
+    typealias SwiftType = [Double]
+
+    public static func write(_ value: [Double], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterDouble.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Double] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [Double]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterDouble.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
+    typealias SwiftType = [String]
+
+    public static func write(_ value: [String], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterString.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [String] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [String]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterString.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeColoredEntityMesh: FfiConverterRustBuffer {
+    typealias SwiftType = [ColoredEntityMesh]
+
+    public static func write(_ value: [ColoredEntityMesh], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeColoredEntityMesh.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ColoredEntityMesh] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ColoredEntityMesh]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeColoredEntityMesh.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeEntityMesh: FfiConverterRustBuffer {
     typealias SwiftType = [EntityMesh]
 
@@ -2112,6 +5965,231 @@ fileprivate struct FfiConverterSequenceTypeEntityMesh: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeEntityMesh.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFfiElementPset: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiElementPset]
+
+    public static func write(_ value: [FfiElementPset], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiElementPset.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiElementPset] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiElementPset]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiElementPset.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFfiGldfVariant: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiGldfVariant]
+
+    public static func write(_ value: [FfiGldfVariant], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiGldfVariant.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiGldfVariant] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiGldfVariant]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiGldfVariant.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFfiIfcProperty: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiIfcProperty]
+
+    public static func write(_ value: [FfiIfcProperty], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiIfcProperty.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiIfcProperty] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiIfcProperty]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiIfcProperty.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFfiLightFixtureInput: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiLightFixtureInput]
+
+    public static func write(_ value: [FfiLightFixtureInput], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiLightFixtureInput.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiLightFixtureInput] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiLightFixtureInput]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiLightFixtureInput.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFfiLuxLuminaire: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiLuxLuminaire]
+
+    public static func write(_ value: [FfiLuxLuminaire], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiLuxLuminaire.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiLuxLuminaire] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiLuxLuminaire]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiLuxLuminaire.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFfiPoint2: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiPoint2]
+
+    public static func write(_ value: [FfiPoint2], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiPoint2.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiPoint2] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiPoint2]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiPoint2.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFfiRoomElement: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiRoomElement]
+
+    public static func write(_ value: [FfiRoomElement], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiRoomElement.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiRoomElement] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiRoomElement]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiRoomElement.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFfiSpace: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiSpace]
+
+    public static func write(_ value: [FfiSpace], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiSpace.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiSpace] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiSpace]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiSpace.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeGoniometricInfo: FfiConverterRustBuffer {
+    typealias SwiftType = [GoniometricInfo]
+
+    public static func write(_ value: [GoniometricInfo], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeGoniometricInfo.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [GoniometricInfo] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [GoniometricInfo]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeGoniometricInfo.read(from: &buf))
         }
         return seq
     }
@@ -2267,6 +6345,41 @@ fileprivate struct FfiConverterSequenceTypeStoreyInfo: FfiConverterRustBuffer {
     }
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeTypeCount: FfiConverterRustBuffer {
+    typealias SwiftType = [TypeCount]
+
+    public static func write(_ value: [TypeCount], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeTypeCount.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [TypeCount] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [TypeCount]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeTypeCount.read(from: &buf))
+        }
+        return seq
+    }
+}
+/**
+ * Convert LDT (Eulumdat) photometry text to IES format.
+ */
+public func ldtToIes(ldt: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeLightingError_lift) {
+    uniffi_bimifc_ffi_fn_func_ldt_to_ies(
+        FfiConverterString.lower(ldt),$0
+    )
+})
+}
+
 private enum InitializationResult {
     case ok
     case contractVersionMismatch
@@ -2282,6 +6395,33 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
+    if (uniffi_bimifc_ffi_checksum_func_ldt_to_ies() != 60508) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_gldfluminaire_emitter_ids() != 22834) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_gldfluminaire_manufacturer() != 39202) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_gldfluminaire_mesh() != 46324) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_gldfluminaire_name() != 38266) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_gldfluminaire_photometry_ldt() != 46560) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_gldfluminaire_photometry_summary() != 50732) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_gldfluminaire_preview_image() != 59950) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_gldfluminaire_variants() != 9626) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_bimifc_ffi_checksum_method_ifcmodel_all_elements() != 49296) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2291,10 +6431,22 @@ private let initializationResult: InitializationResult = {
     if (uniffi_bimifc_ffi_checksum_method_ifcmodel_all_geometry_ids() != 15288) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_bimifc_ffi_checksum_method_ifcmodel_batch_colored_geometry() != 50960) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_bimifc_ffi_checksum_method_ifcmodel_batch_geometry() != 55626) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_bimifc_ffi_checksum_method_ifcmodel_containing_storey() != 35034) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_bimifc_ffi_checksum_method_ifcmodel_count_by_type() != 54001) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcmodel_default_color_for_type() != 41997) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcmodel_element_storey_info() != 56832) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_bimifc_ffi_checksum_method_ifcmodel_elements_in_storey() != 27943) {
@@ -2315,10 +6467,37 @@ private let initializationResult: InitializationResult = {
     if (uniffi_bimifc_ffi_checksum_method_ifcmodel_entity_name() != 31245) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_bimifc_ffi_checksum_method_ifcmodel_entity_object_type() != 52923) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcmodel_entity_position() != 38804) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcmodel_entity_surface_color() != 19878) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcmodel_entity_tag() != 6176) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcmodel_entity_transform() != 30616) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_bimifc_ffi_checksum_method_ifcmodel_get_entity() != 43394) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_bimifc_ffi_checksum_method_ifcmodel_get_geometry() != 8734) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcmodel_get_property() != 29559) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcmodel_get_quantity() != 25225) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcmodel_goniometric_sources() != 48933) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcmodel_goniometric_to_ldt() != 8665) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_bimifc_ffi_checksum_method_ifcmodel_light_fixtures() != 49742) {
@@ -2348,13 +6527,55 @@ private let initializationResult: InitializationResult = {
     if (uniffi_bimifc_ffi_checksum_method_ifcmodel_storeys() != 39730) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_bimifc_ffi_checksum_method_ifcmodel_type_statistics() != 10243) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_bimifc_ffi_checksum_method_ifcmodel_unit_scale() != 58329) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcwriter_write_ifc() != 47307) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcwriter_write_ifc_to_file() != 21711) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcwriter_write_ifc_with_lights() != 13150) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcwriter_write_ifc_with_lights_to_file() != 40684) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcwriter_write_ifc_with_spaces() != 44237) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcwriter_write_ifc_with_spaces_to_file() != 11338) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_ifcwriter_write_property_set() != 8111) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_luxcalculator_grid() != 37551) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_luxcalculator_solve() != 13174) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_method_luxcalculator_stats() != 13437) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_constructor_gldfluminaire_from_bytes() != 60908) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_bimifc_ffi_checksum_constructor_ifcmodel_from_file() != 2291) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_bimifc_ffi_checksum_constructor_ifcmodel_parse() != 60239) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_constructor_ifcwriter_new() != 13054) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_bimifc_ffi_checksum_constructor_luxcalculator_new() != 39390) {
         return InitializationResult.apiChecksumMismatch
     }
 

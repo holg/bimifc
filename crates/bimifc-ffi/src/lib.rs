@@ -11,6 +11,57 @@ use bimifc_model::{AttributeValue, EntityId, EntityResolver};
 
 uniffi::include_scaffolding!("bimifc_ffi");
 
+mod gldf_lux;
+
+/// Keep the embedded Bevy viewer's C API in the static library.
+///
+/// `bimifc-bevy`'s `#[no_mangle] extern "C"` functions live in a
+/// dependency crate; nothing in this crate calls them, so the linker
+/// dead-strips the whole viewer out of `libbimifc_ffi.a` and Swift's
+/// `create_bevy_app(...)` fails to link. Referencing each symbol once
+/// from a `used` table anchors them. Apple targets only — the viewer's
+/// `ffi` module is `cfg`-gated to iOS/macOS.
+#[cfg(all(feature = "viewer", any(target_os = "ios", target_os = "macos")))]
+#[used]
+static VIEWER_C_API: ViewerCApi = {
+    use bimifc_bevy::ffi as v;
+    ViewerCApi([
+        v::create_bevy_app as *const (),
+        v::enter_frame as *const (),
+        v::release_bevy_app as *const (),
+        v::load_geometry as *const (),
+        v::load_entities as *const (),
+        v::select_entity as *const (),
+        v::clear_selection as *const (),
+        v::hide_entity as *const (),
+        v::show_entity as *const (),
+        v::show_all as *const (),
+        v::isolate_entities as *const (),
+        v::camera_home as *const (),
+        v::camera_fit_all as *const (),
+        v::camera_focus_entity as *const (),
+        v::touch_started as *const (),
+        v::touch_moved as *const (),
+        v::touch_ended as *const (),
+        v::touch_cancelled as *const (),
+        v::set_theme as *const (),
+        v::load_ifc_text as *const (),
+        v::set_discipline_filter as *const (),
+        v::resize_surface as *const (),
+        v::mouse_button as *const (),
+        v::mouse_moved as *const (),
+        v::mouse_wheel as *const (),
+        v::camera_state_description as *const (),
+    ])
+};
+
+/// Raw fn pointers are not `Sync`; the table is never read, only kept.
+#[cfg(all(feature = "viewer", any(target_os = "ios", target_os = "macos")))]
+struct ViewerCApi([*const (); 26]);
+#[cfg(all(feature = "viewer", any(target_os = "ios", target_os = "macos")))]
+unsafe impl Sync for ViewerCApi {}
+pub use gldf_lux::*;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Error type
 // ═══════════════════════════════════════════════════════════════════════════
@@ -66,6 +117,9 @@ pub struct Property {
     pub name: String,
     pub value: String,
     pub unit: Option<String>,
+    /// Raw IFC value/measure type token if the value was typed
+    /// (e.g. "IFCPOWERMEASURE", "IFCLABEL"); `None` for bare values.
+    pub value_type: Option<String>,
 }
 
 #[derive(uniffi::Record)]
@@ -183,7 +237,85 @@ pub enum FfiElementKind {
     Door,
     Window,
     Opening,
-    Furniture { category: String },
+    Furniture {
+        category: String,
+    },
+    Stair,
+    Column,
+    Railing,
+    /// Gable roof (triangular profile extruded along the rect's depth;
+    /// `height` = ridge height above the element base).
+    RoofGable,
+    /// Hip roof (four sloping faces).
+    RoofHip,
+    /// Barrel roof (semicircular profile).
+    RoofBarrel,
+    /// Sanitary fixture — IFCFLOWTERMINAL + IFCSANITARYTERMINALTYPE.
+    SanitaryTerminal {
+        category: String,
+    },
+    /// Luminaire mis-detected by the scanner (floor lamp, pendant …),
+    /// keeping the original category. Written as `IFCFLOWTERMINAL` +
+    /// `IFCLIGHTFIXTURETYPE` (IFC2X3) with `Pset_LightFixtureTypeCommon`.
+    LightFixture {
+        category: String,
+    },
+    /// Generic element — IFCBUILDINGELEMENTPROXY.
+    Proxy {
+        category: String,
+    },
+}
+
+/// A typed IFC property value. Mirrors `bimifc_writer::IfcValue` 1:1 so
+/// exported values carry their IFC measure type (units show up in BIM tools).
+#[derive(uniffi::Enum)]
+pub enum FfiIfcValue {
+    /// IFCLABEL — short string (≤255 chars).
+    Label { value: String },
+    /// IFCTEXT — longer prose.
+    Text { value: String },
+    /// IFCIDENTIFIER — machine-oriented id string.
+    Identifier { value: String },
+    /// IFCINTEGER
+    Integer { value: i64 },
+    /// IFCREAL
+    Real { value: f64 },
+    /// IFCBOOLEAN
+    Boolean { value: bool },
+    /// IFCPOWERMEASURE — watts.
+    PowerMeasure { value: f64 },
+    /// IFCELECTRICVOLTAGEMEASURE — volts.
+    ElectricVoltageMeasure { value: f64 },
+    /// IFCELECTRICCURRENTMEASURE — amperes.
+    ElectricCurrentMeasure { value: f64 },
+    /// IFCFREQUENCYMEASURE — hertz.
+    FrequencyMeasure { value: f64 },
+    /// IFCMASSMEASURE — kilograms.
+    MassMeasure { value: f64 },
+    /// IFCPOSITIVELENGTHMEASURE — meters.
+    PositiveLengthMeasure { value: f64 },
+    /// IFCTHERMODYNAMICTEMPERATUREMEASURE — kelvin.
+    ThermodynamicTemperatureMeasure { value: f64 },
+    /// IFCLUMINOUSFLUXMEASURE — lumens.
+    LuminousFluxMeasure { value: f64 },
+    /// IFCPLANEANGLEMEASURE — radians.
+    PlaneAngleMeasure { value: f64 },
+}
+
+/// One named property inside a property set for export.
+#[derive(uniffi::Record)]
+pub struct FfiIfcProperty {
+    pub name: String,
+    /// Optional description; conventionally carries a bSDD id as `bSDD:<id>`.
+    pub description: Option<String>,
+    pub value: FfiIfcValue,
+}
+
+/// A property set attached to an element on export.
+#[derive(uniffi::Record)]
+pub struct FfiElementPset {
+    pub name: String,
+    pub properties: Vec<FfiIfcProperty>,
 }
 
 /// A single room element for IFC export.
@@ -196,6 +328,102 @@ pub struct FfiRoomElement {
     pub label: Option<String>,
     /// Extrusion height in meters (0 = use default).
     pub height: f64,
+    /// Property sets attached to this element (empty = none). The writer
+    /// derives `Pset_WallCommon` / `Pset_DoorCommon` / `Pset_WindowCommon`
+    /// and `BaseQuantities` itself; a set supplied here with the same
+    /// name wins.
+    pub psets: Vec<FfiElementPset>,
+    /// Elevation of the element base in meters (default 0).
+    #[uniffi(default = 0.0)]
+    pub z_offset: f64,
+    /// Storey name (empty = project default storey).
+    #[uniffi(default = "")]
+    pub storey: String,
+    /// Material name; `None` picks a per-kind default (masonry walls,
+    /// wooden doors, glass windows, …).
+    #[uniffi(default = None)]
+    pub material: Option<String>,
+    /// Stable source identifier (e.g. the RoomPlan surface/object UUID).
+    /// When set, the IFC GlobalId is derived from it so re-exporting the
+    /// same scan keeps the same ids. `None` generates a random GlobalId.
+    #[uniffi(default = None)]
+    pub identifier: Option<String>,
+    /// Surface colour; `None` uses the writer's per-kind palette
+    /// (light-grey walls, wooden doors, glass windows, mid-grey furniture).
+    #[uniffi(default = None)]
+    pub color: Option<FfiColor>,
+    /// Optional triangle mesh written as `IfcFacetedBrep` instead of the
+    /// extruded box (e.g. a RoomPlan `.model` USDZ object). Coordinates
+    /// are element-local: origin at the rect centre on the base, X along
+    /// `rect.width`, Y along `rect.height`, Z up, meters.
+    #[uniffi(default = None)]
+    pub mesh: Option<FfiElementMesh>,
+}
+
+/// Triangle mesh for `FfiRoomElement.mesh`.
+#[derive(uniffi::Record)]
+pub struct FfiElementMesh {
+    /// Flattened vertex positions [x, y, z, x, y, z, …].
+    pub positions: Vec<f64>,
+    /// Triangle list, three indices per face, counter-clockwise outside.
+    pub indices: Vec<u32>,
+}
+
+/// RGBA surface colour, components 0.0–1.0. Alpha < 1 renders transparent.
+#[derive(uniffi::Record)]
+pub struct FfiColor {
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
+}
+
+/// A 2D plan point in meters.
+#[derive(uniffi::Record)]
+pub struct FfiPoint2 {
+    pub x: f64,
+    pub y: f64,
+}
+
+/// A room outline exported as `IFCSPACE`, with derived
+/// `Pset_SpaceCommon`, `BaseQuantities` and `IfcRelSpaceBoundary` links
+/// to the walls, doors and windows that enclose it.
+#[derive(uniffi::Record)]
+pub struct FfiSpace {
+    /// Short name / number (IfcSpace.Name).
+    pub name: String,
+    /// Long name (IfcSpace.LongName), e.g. "Living Room".
+    #[uniffi(default = None)]
+    pub long_name: Option<String>,
+    /// Closed outline in the same plan frame as element rects; at least
+    /// 3 points, closing point optional.
+    pub polygon: Vec<FfiPoint2>,
+    /// Space height in meters (0 = room height).
+    #[uniffi(default = 0.0)]
+    pub height: f64,
+    /// Floor elevation in meters.
+    #[uniffi(default = 0.0)]
+    pub z_offset: f64,
+    /// Storey name (empty = project default storey).
+    #[uniffi(default = "")]
+    pub storey: String,
+    /// Extra property sets attached to the space.
+    #[uniffi(default = [])]
+    pub psets: Vec<FfiElementPset>,
+    /// Stable source identifier (e.g. the RoomPlan floor UUID); see
+    /// `FfiRoomElement.identifier`.
+    #[uniffi(default = None)]
+    pub identifier: Option<String>,
+    /// When set, an `IfcSlab` of this thickness (meters) is generated
+    /// under the space from the same polygon.
+    #[uniffi(default = None)]
+    pub slab_thickness: Option<f64>,
+    /// Preview mode: write only the slab, not the `IfcSpace` volume.
+    /// Viewers draw spaces as translucent boxes that swallow whatever is
+    /// inside them (a roof gable, for instance), so a 3D preview wants
+    /// the floors without the volumes. The exported file keeps both.
+    #[uniffi(default = false)]
+    pub slab_only: bool,
 }
 
 /// Project metadata for the IFC file header.
@@ -207,6 +435,43 @@ pub struct FfiProjectInfo {
     pub storey_name: String,
     pub author: String,
     pub organization: String,
+    /// Exporting application name, written to `IfcApplication` and the
+    /// STEP header (default: the writer crate).
+    #[uniffi(default = "bimifc-writer")]
+    pub application_name: String,
+    /// Exporting application version (e.g. the app bundle version).
+    #[uniffi(default = "")]
+    pub application_version: String,
+    /// Site georeference (WGS84 decimal degrees) → `IfcSite.RefLatitude`
+    /// / `RefLongitude`. `None` = unreferenced.
+    #[uniffi(default = None)]
+    pub site_latitude: Option<f64>,
+    #[uniffi(default = None)]
+    pub site_longitude: Option<f64>,
+    /// Site elevation above sea level, meters → `IfcSite.RefElevation`.
+    #[uniffi(default = None)]
+    pub site_elevation: Option<f64>,
+    /// Direction of true north in the plan frame (same frame as element
+    /// rects) → `IfcGeometricRepresentationContext.TrueNorth`.
+    #[uniffi(default = None)]
+    pub true_north: Option<FfiPoint2>,
+    /// Which IFC schema to write. IFC2x3 is the default for
+    /// compatibility with older BIM tools; IFC4 uses the modern classes
+    /// (`IfcLightFixture`, `IfcSanitaryTerminal`, `IfcWall`).
+    /// `None` = IFC2x3 (the long-standing default).
+    #[uniffi(default = None)]
+    pub schema: Option<FfiIfcSchema>,
+}
+
+/// IFC schema version for the export.
+#[derive(uniffi::Enum, Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum FfiIfcSchema {
+    /// IFC2x3 TC1 — widest tool compatibility.
+    #[default]
+    Ifc2X3,
+    /// IFC4 ADD2 — real occurrence classes for luminaires and sanitary
+    /// fixtures, `IfcWall` instead of the deprecated standard case.
+    Ifc4,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -235,30 +500,124 @@ impl IfcWriter {
         dimensions: FfiRoomDimensions,
         project: FfiProjectInfo,
     ) -> String {
-        let room = bimifc_writer::RoomData {
-            elements: elements.into_iter().map(convert_ffi_element).collect(),
-            bounding_box: bimifc_writer::Rect {
-                x: bounding_box.x,
-                y: bounding_box.y,
-                width: bounding_box.width,
-                height: bounding_box.height,
-            },
-            dimensions: bimifc_writer::RoomDimensions {
-                width: dimensions.width,
-                height: dimensions.height,
-                depth: dimensions.depth,
-            },
-            project: bimifc_writer::ProjectInfo {
-                project_name: project.project_name,
-                site_name: project.site_name,
-                building_name: project.building_name,
-                storey_name: project.storey_name,
-                author: project.author,
-                organization: project.organization,
-            },
-            storey_elevations: Vec::new(),
-        };
+        let room = build_room(
+            elements,
+            Vec::new(),
+            Vec::new(),
+            bounding_box,
+            dimensions,
+            project,
+        );
         bimifc_writer::write_ifc(&room)
+    }
+
+    /// Generate IFC 2x3 content from room elements plus placed light
+    /// fixtures (GLDF luminaires → `IFCLIGHTFIXTURETYPE` + `IFCFLOWTERMINAL`).
+    pub fn write_ifc_with_lights(
+        &self,
+        elements: Vec<FfiRoomElement>,
+        light_fixtures: Vec<FfiLightFixtureInput>,
+        bounding_box: FfiRect,
+        dimensions: FfiRoomDimensions,
+        project: FfiProjectInfo,
+    ) -> String {
+        let room = build_room(
+            elements,
+            Vec::new(),
+            light_fixtures,
+            bounding_box,
+            dimensions,
+            project,
+        );
+        bimifc_writer::write_ifc(&room)
+    }
+
+    /// Like `write_ifc_with_lights`, writing directly to a file path.
+    pub fn write_ifc_with_lights_to_file(
+        &self,
+        elements: Vec<FfiRoomElement>,
+        light_fixtures: Vec<FfiLightFixtureInput>,
+        bounding_box: FfiRect,
+        dimensions: FfiRoomDimensions,
+        project: FfiProjectInfo,
+        path: String,
+    ) -> Result<(), IfcError> {
+        let content =
+            self.write_ifc_with_lights(elements, light_fixtures, bounding_box, dimensions, project);
+        std::fs::write(&path, content).map_err(|e| IfcError::IoError {
+            message: e.to_string(),
+        })
+    }
+
+    /// Full export: room elements, per-room `IFCSPACE` outlines and placed
+    /// light fixtures. Spaces get first-level space boundaries to the
+    /// walls/doors/windows around them.
+    pub fn write_ifc_with_spaces(
+        &self,
+        elements: Vec<FfiRoomElement>,
+        spaces: Vec<FfiSpace>,
+        light_fixtures: Vec<FfiLightFixtureInput>,
+        bounding_box: FfiRect,
+        dimensions: FfiRoomDimensions,
+        project: FfiProjectInfo,
+    ) -> String {
+        let room = build_room(
+            elements,
+            spaces,
+            light_fixtures,
+            bounding_box,
+            dimensions,
+            project,
+        );
+        bimifc_writer::write_ifc(&room)
+    }
+
+    /// Like `write_ifc_with_spaces`, writing directly to a file path.
+    #[allow(clippy::too_many_arguments)]
+    pub fn write_ifc_with_spaces_to_file(
+        &self,
+        elements: Vec<FfiRoomElement>,
+        spaces: Vec<FfiSpace>,
+        light_fixtures: Vec<FfiLightFixtureInput>,
+        bounding_box: FfiRect,
+        dimensions: FfiRoomDimensions,
+        project: FfiProjectInfo,
+        path: String,
+    ) -> Result<(), IfcError> {
+        let content = self.write_ifc_with_spaces(
+            elements,
+            spaces,
+            light_fixtures,
+            bounding_box,
+            dimensions,
+            project,
+        );
+        std::fs::write(&path, content).map_err(|e| IfcError::IoError {
+            message: e.to_string(),
+        })
+    }
+
+    /// Low-level: emit a standalone property set as a STEP DATA fragment.
+    ///
+    /// Returns the STEP lines for an `IFCOWNERHISTORY` (#1), the property
+    /// entities, and an `IFCPROPERTYSET` referencing them — with no
+    /// `IFCRELDEFINESBYPROPERTIES` (no element to attach to). Intended for
+    /// callers assembling an IFC file by hand; renumber/splice as needed.
+    /// Returns an empty string if `properties` is empty.
+    pub fn write_property_set(&self, pset_name: String, properties: Vec<FfiIfcProperty>) -> String {
+        if properties.is_empty() {
+            return String::new();
+        }
+        let props: Vec<bimifc_writer::IfcProperty> =
+            properties.into_iter().map(convert_ffi_property).collect();
+
+        let mut ids = bimifc_writer::IdAlloc::new();
+        let mut b = bimifc_writer::StepBuilder::new();
+        // Minimal owner history so the pset has a valid reference.
+        let owner = ids.next();
+        b.entity(owner, "IFCOWNERHISTORY($,$,$,.ADDED.,$,$,$,0)");
+        bimifc_writer::write_property_set(&mut ids, &mut b, owner, &[], &pset_name, &props);
+        b.into_data_section()
     }
 
     /// Generate IFC and write directly to a file path.
@@ -277,6 +636,73 @@ impl IfcWriter {
     }
 }
 
+fn build_room(
+    elements: Vec<FfiRoomElement>,
+    spaces: Vec<FfiSpace>,
+    light_fixtures: Vec<FfiLightFixtureInput>,
+    bounding_box: FfiRect,
+    dimensions: FfiRoomDimensions,
+    project: FfiProjectInfo,
+) -> bimifc_writer::RoomData {
+    bimifc_writer::RoomData {
+        elements: elements.into_iter().map(convert_ffi_element).collect(),
+        bounding_box: bimifc_writer::Rect {
+            x: bounding_box.x,
+            y: bounding_box.y,
+            width: bounding_box.width,
+            height: bounding_box.height,
+        },
+        dimensions: bimifc_writer::RoomDimensions {
+            width: dimensions.width,
+            height: dimensions.height,
+            depth: dimensions.depth,
+        },
+        project: bimifc_writer::ProjectInfo {
+            project_name: project.project_name,
+            site_name: project.site_name,
+            building_name: project.building_name,
+            storey_name: project.storey_name,
+            author: project.author,
+            organization: project.organization,
+            application_name: project.application_name,
+            application_version: if project.application_version.is_empty() {
+                env!("CARGO_PKG_VERSION").to_string()
+            } else {
+                project.application_version
+            },
+            site_latitude: project.site_latitude,
+            site_longitude: project.site_longitude,
+            site_elevation: project.site_elevation,
+            true_north: project.true_north.map(|p| (p.x, p.y)),
+            schema: match project.schema {
+                Some(FfiIfcSchema::Ifc4) => bimifc_writer::IfcSchema::Ifc4,
+                _ => bimifc_writer::IfcSchema::Ifc2x3,
+            },
+        },
+        storey_elevations: Vec::new(),
+        light_fixtures: light_fixtures
+            .into_iter()
+            .map(convert_ffi_light_fixture)
+            .collect(),
+        spaces: spaces.into_iter().map(convert_ffi_space).collect(),
+    }
+}
+
+fn convert_ffi_space(s: FfiSpace) -> bimifc_writer::SpaceData {
+    bimifc_writer::SpaceData {
+        name: s.name,
+        long_name: s.long_name,
+        polygon: s.polygon.into_iter().map(|p| (p.x, p.y)).collect(),
+        height: s.height,
+        z_offset: s.z_offset,
+        storey: s.storey,
+        psets: s.psets.into_iter().map(convert_ffi_pset).collect(),
+        identifier: s.identifier,
+        slab_thickness: s.slab_thickness,
+        slab_only: s.slab_only,
+    }
+}
+
 fn convert_ffi_element(e: FfiRoomElement) -> bimifc_writer::RoomElement {
     bimifc_writer::RoomElement {
         kind: match e.kind {
@@ -287,6 +713,19 @@ fn convert_ffi_element(e: FfiRoomElement) -> bimifc_writer::RoomElement {
             FfiElementKind::Furniture { category } => {
                 bimifc_writer::ElementKind::Furniture(category)
             }
+            FfiElementKind::Stair => bimifc_writer::ElementKind::Stair,
+            FfiElementKind::Column => bimifc_writer::ElementKind::Column,
+            FfiElementKind::Railing => bimifc_writer::ElementKind::Railing,
+            FfiElementKind::RoofGable => bimifc_writer::ElementKind::RoofGable,
+            FfiElementKind::RoofHip => bimifc_writer::ElementKind::RoofHip,
+            FfiElementKind::RoofBarrel => bimifc_writer::ElementKind::RoofBarrel,
+            FfiElementKind::SanitaryTerminal { category } => {
+                bimifc_writer::ElementKind::SanitaryTerminal(category)
+            }
+            FfiElementKind::LightFixture { category } => {
+                bimifc_writer::ElementKind::LightFixture(category)
+            }
+            FfiElementKind::Proxy { category } => bimifc_writer::ElementKind::Proxy(category),
         },
         rect: bimifc_writer::Rect {
             x: e.rect.x,
@@ -297,9 +736,60 @@ fn convert_ffi_element(e: FfiRoomElement) -> bimifc_writer::RoomElement {
         rotation: e.rotation,
         label: e.label,
         height: e.height,
-        z_offset: 0.0,
-        storey: String::new(),
-        color: None,
+        z_offset: e.z_offset,
+        storey: e.storey,
+        color: e.color.map(|c| [c.r, c.g, c.b, c.a]),
+        psets: e.psets.into_iter().map(convert_ffi_pset).collect(),
+        material: e.material,
+        identifier: e.identifier,
+        mesh: e.mesh.map(|m| bimifc_writer::ElementMesh {
+            vertices: m
+                .positions
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .map(|c| [c[0], c[1], c[2]])
+                .collect(),
+            indices: m.indices,
+        }),
+    }
+}
+
+fn convert_ffi_pset(p: FfiElementPset) -> bimifc_writer::ElementPset {
+    bimifc_writer::ElementPset {
+        name: p.name,
+        properties: p.properties.into_iter().map(convert_ffi_property).collect(),
+    }
+}
+
+fn convert_ffi_property(p: FfiIfcProperty) -> bimifc_writer::IfcProperty {
+    bimifc_writer::IfcProperty {
+        name: p.name,
+        description: p.description,
+        value: convert_ffi_value(p.value),
+    }
+}
+
+fn convert_ffi_value(v: FfiIfcValue) -> bimifc_writer::IfcValue {
+    use bimifc_writer::IfcValue as V;
+    match v {
+        FfiIfcValue::Label { value } => V::Label(value),
+        FfiIfcValue::Text { value } => V::Text(value),
+        FfiIfcValue::Identifier { value } => V::Identifier(value),
+        FfiIfcValue::Integer { value } => V::Integer(value),
+        FfiIfcValue::Real { value } => V::Real(value),
+        FfiIfcValue::Boolean { value } => V::Boolean(value),
+        FfiIfcValue::PowerMeasure { value } => V::PowerMeasure(value),
+        FfiIfcValue::ElectricVoltageMeasure { value } => V::ElectricVoltageMeasure(value),
+        FfiIfcValue::ElectricCurrentMeasure { value } => V::ElectricCurrentMeasure(value),
+        FfiIfcValue::FrequencyMeasure { value } => V::FrequencyMeasure(value),
+        FfiIfcValue::MassMeasure { value } => V::MassMeasure(value),
+        FfiIfcValue::PositiveLengthMeasure { value } => V::PositiveLengthMeasure(value),
+        FfiIfcValue::ThermodynamicTemperatureMeasure { value } => {
+            V::ThermodynamicTemperatureMeasure(value)
+        }
+        FfiIfcValue::LuminousFluxMeasure { value } => V::LuminousFluxMeasure(value),
+        FfiIfcValue::PlaneAngleMeasure { value } => V::PlaneAngleMeasure(value),
     }
 }
 
@@ -435,6 +925,7 @@ impl IfcModel {
                         name: p.name,
                         value: p.value,
                         unit: p.unit,
+                        value_type: p.value_type,
                     })
                     .collect(),
             })
@@ -554,6 +1045,7 @@ impl IfcModel {
                 name: p.name,
                 value: p.value,
                 unit: p.unit,
+                value_type: p.value_type,
             })
     }
 
@@ -812,7 +1304,7 @@ impl IfcModel {
             .into_iter()
             .map(|(ifc_type, count)| TypeCount { ifc_type, count })
             .collect();
-        result.sort_by(|a, b| b.count.cmp(&a.count));
+        result.sort_by_key(|r| std::cmp::Reverse(r.count));
         result
     }
 

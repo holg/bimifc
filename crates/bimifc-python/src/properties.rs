@@ -34,13 +34,28 @@ impl PyProperty {
         self.inner.unit.as_deref()
     }
 
+    /// Raw IFC value/measure type token if the value was typed
+    /// (e.g. "IFCPOWERMEASURE", "IFCLABEL"); None for bare values.
+    #[getter]
+    fn value_type(&self) -> Option<&str> {
+        self.inner.value_type.as_deref()
+    }
+
     fn __repr__(&self) -> String {
-        match &self.inner.unit {
-            Some(u) => format!(
+        match (&self.inner.unit, &self.inner.value_type) {
+            (Some(u), Some(t)) => format!(
+                "Property('{}', '{}', unit='{}', value_type='{}')",
+                self.inner.name, self.inner.value, u, t
+            ),
+            (Some(u), None) => format!(
                 "Property('{}', '{}', unit='{}')",
                 self.inner.name, self.inner.value, u
             ),
-            None => format!("Property('{}', '{}')", self.inner.name, self.inner.value),
+            (None, Some(t)) => format!(
+                "Property('{}', '{}', value_type='{}')",
+                self.inner.name, self.inner.value, t
+            ),
+            (None, None) => format!("Property('{}', '{}')", self.inner.name, self.inner.value),
         }
     }
 

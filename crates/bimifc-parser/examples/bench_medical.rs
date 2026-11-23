@@ -1,6 +1,6 @@
-use std::time::Instant;
-use bimifc_parser::ParsedModel;
 use bimifc_model::{EntityResolver, IfcModel, IfcType};
+use bimifc_parser::ParsedModel;
+use std::time::Instant;
 
 fn main() {
     let path = std::env::args().nth(1).expect("need IFC path");
@@ -21,15 +21,24 @@ fn main() {
     let t2 = Instant::now();
     let types: Vec<IfcType> = resolver.types_present();
     let types_time = t2.elapsed();
-    println!("types_present() in {types_time:?}, {} distinct types", types.len());
+    println!(
+        "types_present() in {types_time:?}, {} distinct types",
+        types.len()
+    );
 
     // Count MEP / lighting
     let mep_classes = [
         IfcType::IfcLightFixture,
-        IfcType::IfcCableSegment, IfcType::IfcCableCarrierSegment, IfcType::IfcCableCarrierFitting,
-        IfcType::IfcPipeSegment, IfcType::IfcPipeFitting,
-        IfcType::IfcSpaceHeater, IfcType::IfcAirTerminal,
-        IfcType::IfcFlowSegment, IfcType::IfcFlowFitting, IfcType::IfcFlowTerminal,
+        IfcType::IfcCableSegment,
+        IfcType::IfcCableCarrierSegment,
+        IfcType::IfcCableCarrierFitting,
+        IfcType::IfcPipeSegment,
+        IfcType::IfcPipeFitting,
+        IfcType::IfcSpaceHeater,
+        IfcType::IfcAirTerminal,
+        IfcType::IfcFlowSegment,
+        IfcType::IfcFlowFitting,
+        IfcType::IfcFlowTerminal,
         IfcType::IfcEnergyConversionDevice,
     ];
     for c in &mep_classes {
@@ -48,5 +57,9 @@ fn main() {
             prod_count += resolver.count_by_type(t);
         }
     }
-    println!("Geometry-eligible products: {} (in {:?})", prod_count, t3.elapsed());
+    println!(
+        "Geometry-eligible products: {} (in {:?})",
+        prod_count,
+        t3.elapsed()
+    );
 }

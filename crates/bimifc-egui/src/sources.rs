@@ -22,10 +22,7 @@ use bevy_egui::{egui, EguiContexts};
 use bimifc_bevy::FederationState;
 use bimifc_federation::Discipline;
 
-pub fn render_sources(
-    mut contexts: EguiContexts,
-    mut federation: ResMut<FederationState>,
-) {
+pub fn render_sources(mut contexts: EguiContexts, mut federation: ResMut<FederationState>) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
     egui::TopBottomPanel::bottom("sources_panel")

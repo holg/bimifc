@@ -13,9 +13,9 @@ name = "bimifc-tui"
 path = "src/main.rs"
 
 [dependencies]
-bimifc-geometry = { version = "0.3.0", path = "../bimifc-geometry" }
-bimifc-model = { version = "0.3.0", path = "../bimifc-model" }
-bimifc-parser = { version = "0.3.0", path = "../bimifc-parser" }
+bimifc-geometry = { version = "0.3.1", path = "../bimifc-geometry" }
+bimifc-model = { version = "0.3.1", path = "../bimifc-model" }
+bimifc-parser = { version = "0.3.1", path = "../bimifc-parser" }
 
 # TUI
 crossterm = "0.28"
@@ -29,7 +29,7 @@ clap = { version = "4", features = ["derive"] }
 
 # Photometry
 base64 = "0.22"
-eulumdat = { version = "0.5", default-features = false }
+eulumdat = { version = "0.8", default-features = false }
 
 # Error handling
 anyhow = "1.0"

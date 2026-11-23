@@ -1,6 +1,6 @@
 [package]
 name = "bimifc-writer"
-version = "0.2.0"
+version = "0.3.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -11,10 +11,11 @@ categories = ["encoding", "data-structures"]
 
 [dependencies]
 chrono = "0.4"
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v4", "v5"] }
 
 [dev-dependencies]
-bimifc-model = { version = "0.3.0", path = "../bimifc-model" }
-bimifc-parser = { version = "0.3.0", path = "../bimifc-parser" }
+bimifc-model = { version = "0.3.1", path = "../bimifc-model" }
+bimifc-parser = { version = "0.3.1", path = "../bimifc-parser" }
+bimifc-geometry = { version = "0.3.1", path = "../bimifc-geometry" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

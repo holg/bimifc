@@ -7,8 +7,8 @@ use bevy::prelude::*;
 use bevy::tasks::IoTaskPool;
 use bevy::tasks::Task;
 use bimifc_federation::{
-    classify_by_entity_class, classify_by_name, classify_by_type_name,
-    discipline_from_filename, Discipline, SourceInfo,
+    classify_by_entity_class, classify_by_name, classify_by_type_name, discipline_from_filename,
+    Discipline, SourceInfo,
 };
 use bimifc_geometry::GeometryRouter;
 use bimifc_model::{AttributeValue, EntityId, EntityResolver, IfcModel, IfcType};
@@ -197,10 +197,7 @@ fn handle_load_file_event(
                 info.path = event.path.to_str().map(str::to_string);
                 info.discipline = discipline_from_filename(&event.path);
                 info.entity_count = entity_count;
-                info.triangle_count = meshes
-                    .iter()
-                    .map(|m| m.geometry.indices.len() / 3)
-                    .sum();
+                info.triangle_count = meshes.iter().map(|m| m.geometry.indices.len() / 3).sum();
                 let source_id = federation.scene.register(info);
 
                 // Tag every mesh + entity with the source id.
@@ -217,8 +214,13 @@ fn handle_load_file_event(
 
                 crate::log_info(&format!(
                     "[Loader] Loaded {} meshes, {} entities as source #{} ({:?})",
-                    mesh_count, entity_count, source_id.0,
-                    federation.scene.source(source_id).and_then(|s| s.discipline),
+                    mesh_count,
+                    entity_count,
+                    source_id.0,
+                    federation
+                        .scene
+                        .source(source_id)
+                        .and_then(|s| s.discipline),
                 ));
 
                 // APPEND to the scene rather than replace — this is what
@@ -297,10 +299,7 @@ fn handle_load_content_event(
                 info.path = Some(event.file_name.clone());
                 info.discipline = discipline_from_filename(&event.file_name);
                 info.entity_count = entity_count;
-                info.triangle_count = meshes
-                    .iter()
-                    .map(|m| m.geometry.indices.len() / 3)
-                    .sum();
+                info.triangle_count = meshes.iter().map(|m| m.geometry.indices.len() / 3).sum();
                 let source_id = federation.scene.register(info);
 
                 for m in &mut meshes {
@@ -500,14 +499,16 @@ pub fn trigger_file_dialog() {
 /// federation classifier can tell electrical from plumbing on IFC2x3
 /// MagiCAD-style files (port of the same helper in
 /// bimifc-viewer-tui::scene::build_type_definition_index).
-fn build_type_definition_index(
-    resolver: &dyn EntityResolver,
-) -> FxHashMap<u32, u32> {
+fn build_type_definition_index(resolver: &dyn EntityResolver) -> FxHashMap<u32, u32> {
     let mut index = FxHashMap::default();
     let rels = resolver.entities_by_type(&IfcType::IfcRelDefinesByType);
     for rel in rels {
-        let Some(type_ref) = rel.get_ref(5) else { continue };
-        let Some(related) = rel.get_refs(4) else { continue };
+        let Some(type_ref) = rel.get_ref(5) else {
+            continue;
+        };
+        let Some(related) = rel.get_refs(4) else {
+            continue;
+        };
         for r in related {
             index.insert(r.0, type_ref.0);
         }
@@ -611,16 +612,21 @@ fn load_ifc_file(
 
         // Per-entity discipline tag — federation visibility checks this
         // alongside the per-source override (filename hint).
-        let discipline_tag = classify_entity_discipline(
-            &type_name,
-            id,
-            name.as_deref(),
-            &type_index,
-            resolver,
-        ) as u8;
+        let discipline_tag =
+            classify_entity_discipline(&type_name, id, name.as_deref(), &type_index, resolver)
+                as u8;
 
-        // Process geometry
-        let mesh = match router.process_element(&entity, resolver) {
+        // Process geometry: one IfcMesh per distinct item colour
+        let element_meshes = match element_meshes(
+            id,
+            &type_name,
+            name.as_deref(),
+            &entity,
+            &router,
+            resolver,
+            &styled_colors,
+            discipline_tag,
+        ) {
             Ok(m) => m,
             Err(e) => {
                 crate::log(&format!(
@@ -631,14 +637,13 @@ fn load_ifc_file(
             }
         };
 
-        // Prefer IFC-authored surface color over type-based default
-        let color = get_entity_surface_color(&entity, resolver, &styled_colors)
-            .unwrap_or_else(|| crate::mesh::get_default_color(&type_name));
-
-        if mesh.is_empty() {
+        if element_meshes.is_empty() {
             // For point-placed entities like IfcLightFixture, generate a marker sphere
             if is_point_entity_type(&type_name) {
                 if let Some(pos) = extract_entity_position(&entity, resolver, unit_scale) {
+                    // Prefer IFC-authored surface color over type-based default
+                    let color = get_entity_surface_color(&entity, resolver, &styled_colors)
+                        .unwrap_or_else(|| crate::mesh::get_default_color(&type_name));
                     let marker = create_marker_sphere(pos, 0.5);
                     let mut ifc_mesh = IfcMesh::from_geometry_mesh(
                         id as u64,
@@ -663,16 +668,7 @@ fn load_ifc_file(
             continue;
         }
 
-        // Convert to IfcMesh format - takes ownership of mesh, no cloning!
-        let mut ifc_mesh = IfcMesh::from_geometry_mesh(
-            id as u64,
-            mesh, // Move, not clone
-            color,
-            type_name.clone(),
-            name.clone(),
-        );
-        ifc_mesh.discipline = discipline_tag;
-        meshes.push(ifc_mesh);
+        meshes.extend(element_meshes);
 
         // Add entity info
         entities.push(EntityInfo {
@@ -750,16 +746,21 @@ fn load_ifc_content(
 
         // Per-entity discipline tag — federation visibility checks this
         // alongside the per-source override (filename hint).
-        let discipline_tag = classify_entity_discipline(
-            &type_name,
-            id,
-            name.as_deref(),
-            &type_index,
-            resolver,
-        ) as u8;
+        let discipline_tag =
+            classify_entity_discipline(&type_name, id, name.as_deref(), &type_index, resolver)
+                as u8;
 
-        // Process geometry
-        let mesh = match router.process_element(&entity, resolver) {
+        // Process geometry: one IfcMesh per distinct item colour
+        let element_meshes = match element_meshes(
+            id,
+            &type_name,
+            name.as_deref(),
+            &entity,
+            &router,
+            resolver,
+            &styled_colors,
+            discipline_tag,
+        ) {
             Ok(m) => m,
             Err(e) => {
                 crate::log(&format!(
@@ -770,14 +771,13 @@ fn load_ifc_content(
             }
         };
 
-        // Prefer IFC-authored surface color over type-based default
-        let color = get_entity_surface_color(&entity, resolver, &styled_colors)
-            .unwrap_or_else(|| crate::mesh::get_default_color(&type_name));
-
-        if mesh.is_empty() {
+        if element_meshes.is_empty() {
             // For point-placed entities like IfcLightFixture, generate a marker sphere
             if is_point_entity_type(&type_name) {
                 if let Some(pos) = extract_entity_position(&entity, resolver, unit_scale) {
+                    // Prefer IFC-authored surface color over type-based default
+                    let color = get_entity_surface_color(&entity, resolver, &styled_colors)
+                        .unwrap_or_else(|| crate::mesh::get_default_color(&type_name));
                     let marker = create_marker_sphere(pos, 0.5);
                     let mut ifc_mesh = IfcMesh::from_geometry_mesh(
                         id as u64,
@@ -802,16 +802,7 @@ fn load_ifc_content(
             continue;
         }
 
-        // Convert to IfcMesh format - takes ownership of mesh, no cloning!
-        let mut ifc_mesh = IfcMesh::from_geometry_mesh(
-            id as u64,
-            mesh, // Move, not clone
-            color,
-            type_name.clone(),
-            name.clone(),
-        );
-        ifc_mesh.discipline = discipline_tag;
-        meshes.push(ifc_mesh);
+        meshes.extend(element_meshes);
 
         // Add entity info
         entities.push(EntityInfo {
@@ -968,13 +959,66 @@ fn create_marker_sphere(center: [f32; 3], radius: f32) -> bimifc_geometry::Mesh 
     }
 }
 
+/// Meshes for one product: its representation items grouped by authored
+/// surface colour (`IfcStyledItem`), one `IfcMesh` per distinct colour,
+/// all sharing the product's entity id. An entity whose items are all
+/// unstyled (or all the same colour) still yields a single mesh, so a
+/// window's opaque frame and transparent pane can be batched separately
+/// while picking/selection keep treating them as one entity. Items
+/// without a style borrow the colour of a styled sibling, else the
+/// type default.
+#[allow(clippy::too_many_arguments)]
+fn element_meshes(
+    id: u32,
+    type_name: &str,
+    name: Option<&str>,
+    entity: &bimifc_model::DecodedEntity,
+    router: &GeometryRouter,
+    resolver: &dyn EntityResolver,
+    styled_colors: &FxHashMap<u32, [f32; 4]>,
+    discipline: u8,
+) -> Result<Vec<IfcMesh>, bimifc_geometry::Error> {
+    let items = router.process_element_items(entity, resolver)?;
+    let fallback = items
+        .iter()
+        .find_map(|(item_id, _)| styled_colors.get(item_id).copied());
+
+    let mut groups: Vec<(Option<[f32; 4]>, bimifc_geometry::Mesh)> = Vec::new();
+    for (item_id, mesh) in items {
+        let color = styled_colors.get(&item_id).copied().or(fallback);
+        match groups.iter_mut().find(|(c, _)| *c == color) {
+            Some((_, group)) => group.merge(&mesh),
+            None => groups.push((color, mesh)),
+        }
+    }
+
+    Ok(groups
+        .into_iter()
+        .map(|(color, mesh)| {
+            let mut ifc_mesh = IfcMesh::from_geometry_mesh(
+                id as u64,
+                mesh,
+                color.unwrap_or_else(|| crate::mesh::get_default_color(type_name)),
+                type_name.to_string(),
+                name.map(str::to_string),
+            );
+            ifc_mesh.has_ifc_color = color.is_some();
+            ifc_mesh.discipline = discipline;
+            ifc_mesh
+        })
+        .collect())
+}
+
 /// Build a map from geometry item entity ID → RGBA surface color.
 ///
 /// Scans all IfcStyledItem entities and follows the chain:
 ///   IfcStyledItem\[0\]=Item, \[1\]=Styles
 ///   → IfcSurfaceStyle\[2\]=Styles
-///   → IfcSurfaceStyleRendering\[0\]=SurfaceColour
+///   → IfcSurfaceStyleRendering\[0\]=SurfaceColour, \[1\]=Transparency
 ///   → IfcColourRgb\[1\]=R, \[2\]=G, \[3\]=B
+///
+/// Alpha is `1 - Transparency` so glass authored as transparent lands in
+/// the viewer's blended batch.
 fn build_styled_item_colors(resolver: &dyn EntityResolver) -> FxHashMap<u32, [f32; 4]> {
     let mut color_map = FxHashMap::default();
 
@@ -1031,7 +1075,10 @@ fn build_styled_item_colors(resolver: &dyn EntityResolver) -> FxHashMap<u32, [f3
         let g = colour.get_float(2).unwrap_or(0.7) as f32;
         let b = colour.get_float(3).unwrap_or(0.7) as f32;
 
-        color_map.insert(item_id.0, [r, g, b, 1.0]);
+        // IfcSurfaceStyleRendering[1] = Transparency (0 = opaque, 1 = invisible)
+        let transparency = rendering.get_float(1).unwrap_or(0.0).clamp(0.0, 1.0) as f32;
+
+        color_map.insert(item_id.0, [r, g, b, 1.0 - transparency]);
     }
 
     color_map

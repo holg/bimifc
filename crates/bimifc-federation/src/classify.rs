@@ -41,13 +41,14 @@ pub fn classify_by_entity_class(class_name_upper: &str) -> Discipline {
         | "IFCSANITARYTERMINAL"
         | "IFCVALVE"
         | "IFCWASTETERMINAL" => Discipline::Plumbing,
-        "IFCAIRTERMINAL"
-        | "IFCAIRTERMINALBOX"
-        | "IFCSPACEHEATER"
-        | "IFCDUCTSEGMENT"
-        | "IFCDUCTFITTING"
-        | "IFCFAN" => Discipline::Hvac,
+        "IFCAIRTERMINAL" | "IFCAIRTERMINALBOX" | "IFCSPACEHEATER" | "IFCDUCTSEGMENT"
+        | "IFCDUCTFITTING" | "IFCFAN" => Discipline::Hvac,
         "IFCLIGHTFIXTURE" => Discipline::Lighting,
+        // IFC2x3 has no IfcLightFixture occurrence class: exporters
+        // (ours included) write an IfcFlowTerminal typed by an
+        // IfcLightFixtureType. The type lookup in
+        // `classify_by_type_name` settles it, so stay `Other` here
+        // rather than guess — IfcFlowTerminal is also air and water.
         _ => Discipline::Other,
     }
 }
@@ -104,7 +105,21 @@ pub fn classify_by_type_name(type_class_upper: &str, type_name: Option<&str>) ->
 /// "_air" match elsewhere in a compound name.
 pub fn classify_by_name(name: &str) -> Discipline {
     let lower = name.to_ascii_lowercase();
-    if lower.contains("troffer") || lower.contains("fixture") || lower.contains(" lamp") {
+    // Lighting first, and generously: luminaire product names routinely
+    // contain words the MEP lists below also claim ("LED panel 600"
+    // would otherwise read as Electrical, "Downlight … water-proof" as
+    // Plumbing). A name that says it is a light wins outright.
+    if lower.contains("troffer")
+        || lower.contains("fixture")
+        || lower.contains("lamp")
+        || lower.contains("lumin")
+        || lower.contains("light")
+        || lower.contains("led ")
+        || lower.starts_with("led")
+        || lower.contains("downlight")
+        || lower.contains("spotlight")
+        || lower.contains("pendant")
+    {
         return Discipline::Lighting;
     }
     if lower.contains("diffuser")
@@ -146,12 +161,61 @@ pub fn classify_by_name(name: &str) -> Discipline {
 mod tests {
     use super::*;
 
+    /// Luminaire product names collide with the MEP keyword lists;
+    /// lighting has to win. "LED panel 600" was classified Electrical
+    /// (via "panel"), which filed our own exports under the wrong
+    /// discipline filter.
+    #[test]
+    fn luminaire_names_are_lighting_not_mep() {
+        for name in [
+            "LED panel 600",
+            "LED Panel 600 (demo)",
+            "Downlight 830",
+            "Luminaire 24W",
+            "Pendant lamp",
+            "Troffer Light 2x4",
+            "Spotlight IP65 water-proof",
+        ] {
+            assert_eq!(classify_by_name(name), Discipline::Lighting, "{name}");
+        }
+        // Non-lighting MEP names keep their disciplines.
+        assert_eq!(
+            classify_by_name("Electrical panel A"),
+            Discipline::Electrical
+        );
+        assert_eq!(classify_by_name("Waste pipe DN100"), Discipline::Plumbing);
+        assert_eq!(classify_by_name("Supply air diffuser"), Discipline::Hvac);
+    }
+
+    /// IFC2x3 light fixtures are IfcFlowTerminal + IfcLightFixtureType;
+    /// the type relationship must decide, not the product name.
+    #[test]
+    fn ifc2x3_light_fixture_classifies_by_type() {
+        assert_eq!(
+            classify_by_entity_class("IFCFLOWTERMINAL"),
+            Discipline::Other
+        );
+        assert_eq!(
+            classify_by_type_name("IFCLIGHTFIXTURETYPE", Some("LED panel 600")),
+            Discipline::Lighting
+        );
+    }
+
     #[test]
     fn modern_entity_classes() {
-        assert_eq!(classify_by_entity_class("IFCPIPESEGMENT"), Discipline::Plumbing);
+        assert_eq!(
+            classify_by_entity_class("IFCPIPESEGMENT"),
+            Discipline::Plumbing
+        );
         assert_eq!(classify_by_entity_class("IFCAIRTERMINAL"), Discipline::Hvac);
-        assert_eq!(classify_by_entity_class("IFCLIGHTFIXTURE"), Discipline::Lighting);
-        assert_eq!(classify_by_entity_class("IFCCABLESEGMENT"), Discipline::Electrical);
+        assert_eq!(
+            classify_by_entity_class("IFCLIGHTFIXTURE"),
+            Discipline::Lighting
+        );
+        assert_eq!(
+            classify_by_entity_class("IFCCABLESEGMENT"),
+            Discipline::Electrical
+        );
         assert_eq!(classify_by_entity_class("IFCWALL"), Discipline::Other);
     }
 
@@ -169,7 +233,10 @@ mod tests {
             Discipline::Plumbing
         );
         // No info either way.
-        assert_eq!(classify_by_type_name("IFCRANDOMTYPE", None), Discipline::Other);
+        assert_eq!(
+            classify_by_type_name("IFCRANDOMTYPE", None),
+            Discipline::Other
+        );
     }
 
     #[test]

@@ -66,12 +66,7 @@ pub fn render_hierarchy(
         });
 }
 
-fn draw_node(
-    ui: &mut egui::Ui,
-    node: &SpatialNode,
-    query: &str,
-    selection: &mut SelectionState,
-) {
+fn draw_node(ui: &mut egui::Ui, node: &SpatialNode, query: &str, selection: &mut SelectionState) {
     if !query.is_empty() && !matches_query(node, query) {
         return;
     }
@@ -104,9 +99,7 @@ fn draw_node(
 /// own name/type matches OR any descendant matches. We walk children
 /// lazily; the recursion in `draw_node` then filters again per child.
 fn matches_query(node: &SpatialNode, query: &str) -> bool {
-    if node.name.to_lowercase().contains(query)
-        || node.entity_type.to_lowercase().contains(query)
-    {
+    if node.name.to_lowercase().contains(query) || node.entity_type.to_lowercase().contains(query) {
         return true;
     }
     node.children.iter().any(|c| matches_query(c, query))
@@ -132,7 +125,10 @@ fn node_icon(node_type: &SpatialNodeType, entity_type: &str) -> &'static str {
 /// extra emoji is a one-line addition when needed.
 fn entity_icon(entity_type: &str) -> &'static str {
     let upper = entity_type.to_uppercase();
-    if upper == "IFCCABLESEGMENT" || upper == "IFCCABLECARRIERSEGMENT" || upper == "IFCCABLECARRIERFITTING" {
+    if upper == "IFCCABLESEGMENT"
+        || upper == "IFCCABLECARRIERSEGMENT"
+        || upper == "IFCCABLECARRIERFITTING"
+    {
         "⚡"
     } else if upper == "IFCPIPESEGMENT" || upper == "IFCPIPEFITTING" {
         "🚰"

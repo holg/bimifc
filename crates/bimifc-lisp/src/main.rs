@@ -123,7 +123,7 @@ fn format_expr(expr: &acadlisp::Expr) -> String {
         acadlisp::Expr::Integer(i) => i.to_string(),
         acadlisp::Expr::Real(r) => format!("{}", r),
         acadlisp::Expr::String(s) => format!("\"{}\"", s),
-        acadlisp::Expr::Symbol(s) => s.clone(),
+        acadlisp::Expr::Symbol(s) => s.to_string(),
         acadlisp::Expr::Quote(e) => format!("'{}", format_expr(e)),
         acadlisp::Expr::List(items) => {
             let inner: Vec<String> = items.iter().map(format_expr).collect();

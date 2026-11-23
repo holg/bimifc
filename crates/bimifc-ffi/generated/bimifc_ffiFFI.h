@@ -251,6 +251,61 @@ typedef void (*UniffiForeignFutureCompleteVoid)(uint64_t, UniffiForeignFutureStr
     );
 
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_CLONE_GLDFLUMINAIRE
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_CLONE_GLDFLUMINAIRE
+void*_Nonnull uniffi_bimifc_ffi_fn_clone_gldfluminaire(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_FREE_GLDFLUMINAIRE
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_FREE_GLDFLUMINAIRE
+void uniffi_bimifc_ffi_fn_free_gldfluminaire(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_CONSTRUCTOR_GLDFLUMINAIRE_FROM_BYTES
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_CONSTRUCTOR_GLDFLUMINAIRE_FROM_BYTES
+void*_Nonnull uniffi_bimifc_ffi_fn_constructor_gldfluminaire_from_bytes(RustBuffer data, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_GLDFLUMINAIRE_EMITTER_IDS
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_GLDFLUMINAIRE_EMITTER_IDS
+RustBuffer uniffi_bimifc_ffi_fn_method_gldfluminaire_emitter_ids(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_GLDFLUMINAIRE_MANUFACTURER
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_GLDFLUMINAIRE_MANUFACTURER
+RustBuffer uniffi_bimifc_ffi_fn_method_gldfluminaire_manufacturer(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_GLDFLUMINAIRE_MESH
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_GLDFLUMINAIRE_MESH
+RustBuffer uniffi_bimifc_ffi_fn_method_gldfluminaire_mesh(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_GLDFLUMINAIRE_NAME
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_GLDFLUMINAIRE_NAME
+RustBuffer uniffi_bimifc_ffi_fn_method_gldfluminaire_name(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_GLDFLUMINAIRE_PHOTOMETRY_LDT
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_GLDFLUMINAIRE_PHOTOMETRY_LDT
+RustBuffer uniffi_bimifc_ffi_fn_method_gldfluminaire_photometry_ldt(void*_Nonnull ptr, RustBuffer emitter_id, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_GLDFLUMINAIRE_PHOTOMETRY_SUMMARY
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_GLDFLUMINAIRE_PHOTOMETRY_SUMMARY
+RustBuffer uniffi_bimifc_ffi_fn_method_gldfluminaire_photometry_summary(void*_Nonnull ptr, RustBuffer emitter_id, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_GLDFLUMINAIRE_PREVIEW_IMAGE
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_GLDFLUMINAIRE_PREVIEW_IMAGE
+RustBuffer uniffi_bimifc_ffi_fn_method_gldfluminaire_preview_image(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_GLDFLUMINAIRE_VARIANTS
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_GLDFLUMINAIRE_VARIANTS
+RustBuffer uniffi_bimifc_ffi_fn_method_gldfluminaire_variants(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_CLONE_IFCMODEL
 #define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_CLONE_IFCMODEL
 void*_Nonnull uniffi_bimifc_ffi_fn_clone_ifcmodel(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
@@ -286,14 +341,34 @@ RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_all_entity_ids(void*_Nonnull ptr
 RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_all_geometry_ids(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_BATCH_COLORED_GEOMETRY
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_BATCH_COLORED_GEOMETRY
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_batch_colored_geometry(void*_Nonnull ptr, RustBuffer ids, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_BATCH_GEOMETRY
 #define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_BATCH_GEOMETRY
 RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_batch_geometry(void*_Nonnull ptr, RustBuffer ids, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_CONTAINING_STOREY
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_CONTAINING_STOREY
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_containing_storey(void*_Nonnull ptr, uint32_t element_id, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_COUNT_BY_TYPE
 #define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_COUNT_BY_TYPE
 uint32_t uniffi_bimifc_ffi_fn_method_ifcmodel_count_by_type(void*_Nonnull ptr, RustBuffer type_name, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_DEFAULT_COLOR_FOR_TYPE
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_DEFAULT_COLOR_FOR_TYPE
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_default_color_for_type(void*_Nonnull ptr, RustBuffer ifc_type, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_ELEMENT_STOREY_INFO
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_ELEMENT_STOREY_INFO
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_element_storey_info(void*_Nonnull ptr, uint32_t element_id, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_ELEMENTS_IN_STOREY
@@ -326,6 +401,31 @@ RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_entity_global_id(void*_Nonnull p
 RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_entity_name(void*_Nonnull ptr, uint32_t id, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_ENTITY_OBJECT_TYPE
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_ENTITY_OBJECT_TYPE
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_entity_object_type(void*_Nonnull ptr, uint32_t id, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_ENTITY_POSITION
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_ENTITY_POSITION
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_entity_position(void*_Nonnull ptr, uint32_t id, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_ENTITY_SURFACE_COLOR
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_ENTITY_SURFACE_COLOR
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_entity_surface_color(void*_Nonnull ptr, uint32_t id, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_ENTITY_TAG
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_ENTITY_TAG
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_entity_tag(void*_Nonnull ptr, uint32_t id, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_ENTITY_TRANSFORM
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_ENTITY_TRANSFORM
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_entity_transform(void*_Nonnull ptr, uint32_t id, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_GET_ENTITY
 #define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_GET_ENTITY
 RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_get_entity(void*_Nonnull ptr, uint32_t id, RustCallStatus *_Nonnull out_status
@@ -334,6 +434,26 @@ RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_get_entity(void*_Nonnull ptr, ui
 #ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_GET_GEOMETRY
 #define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_GET_GEOMETRY
 RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_get_geometry(void*_Nonnull ptr, uint32_t id, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_GET_PROPERTY
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_GET_PROPERTY
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_get_property(void*_Nonnull ptr, uint32_t id, RustBuffer name, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_GET_QUANTITY
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_GET_QUANTITY
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_get_quantity(void*_Nonnull ptr, uint32_t id, RustBuffer name, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_GONIOMETRIC_SOURCES
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_GONIOMETRIC_SOURCES
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_goniometric_sources(void*_Nonnull ptr, uint32_t id, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_GONIOMETRIC_TO_LDT
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_GONIOMETRIC_TO_LDT
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_goniometric_to_ldt(void*_Nonnull ptr, uint32_t id, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_LIGHT_FIXTURES
@@ -381,9 +501,100 @@ RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_spatial_tree(void*_Nonnull ptr, 
 RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_storeys(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_TYPE_STATISTICS
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_TYPE_STATISTICS
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcmodel_type_statistics(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_UNIT_SCALE
 #define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCMODEL_UNIT_SCALE
 double uniffi_bimifc_ffi_fn_method_ifcmodel_unit_scale(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_CLONE_IFCWRITER
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_CLONE_IFCWRITER
+void*_Nonnull uniffi_bimifc_ffi_fn_clone_ifcwriter(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_FREE_IFCWRITER
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_FREE_IFCWRITER
+void uniffi_bimifc_ffi_fn_free_ifcwriter(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_CONSTRUCTOR_IFCWRITER_NEW
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_CONSTRUCTOR_IFCWRITER_NEW
+void*_Nonnull uniffi_bimifc_ffi_fn_constructor_ifcwriter_new(RustCallStatus *_Nonnull out_status
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCWRITER_WRITE_IFC
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCWRITER_WRITE_IFC
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcwriter_write_ifc(void*_Nonnull ptr, RustBuffer elements, RustBuffer bounding_box, RustBuffer dimensions, RustBuffer project, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCWRITER_WRITE_IFC_TO_FILE
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCWRITER_WRITE_IFC_TO_FILE
+void uniffi_bimifc_ffi_fn_method_ifcwriter_write_ifc_to_file(void*_Nonnull ptr, RustBuffer elements, RustBuffer bounding_box, RustBuffer dimensions, RustBuffer project, RustBuffer path, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCWRITER_WRITE_IFC_WITH_LIGHTS
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCWRITER_WRITE_IFC_WITH_LIGHTS
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcwriter_write_ifc_with_lights(void*_Nonnull ptr, RustBuffer elements, RustBuffer light_fixtures, RustBuffer bounding_box, RustBuffer dimensions, RustBuffer project, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCWRITER_WRITE_IFC_WITH_LIGHTS_TO_FILE
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCWRITER_WRITE_IFC_WITH_LIGHTS_TO_FILE
+void uniffi_bimifc_ffi_fn_method_ifcwriter_write_ifc_with_lights_to_file(void*_Nonnull ptr, RustBuffer elements, RustBuffer light_fixtures, RustBuffer bounding_box, RustBuffer dimensions, RustBuffer project, RustBuffer path, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCWRITER_WRITE_IFC_WITH_SPACES
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCWRITER_WRITE_IFC_WITH_SPACES
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcwriter_write_ifc_with_spaces(void*_Nonnull ptr, RustBuffer elements, RustBuffer spaces, RustBuffer light_fixtures, RustBuffer bounding_box, RustBuffer dimensions, RustBuffer project, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCWRITER_WRITE_IFC_WITH_SPACES_TO_FILE
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCWRITER_WRITE_IFC_WITH_SPACES_TO_FILE
+void uniffi_bimifc_ffi_fn_method_ifcwriter_write_ifc_with_spaces_to_file(void*_Nonnull ptr, RustBuffer elements, RustBuffer spaces, RustBuffer light_fixtures, RustBuffer bounding_box, RustBuffer dimensions, RustBuffer project, RustBuffer path, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCWRITER_WRITE_PROPERTY_SET
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_IFCWRITER_WRITE_PROPERTY_SET
+RustBuffer uniffi_bimifc_ffi_fn_method_ifcwriter_write_property_set(void*_Nonnull ptr, RustBuffer pset_name, RustBuffer properties, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_CLONE_LUXCALCULATOR
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_CLONE_LUXCALCULATOR
+void*_Nonnull uniffi_bimifc_ffi_fn_clone_luxcalculator(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_FREE_LUXCALCULATOR
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_FREE_LUXCALCULATOR
+void uniffi_bimifc_ffi_fn_free_luxcalculator(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_CONSTRUCTOR_LUXCALCULATOR_NEW
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_CONSTRUCTOR_LUXCALCULATOR_NEW
+void*_Nonnull uniffi_bimifc_ffi_fn_constructor_luxcalculator_new(double length, double width, double height, double refl_ceiling, double refl_wall, double refl_floor, uint32_t divisions, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_LUXCALCULATOR_GRID
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_LUXCALCULATOR_GRID
+RustBuffer uniffi_bimifc_ffi_fn_method_luxcalculator_grid(void*_Nonnull ptr, double z, uint32_t nx, uint32_t ny, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_LUXCALCULATOR_SOLVE
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_LUXCALCULATOR_SOLVE
+void uniffi_bimifc_ffi_fn_method_luxcalculator_solve(void*_Nonnull ptr, RustBuffer luminaires, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_LUXCALCULATOR_STATS
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_METHOD_LUXCALCULATOR_STATS
+RustBuffer uniffi_bimifc_ffi_fn_method_luxcalculator_stats(void*_Nonnull ptr, double z, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_FUNC_LDT_TO_IES
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_FN_FUNC_LDT_TO_IES
+RustBuffer uniffi_bimifc_ffi_fn_func_ldt_to_ies(RustBuffer ldt, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_FFI_BIMIFC_FFI_RUSTBUFFER_ALLOC
@@ -666,6 +877,60 @@ void ffi_bimifc_ffi_rust_future_free_void(uint64_t handle
 void ffi_bimifc_ffi_rust_future_complete_void(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_FUNC_LDT_TO_IES
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_FUNC_LDT_TO_IES
+uint16_t uniffi_bimifc_ffi_checksum_func_ldt_to_ies(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_GLDFLUMINAIRE_EMITTER_IDS
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_GLDFLUMINAIRE_EMITTER_IDS
+uint16_t uniffi_bimifc_ffi_checksum_method_gldfluminaire_emitter_ids(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_GLDFLUMINAIRE_MANUFACTURER
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_GLDFLUMINAIRE_MANUFACTURER
+uint16_t uniffi_bimifc_ffi_checksum_method_gldfluminaire_manufacturer(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_GLDFLUMINAIRE_MESH
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_GLDFLUMINAIRE_MESH
+uint16_t uniffi_bimifc_ffi_checksum_method_gldfluminaire_mesh(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_GLDFLUMINAIRE_NAME
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_GLDFLUMINAIRE_NAME
+uint16_t uniffi_bimifc_ffi_checksum_method_gldfluminaire_name(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_GLDFLUMINAIRE_PHOTOMETRY_LDT
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_GLDFLUMINAIRE_PHOTOMETRY_LDT
+uint16_t uniffi_bimifc_ffi_checksum_method_gldfluminaire_photometry_ldt(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_GLDFLUMINAIRE_PHOTOMETRY_SUMMARY
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_GLDFLUMINAIRE_PHOTOMETRY_SUMMARY
+uint16_t uniffi_bimifc_ffi_checksum_method_gldfluminaire_photometry_summary(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_GLDFLUMINAIRE_PREVIEW_IMAGE
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_GLDFLUMINAIRE_PREVIEW_IMAGE
+uint16_t uniffi_bimifc_ffi_checksum_method_gldfluminaire_preview_image(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_GLDFLUMINAIRE_VARIANTS
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_GLDFLUMINAIRE_VARIANTS
+uint16_t uniffi_bimifc_ffi_checksum_method_gldfluminaire_variants(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_ALL_ELEMENTS
 #define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_ALL_ELEMENTS
 uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_all_elements(void
@@ -684,15 +949,39 @@ uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_all_geometry_ids(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_BATCH_COLORED_GEOMETRY
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_BATCH_COLORED_GEOMETRY
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_batch_colored_geometry(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_BATCH_GEOMETRY
 #define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_BATCH_GEOMETRY
 uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_batch_geometry(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_CONTAINING_STOREY
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_CONTAINING_STOREY
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_containing_storey(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_COUNT_BY_TYPE
 #define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_COUNT_BY_TYPE
 uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_count_by_type(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_DEFAULT_COLOR_FOR_TYPE
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_DEFAULT_COLOR_FOR_TYPE
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_default_color_for_type(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_ELEMENT_STOREY_INFO
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_ELEMENT_STOREY_INFO
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_element_storey_info(void
     
 );
 #endif
@@ -732,6 +1021,36 @@ uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_entity_name(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_ENTITY_OBJECT_TYPE
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_ENTITY_OBJECT_TYPE
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_entity_object_type(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_ENTITY_POSITION
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_ENTITY_POSITION
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_entity_position(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_ENTITY_SURFACE_COLOR
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_ENTITY_SURFACE_COLOR
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_entity_surface_color(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_ENTITY_TAG
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_ENTITY_TAG
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_entity_tag(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_ENTITY_TRANSFORM
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_ENTITY_TRANSFORM
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_entity_transform(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_GET_ENTITY
 #define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_GET_ENTITY
 uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_get_entity(void
@@ -741,6 +1060,30 @@ uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_get_entity(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_GET_GEOMETRY
 #define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_GET_GEOMETRY
 uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_get_geometry(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_GET_PROPERTY
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_GET_PROPERTY
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_get_property(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_GET_QUANTITY
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_GET_QUANTITY
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_get_quantity(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_GONIOMETRIC_SOURCES
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_GONIOMETRIC_SOURCES
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_goniometric_sources(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_GONIOMETRIC_TO_LDT
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_GONIOMETRIC_TO_LDT
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_goniometric_to_ldt(void
     
 );
 #endif
@@ -798,9 +1141,81 @@ uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_storeys(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_TYPE_STATISTICS
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_TYPE_STATISTICS
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_type_statistics(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_UNIT_SCALE
 #define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCMODEL_UNIT_SCALE
 uint16_t uniffi_bimifc_ffi_checksum_method_ifcmodel_unit_scale(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCWRITER_WRITE_IFC
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCWRITER_WRITE_IFC
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcwriter_write_ifc(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCWRITER_WRITE_IFC_TO_FILE
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCWRITER_WRITE_IFC_TO_FILE
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcwriter_write_ifc_to_file(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCWRITER_WRITE_IFC_WITH_LIGHTS
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCWRITER_WRITE_IFC_WITH_LIGHTS
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcwriter_write_ifc_with_lights(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCWRITER_WRITE_IFC_WITH_LIGHTS_TO_FILE
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCWRITER_WRITE_IFC_WITH_LIGHTS_TO_FILE
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcwriter_write_ifc_with_lights_to_file(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCWRITER_WRITE_IFC_WITH_SPACES
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCWRITER_WRITE_IFC_WITH_SPACES
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcwriter_write_ifc_with_spaces(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCWRITER_WRITE_IFC_WITH_SPACES_TO_FILE
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCWRITER_WRITE_IFC_WITH_SPACES_TO_FILE
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcwriter_write_ifc_with_spaces_to_file(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCWRITER_WRITE_PROPERTY_SET
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_IFCWRITER_WRITE_PROPERTY_SET
+uint16_t uniffi_bimifc_ffi_checksum_method_ifcwriter_write_property_set(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_LUXCALCULATOR_GRID
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_LUXCALCULATOR_GRID
+uint16_t uniffi_bimifc_ffi_checksum_method_luxcalculator_grid(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_LUXCALCULATOR_SOLVE
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_LUXCALCULATOR_SOLVE
+uint16_t uniffi_bimifc_ffi_checksum_method_luxcalculator_solve(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_LUXCALCULATOR_STATS
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_METHOD_LUXCALCULATOR_STATS
+uint16_t uniffi_bimifc_ffi_checksum_method_luxcalculator_stats(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_CONSTRUCTOR_GLDFLUMINAIRE_FROM_BYTES
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_CONSTRUCTOR_GLDFLUMINAIRE_FROM_BYTES
+uint16_t uniffi_bimifc_ffi_checksum_constructor_gldfluminaire_from_bytes(void
     
 );
 #endif
@@ -813,6 +1228,18 @@ uint16_t uniffi_bimifc_ffi_checksum_constructor_ifcmodel_from_file(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_CONSTRUCTOR_IFCMODEL_PARSE
 #define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_CONSTRUCTOR_IFCMODEL_PARSE
 uint16_t uniffi_bimifc_ffi_checksum_constructor_ifcmodel_parse(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_CONSTRUCTOR_IFCWRITER_NEW
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_CONSTRUCTOR_IFCWRITER_NEW
+uint16_t uniffi_bimifc_ffi_checksum_constructor_ifcwriter_new(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_CONSTRUCTOR_LUXCALCULATOR_NEW
+#define UNIFFI_FFIDEF_UNIFFI_BIMIFC_FFI_CHECKSUM_CONSTRUCTOR_LUXCALCULATOR_NEW
+uint16_t uniffi_bimifc_ffi_checksum_constructor_luxcalculator_new(void
     
 );
 #endif

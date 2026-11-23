@@ -16,6 +16,13 @@ pub struct Property {
     pub value: String,
     /// Unit of measurement (if applicable)
     pub unit: Option<String>,
+    /// The IFC value/measure type the value was wrapped in, if any, as the
+    /// raw STEP type token (e.g. `"IFCPOWERMEASURE"`, `"IFCLABEL"`,
+    /// `"IFCBOOLEAN"`). `None` for bare/untyped values. This preserves the
+    /// typed-measure identity on import so values can round-trip back to the
+    /// same IFC type on export — see `bimifc_writer::IfcValue`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value_type: Option<String>,
 }
 
 impl Property {
@@ -25,6 +32,7 @@ impl Property {
             name: name.into(),
             value: value.into(),
             unit: None,
+            value_type: None,
         }
     }
 
@@ -38,6 +46,22 @@ impl Property {
             name: name.into(),
             value: value.into(),
             unit: Some(unit.into()),
+            value_type: None,
+        }
+    }
+
+    /// Create a property carrying its IFC value/measure type name.
+    pub fn with_value_type(
+        name: impl Into<String>,
+        value: impl Into<String>,
+        unit: Option<String>,
+        value_type: Option<String>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            value: value.into(),
+            unit,
+            value_type,
         }
     }
 }

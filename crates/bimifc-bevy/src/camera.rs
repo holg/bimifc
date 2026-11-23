@@ -20,7 +20,20 @@ pub struct CameraPlugin;
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CameraController>()
+            .init_resource::<crate::ViewerSettings>()
+            // Crisper cascades on native; WebGL2 keeps Bevy's default.
+            .insert_resource(bevy::light::DirectionalLightShadowMap {
+                size: if cfg!(target_arch = "wasm32") {
+                    2048
+                } else {
+                    4096
+                },
+            })
             .add_systems(Startup, setup_camera)
+            .add_systems(
+                Update,
+                (apply_render_quality_system, fit_shadow_cascades_system),
+            )
             .add_systems(
                 Update,
                 (
@@ -55,6 +68,9 @@ pub enum CameraMode {
 /// Camera controller resource
 #[derive(Resource)]
 pub struct CameraController {
+    /// Gesture for the drag in progress, when a button implies one
+    /// (right = pan, middle = orbit). `None` follows `mode`.
+    pub drag_gesture: Option<CameraMode>,
     /// Current mode
     pub mode: CameraMode,
     /// Target point to orbit around
@@ -134,6 +150,7 @@ impl Default for CameraController {
             far: 10000.0,      // 10km far plane for large IFC models
             walk_speed: 500.0, // 0.5m per frame for walking in mm-scale
             orbit_sensitivity: 0.005,
+            drag_gesture: None,
             pan_sensitivity: 0.01,
             zoom_sensitivity: 0.02,
             is_dragging: false,
@@ -289,62 +306,116 @@ fn poll_camera_commands_system(
     }
 }
 
-/// Setup the 3D camera
-fn setup_camera(mut commands: Commands, controller: Res<CameraController>) {
+/// Marker for the shadow-casting key (sun) light.
+#[derive(Component)]
+pub struct KeyLight;
+
+/// Key light direction: ~55° above the horizon so it reaches down into rooms
+/// (RoomPlan exports rarely have ceilings) while still throwing readable
+/// shadows off walls and furniture. Its azimuth (~16° off +X) is deliberately
+/// away from the default 45° home camera so the two facades facing the
+/// viewer get clearly different light instead of a flat, equal shade.
+const KEY_LIGHT_DIR: Vec3 = Vec3::new(0.96, 1.43, 0.28);
+
+/// Shadow cascade layout for building-scale scenes (metres). The maximum
+/// distance is later stretched by [`fit_shadow_cascades_system`] when a
+/// scene is larger than this (e.g. mm-based IFC files).
+fn building_cascades(max_distance: f32) -> bevy::light::CascadeShadowConfig {
+    bevy::light::CascadeShadowConfigBuilder {
+        num_cascades: 3,
+        minimum_distance: 0.1,
+        first_cascade_far_bound: 8.0 * (max_distance / 80.0).max(1.0),
+        maximum_distance: max_distance,
+        overlap_proportion: 0.3,
+    }
+    .build()
+}
+
+/// Setup the 3D camera and the architectural light rig
+fn setup_camera(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    controller: Res<CameraController>,
+    settings: Res<crate::ViewerSettings>,
+) {
     use bevy::core_pipeline::tonemapping::Tonemapping;
-    use bevy::render::view::Msaa;
+    use bevy::light::EnvironmentMapLight;
 
     let position = controller.get_position();
 
-    commands.spawn((
-        Camera3d::default(),
-        Transform::from_translation(position).looking_at(controller.target, Vec3::Y),
-        Projection::Perspective(PerspectiveProjection {
-            fov: controller.fov.to_radians(),
-            near: controller.near,
-            far: controller.far,
-            ..default()
-        }),
-        MainCamera,
-        // Enable 4x MSAA for smoother edges
-        Msaa::Sample4,
-        // AgX tonemapping for natural, filmic look
-        Tonemapping::AgX,
-        // Single cluster: all lights evaluated per fragment — best for stadium
-        // floodlights where most lights illuminate the same area (the pitch).
-        bevy::light::cluster::ClusterConfig::Single,
-    ));
+    // Sky-lit ambient: a small procedural cubemap (blue-white sky, bright
+    // horizon band, warm grey ground) as image-based light. Works on
+    // WebGL2 too — it is a plain cube texture, no compute involved.
+    let (diffuse_map, specular_map) = build_sky_environment(&mut images);
 
-    // Ambient light - enough to see into shadows but not wash out
+    let camera = commands
+        .spawn((
+            Camera3d::default(),
+            Transform::from_translation(position).looking_at(controller.target, Vec3::Y),
+            Projection::Perspective(PerspectiveProjection {
+                fov: controller.fov.to_radians(),
+                near: controller.near,
+                far: controller.far,
+                ..default()
+            }),
+            MainCamera,
+            // AgX tonemapping for natural, filmic look
+            Tonemapping::AgX,
+            // Single cluster: all lights evaluated per fragment — best for stadium
+            // floodlights where most lights illuminate the same area (the pitch).
+            bevy::light::cluster::ClusterConfig::Single,
+            EnvironmentMapLight {
+                diffuse_map,
+                specular_map,
+                intensity: SKY_ENV_INTENSITY,
+                rotation: Quat::IDENTITY,
+                affects_lightmapped_mesh_diffuse: true,
+            },
+        ))
+        .id();
+
+    // Flat ambient: only a floor value now — the environment map carries
+    // the sky/ground ambient with proper directionality.
     commands.spawn(AmbientLight {
-        color: Color::srgb(0.9, 0.92, 1.0), // Slightly cool ambient
-        brightness: 150.0,
+        color: Color::srgb(0.9, 0.92, 1.0),
+        brightness: 30.0,
         affects_lightmapped_meshes: true,
     });
 
-    // Key directional light - main light from top-right-front
+    // Key directional light - warm sun from above, the only shadow caster.
     commands.spawn((
         DirectionalLight {
-            color: Color::srgb(1.0, 0.98, 0.95), // Warm sunlight
-            illuminance: 30000.0,
-            shadows_enabled: false,
+            color: Color::srgb(1.0, 0.97, 0.92),
+            // Bevy's default exposure is EV100 9.7 (≈ 1/1000): a white wall
+            // facing this light at ~45° then sits near 0.9 before tonemapping
+            // — bright, but with headroom so AgX keeps the palette colours
+            // saturated instead of squashing everything towards white.
+            illuminance: 2800.0,
+            shadows_enabled: false, // set by apply_render_quality_system
+            // Slightly more depth bias than Bevy's default so thin RoomPlan
+            // walls (10 cm) don't self-shadow at grazing angles.
+            shadow_depth_bias: 0.03,
+            shadow_normal_bias: 1.2,
             affects_lightmapped_mesh_diffuse: true,
-            ..default()
         },
-        Transform::from_xyz(0.5, 1.0, 0.3).looking_at(Vec3::ZERO, Vec3::Y),
+        building_cascades(80.0),
+        Transform::from_translation(KEY_LIGHT_DIR).looking_at(Vec3::ZERO, Vec3::Y),
         ArchitecturalLight,
+        KeyLight,
     ));
 
-    // Fill light from opposite side - cooler, softer
+    // Fill light from opposite side - cool, soft, no shadows. Deliberately
+    // weak: the sky environment map carries the ambient now, and only that
+    // term is darkened by shadows and SSAO — direct fills would wash both out.
     commands.spawn((
         DirectionalLight {
-            color: Color::srgb(0.8, 0.88, 1.0), // Cool sky fill
-            illuminance: 12000.0,
+            color: Color::srgb(0.8, 0.88, 1.0),
+            illuminance: 600.0,
             shadows_enabled: false,
             affects_lightmapped_mesh_diffuse: true,
             ..default()
         },
-        Transform::from_xyz(-0.5, 0.3, -0.5).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_xyz(-0.6, 0.5, -0.5).looking_at(Vec3::ZERO, Vec3::Y),
         ArchitecturalLight,
     ));
 
@@ -352,7 +423,7 @@ fn setup_camera(mut commands: Commands, controller: Res<CameraController>) {
     commands.spawn((
         DirectionalLight {
             color: Color::srgb(0.95, 0.95, 1.0),
-            illuminance: 8000.0,
+            illuminance: 400.0,
             shadows_enabled: false,
             affects_lightmapped_mesh_diffuse: true,
             ..default()
@@ -361,11 +432,11 @@ fn setup_camera(mut commands: Commands, controller: Res<CameraController>) {
         ArchitecturalLight,
     ));
 
-    // Bottom fill - subtle uplight to reduce dark undersides
+    // Bottom fill - subtle uplight so undersides are not pitch black
     commands.spawn((
         DirectionalLight {
             color: Color::srgb(0.7, 0.75, 0.85),
-            illuminance: 3000.0,
+            illuminance: 150.0,
             shadows_enabled: false,
             affects_lightmapped_mesh_diffuse: true,
             ..default()
@@ -373,6 +444,276 @@ fn setup_camera(mut commands: Commands, controller: Res<CameraController>) {
         Transform::from_xyz(0.0, -1.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
         ArchitecturalLight,
     ));
+
+    apply_render_quality(&mut commands, camera, settings.render_quality);
+}
+
+/// Intensity (cd/m²) of the procedural sky environment map. Roughly half of
+/// a lit wall's light comes from here: shadowed faces stay sky-lit rather
+/// than black, and SSAO (which only darkens indirect light) has a real
+/// ambient term to occlude in corners.
+const SKY_ENV_INTENSITY: f32 = 1200.0;
+
+/// Apply a [`crate::RenderQuality`] preset to the camera entity.
+///
+/// Native `Quality`: SSAO (needs `Msaa::Off`) + FXAA for edges.
+/// Native `Fast` and every wasm preset: 4x MSAA, no SSAO (not supported on
+/// WebGL2).  Shadows are toggled on the key light by the caller's system.
+fn apply_render_quality(commands: &mut Commands, camera: Entity, quality: crate::RenderQuality) {
+    use bevy::render::view::Msaa;
+    let mut cam = commands.entity(camera);
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use bevy::anti_alias::fxaa::{Fxaa, Sensitivity};
+        use bevy::core_pipeline::prepass::{DepthPrepass, NormalPrepass};
+        use bevy::pbr::{ScreenSpaceAmbientOcclusion, ScreenSpaceAmbientOcclusionQualityLevel};
+        match quality {
+            crate::RenderQuality::Quality => {
+                cam.insert((
+                    Msaa::Off,
+                    ScreenSpaceAmbientOcclusion {
+                        quality_level: ScreenSpaceAmbientOcclusionQualityLevel::High,
+                        // Walls/furniture are thin — a smaller thickness
+                        // avoids halos around free-standing objects.
+                        constant_object_thickness: 0.15,
+                    },
+                    Fxaa {
+                        enabled: true,
+                        edge_threshold: Sensitivity::High,
+                        edge_threshold_min: Sensitivity::High,
+                    },
+                ));
+            }
+            crate::RenderQuality::Fast => {
+                cam.remove::<(
+                    ScreenSpaceAmbientOcclusion,
+                    DepthPrepass,
+                    NormalPrepass,
+                    Fxaa,
+                )>()
+                .insert(Msaa::Sample4);
+            }
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = quality;
+        cam.insert(Msaa::Sample4);
+    }
+}
+
+/// Re-apply the render quality preset whenever `ViewerSettings.render_quality`
+/// changes (also runs once after startup so the key light's shadow flag
+/// matches the preset).
+fn apply_render_quality_system(
+    mut commands: Commands,
+    settings: Res<crate::ViewerSettings>,
+    mut applied: Local<Option<crate::RenderQuality>>,
+    camera: Query<Entity, With<MainCamera>>,
+    mut key_light: Query<&mut DirectionalLight, With<KeyLight>>,
+) {
+    let quality = settings.render_quality;
+    if *applied == Some(quality) {
+        return;
+    }
+    let Ok(camera) = camera.single() else { return };
+    let Ok(mut light) = key_light.single_mut() else {
+        return;
+    };
+
+    light.shadows_enabled = matches!(quality, crate::RenderQuality::Quality);
+    crate::log_info(&format!(
+        "[Bevy] Render quality {:?}: shadows={}, ssao={}, msaa={}",
+        quality,
+        light.shadows_enabled,
+        cfg!(not(target_arch = "wasm32")) && quality == crate::RenderQuality::Quality,
+        if cfg!(not(target_arch = "wasm32")) && quality == crate::RenderQuality::Quality {
+            "off"
+        } else {
+            "4x"
+        },
+    ));
+    if applied.is_some() {
+        // Startup already applied the camera components; only redo them on a
+        // genuine change so we don't churn pipelines on the first frame.
+        apply_render_quality(&mut commands, camera, quality);
+    }
+    *applied = Some(quality);
+}
+
+/// Stretch the shadow cascades to cover the loaded scene. Building-scale
+/// (metre) scenes keep the 80 m default; mm-based or campus-scale files get
+/// proportionally larger cascades so they are not left unshadowed.
+fn fit_shadow_cascades_system(
+    scene_data: Res<crate::IfcSceneData>,
+    mut fitted: Local<Option<f32>>,
+    mut key_light: Query<&mut bevy::light::CascadeShadowConfig, With<KeyLight>>,
+) {
+    let Some(bounds) = scene_data.bounds.as_ref() else {
+        return;
+    };
+    let diagonal = (bounds.max - bounds.min).length();
+    if !diagonal.is_finite() || diagonal <= 0.0 {
+        return;
+    }
+    let wanted = (diagonal * 2.5).clamp(80.0, 20_000.0);
+    if fitted.map(|f| (f - wanted).abs() < 1e-3).unwrap_or(false) {
+        return;
+    }
+    let Ok(mut config) = key_light.single_mut() else {
+        return;
+    };
+    *config = building_cascades(wanted);
+    *fitted = Some(wanted);
+}
+
+// ---------------------------------------------------------------------------
+// Procedural sky environment map
+// ---------------------------------------------------------------------------
+
+/// Sky radiance (linear RGB, roughly [0, 1]) for a world-space direction.
+/// Blue-white overhead, a brighter haze band at the horizon, warm grey
+/// ground bouncing light back up.
+fn sky_radiance(dir: Vec3) -> Vec3 {
+    let e = dir.y.clamp(-1.0, 1.0);
+    let zenith = Vec3::new(0.52, 0.68, 1.0);
+    let sky_horizon = Vec3::new(0.93, 0.95, 1.0);
+    let ground_horizon = Vec3::new(0.58, 0.55, 0.50);
+    let ground = Vec3::new(0.36, 0.34, 0.31);
+    let smooth = |t: f32| {
+        let t = t.clamp(0.0, 1.0);
+        t * t * (3.0 - 2.0 * t)
+    };
+    if e >= 0.0 {
+        sky_horizon.lerp(zenith, smooth(e / 0.75))
+    } else {
+        ground_horizon.lerp(ground, smooth(-e / 0.45))
+    }
+}
+
+/// Direction for a texel on cubemap `face` (wgpu order: +X −X +Y −Y +Z −Z)
+/// at normalised coordinates `u, v` in [-1, 1] (v grows downwards).
+fn cubemap_direction(face: usize, u: f32, v: f32) -> Vec3 {
+    match face {
+        0 => Vec3::new(1.0, -v, -u),
+        1 => Vec3::new(-1.0, -v, u),
+        2 => Vec3::new(u, 1.0, v),
+        3 => Vec3::new(u, -1.0, -v),
+        4 => Vec3::new(u, -v, 1.0),
+        _ => Vec3::new(-u, -v, -1.0),
+    }
+    .normalize()
+}
+
+fn linear_to_srgb_u8(c: f32) -> u8 {
+    let c = c.clamp(0.0, 1.0);
+    let s = if c <= 0.003_130_8 {
+        12.92 * c
+    } else {
+        1.055 * c.powf(1.0 / 2.4) - 0.055
+    };
+    (s * 255.0 + 0.5) as u8
+}
+
+/// Build a cubemap image whose mip chain is filled by `radiance(direction,
+/// mip_level)`.  Data is laid out layer-major (all mips of face 0, then face
+/// 1, …) which is wgpu/Bevy's default `TextureDataOrder`.
+fn build_cubemap(base_size: u32, mip_levels: u32, radiance: impl Fn(Vec3, u32) -> Vec3) -> Image {
+    use bevy::asset::RenderAssetUsages;
+    use bevy::image::ImageSampler;
+    use bevy::render::render_resource::{
+        Extent3d, TextureDimension, TextureFormat, TextureViewDescriptor, TextureViewDimension,
+    };
+
+    let mut data = Vec::new();
+    for face in 0..6 {
+        for mip in 0..mip_levels {
+            let size = (base_size >> mip).max(1);
+            for y in 0..size {
+                for x in 0..size {
+                    let u = (x as f32 + 0.5) / size as f32 * 2.0 - 1.0;
+                    let v = (y as f32 + 0.5) / size as f32 * 2.0 - 1.0;
+                    let c = radiance(cubemap_direction(face, u, v), mip);
+                    data.extend_from_slice(&[
+                        linear_to_srgb_u8(c.x),
+                        linear_to_srgb_u8(c.y),
+                        linear_to_srgb_u8(c.z),
+                        255,
+                    ]);
+                }
+            }
+        }
+    }
+
+    let mut image = Image::new(
+        Extent3d {
+            width: base_size,
+            height: base_size,
+            depth_or_array_layers: 6,
+        },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        // Keep the main-world copy too: the light-probe gatherer looks the
+        // cubemaps up by handle every frame, and a RENDER_WORLD-only image
+        // is unloaded after its first extraction.
+        RenderAssetUsages::default(),
+    );
+    image.texture_descriptor.mip_level_count = mip_levels;
+    image.texture_view_descriptor = Some(TextureViewDescriptor {
+        dimension: Some(TextureViewDimension::Cube),
+        ..default()
+    });
+    image.sampler = ImageSampler::linear();
+    image
+}
+
+/// Generate the diffuse (irradiance) and specular (radiance, mipmapped)
+/// cubemaps for [`EnvironmentMapLight`] from [`sky_radiance`].
+fn build_sky_environment(images: &mut Assets<Image>) -> (Handle<Image>, Handle<Image>) {
+    // Cosine-weighted hemisphere average of the sky = irradiance / π, which
+    // is what Bevy's diffuse environment map expects.
+    let samples: Vec<Vec3> = {
+        let n = 400;
+        let golden = std::f32::consts::PI * (3.0 - 5.0f32.sqrt());
+        (0..n)
+            .map(|i| {
+                let y = 1.0 - (i as f32 + 0.5) / n as f32 * 2.0;
+                let r = (1.0 - y * y).max(0.0).sqrt();
+                let phi = golden * i as f32;
+                Vec3::new(r * phi.cos(), y, r * phi.sin())
+            })
+            .collect()
+    };
+    let irradiance = move |n: Vec3, _mip: u32| {
+        let mut sum = Vec3::ZERO;
+        let mut weight = 0.0;
+        for &s in &samples {
+            let w = n.dot(s).max(0.0);
+            if w > 0.0 {
+                sum += sky_radiance(s) * w;
+                weight += w;
+            }
+        }
+        if weight > 0.0 {
+            sum / weight
+        } else {
+            sky_radiance(n)
+        }
+    };
+    let diffuse = build_cubemap(8, 1, irradiance);
+
+    // Specular: sharp sky at mip 0, progressively blended towards the
+    // hemisphere average at coarser mips (what rough surfaces sample).
+    let specular = build_cubemap(32, 6, |d, mip| {
+        let rough = mip as f32 / 5.0;
+        let avg = Vec3::new(0.62, 0.66, 0.74);
+        sky_radiance(d).lerp(avg, rough * 0.6)
+    });
+
+    (images.add(diffuse), images.add(specular))
 }
 
 /// Handle mouse input for camera control
@@ -401,6 +742,25 @@ fn camera_input_system(
     let is_measure = measure_state.active;
 
     // Handle mouse button state - only start drag if not over UI and not measuring
+    // Right- and middle-drag are the CAD convention for pan and orbit,
+    // and an embedded host has no toolbar to switch modes with. They
+    // override the current mode for the duration of the drag; the left
+    // button keeps following `controller.mode` as before.
+    if mouse_button.just_pressed(MouseButton::Right) && !mouse_over_ui {
+        controller.is_dragging = true;
+        controller.drag_gesture = Some(CameraMode::Pan);
+    }
+    if mouse_button.just_pressed(MouseButton::Middle) && !mouse_over_ui {
+        controller.is_dragging = true;
+        controller.drag_gesture = Some(CameraMode::Orbit);
+    }
+    if mouse_button.just_released(MouseButton::Right)
+        || mouse_button.just_released(MouseButton::Middle)
+    {
+        controller.is_dragging = false;
+        controller.drag_gesture = None;
+    }
+
     if mouse_button.just_pressed(MouseButton::Left) && !mouse_over_ui && !is_measure {
         controller.is_dragging = true;
         controller.did_drag = false;
@@ -433,7 +793,7 @@ fn camera_input_system(
                 controller.did_drag = true;
             }
 
-            match controller.mode {
+            match controller.drag_gesture.unwrap_or(controller.mode) {
                 CameraMode::Orbit => {
                     controller.azimuth -= ev.delta.x * controller.orbit_sensitivity;
                     controller.elevation -= ev.delta.y * controller.orbit_sensitivity;

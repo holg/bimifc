@@ -123,6 +123,10 @@ pub struct MeshGeometry {
     pub normals: Vec<f32>,
     /// Triangle indices
     pub indices: Vec<u32>,
+    /// Texture coordinates (flattened [u0,v0, u1,v1, ...], Bevy convention:
+    /// v down), already mapped into the combined layer atlas of
+    /// [`crate::textures`]. Empty = untextured (samples the atlas' white strip).
+    pub uvs: Vec<f32>,
 }
 
 impl MeshGeometry {
@@ -132,7 +136,16 @@ impl MeshGeometry {
             positions,
             normals,
             indices,
+            uvs: Vec::new(),
         }
+    }
+
+    /// Attach texture coordinates (one pair per vertex; ignored otherwise).
+    pub fn with_uvs(mut self, uvs: Vec<f32>) -> Self {
+        if uvs.len() / 2 == self.positions.len() / 3 && uvs.len().is_multiple_of(2) {
+            self.uvs = uvs;
+        }
+        self
     }
 
     /// Create from bimifc_geometry::Mesh (takes ownership via conversion)
@@ -141,6 +154,7 @@ impl MeshGeometry {
             positions: mesh.positions,
             normals: mesh.normals,
             indices: mesh.indices,
+            uvs: Vec::new(),
         }
     }
 
@@ -421,12 +435,17 @@ struct BatchBuilder {
     positions: Vec<[f32; 3]>,
     normals: Vec<[f32; 3]>,
     colors: Vec<[f32; 4]>,
+    /// Texture coordinates into the layer atlas (white strip when untextured).
+    uvs: Vec<[f32; 2]>,
     indices: Vec<u32>,
     /// Maps triangle index -> entity_id (for picking)
     triangle_to_entity: Vec<u64>,
     /// Lightweight entity info for palette switching (only when feature enabled)
     #[cfg(feature = "color-palette")]
     entity_color_info: Vec<EntityColorInfo>,
+    /// Triangles whose winding was reversed to match their authored normal
+    /// (diagnostic, logged once per batch).
+    winding_fixes: usize,
 }
 
 impl BatchBuilder {
@@ -435,10 +454,12 @@ impl BatchBuilder {
             positions: Vec::with_capacity(vertex_hint),
             normals: Vec::with_capacity(vertex_hint),
             colors: Vec::with_capacity(vertex_hint),
+            uvs: Vec::with_capacity(vertex_hint),
             indices: Vec::with_capacity(index_hint),
             triangle_to_entity: Vec::with_capacity(index_hint / 3),
             #[cfg(feature = "color-palette")]
             entity_color_info: Vec::new(),
+            winding_fixes: 0,
         }
     }
 
@@ -458,8 +479,11 @@ impl BatchBuilder {
             ifc_mesh.color[2],
             ifc_mesh.color[3],
         ];
+        let has_normals = geometry.normals.len() == geometry.positions.len();
 
         // Transform positions to world space and convert Z-up to Y-up
+        let mut world_positions: Vec<[f32; 3]> = Vec::with_capacity(vertex_count);
+        let mut world_normals: Vec<[f32; 3]> = Vec::with_capacity(vertex_count);
         for i in 0..vertex_count {
             let idx = i * 3;
             // Convert from IFC Z-up to Bevy Y-up
@@ -469,30 +493,89 @@ impl BatchBuilder {
                 -geometry.positions[idx + 1], // -Y -> Z
             );
             let world_pos = transform.transform_point(local_pos);
-            self.positions.push([world_pos.x, world_pos.y, world_pos.z]);
+            world_positions.push([world_pos.x, world_pos.y, world_pos.z]);
 
             // Transform normals (rotation only, no translation)
-            if geometry.normals.len() == geometry.positions.len() {
+            if has_normals {
                 let local_normal = Vec3::new(
                     geometry.normals[idx],
                     geometry.normals[idx + 2],
                     -geometry.normals[idx + 1],
                 );
                 let world_normal = transform.rotation * local_normal;
-                self.normals
-                    .push([world_normal.x, world_normal.y, world_normal.z]);
-            } else {
-                self.normals.push([0.0, 1.0, 0.0]); // Default up
+                world_normals.push([world_normal.x, world_normal.y, world_normal.z]);
             }
-
-            self.colors.push(color);
+        }
+        if !has_normals {
+            world_normals = compute_flat_normals(&world_positions, &geometry.indices);
         }
 
-        // Add indices with offset and track triangle-to-entity mapping
+        // IFC faceted breps arrive with one flat normal per face, which makes
+        // detailed furniture (chairs, sinks, lamps) look like crumpled paper.
+        // Smooth across gentle angles for those; boxes/walls keep hard edges.
+        if wants_smooth_normals(&ifc_mesh.entity_type, geometry.triangle_count()) {
+            world_normals = compute_smooth_normals(
+                &world_positions,
+                &geometry.indices,
+                &world_normals,
+                SMOOTH_NORMAL_CREASE_DEG,
+            );
+        }
+
+        self.positions.extend_from_slice(&world_positions);
+        self.normals.extend_from_slice(&world_normals);
+        self.colors.extend(std::iter::repeat_n(color, vertex_count));
+        if geometry.uvs.len() == vertex_count * 2 {
+            self.uvs.extend(
+                geometry
+                    .uvs
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|uv| [uv[0], uv[1]]),
+            );
+        } else {
+            self.uvs
+                .extend(std::iter::repeat_n(crate::textures::WHITE_UV, vertex_count));
+        }
+
+        // Add indices with offset and track triangle-to-entity mapping.
+        //
+        // Make every triangle's winding agree with its authored normal. The
+        // material is double-sided, and Bevy flips the shading normal for
+        // back-facing fragments — that only yields correct lighting when
+        // winding and normal point the same way. IFC geometry (mirrored
+        // placements, CW profiles) often violates this, which lit the sun-
+        // facing walls of RoomPlan exports from the wrong side.
         let index_offset = start_vertex as u32;
         let num_triangles = geometry.triangle_count();
-        for &idx in &geometry.indices {
-            self.indices.push(idx + index_offset);
+        let mut flipped = 0usize;
+        for tri in geometry.indices.as_chunks::<3>().0 {
+            let (i0, i1, i2) = (tri[0] as usize, tri[1] as usize, tri[2] as usize);
+            let mut swap = false;
+            if i0 < vertex_count && i1 < vertex_count && i2 < vertex_count {
+                let p0 = Vec3::from_array(world_positions[i0]);
+                let p1 = Vec3::from_array(world_positions[i1]);
+                let p2 = Vec3::from_array(world_positions[i2]);
+                let geometric = (p1 - p0).cross(p2 - p0);
+                let authored = Vec3::from_array(world_normals[i0])
+                    + Vec3::from_array(world_normals[i1])
+                    + Vec3::from_array(world_normals[i2]);
+                swap = geometric.dot(authored) < 0.0;
+            }
+            if swap {
+                flipped += 1;
+                self.indices.push(tri[0] + index_offset);
+                self.indices.push(tri[2] + index_offset);
+                self.indices.push(tri[1] + index_offset);
+            } else {
+                self.indices.push(tri[0] + index_offset);
+                self.indices.push(tri[1] + index_offset);
+                self.indices.push(tri[2] + index_offset);
+            }
+        }
+        if flipped > 0 {
+            self.winding_fixes += flipped;
         }
 
         // Map each triangle to its entity ID (for picking)
@@ -540,6 +623,7 @@ impl BatchBuilder {
         mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, self.positions);
         mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
         mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, self.colors);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, self.uvs);
         mesh.insert_indices(Indices::U32(self.indices));
 
         mesh
@@ -584,6 +668,7 @@ fn spawn_meshes_system(
     mut color_mapping: ResMut<EntityColorMapping>,
     existing_entities: Query<Entity, With<IfcEntity>>,
     existing_batches: Query<Entity, With<BatchedMesh>>,
+    settings: Res<crate::ViewerSettings>,
 ) {
     if !scene_data.dirty {
         return;
@@ -625,6 +710,13 @@ fn spawn_meshes_system(
 
     // Process all meshes - group by material type
     for ifc_mesh in &scene_data.meshes {
+        // An IfcSpace is the room's air volume. Drawn translucent it
+        // engulfs everything inside it — a roof space hides the gable,
+        // a room space hides its own furniture — so skip it unless the
+        // viewer was asked for spaces.
+        if !settings.show_spaces && ifc_mesh.entity_type.eq_ignore_ascii_case("IfcSpace") {
+            continue;
+        }
         let is_transparent = ifc_mesh.color[3] < 1.0;
         let transform = ifc_mesh.get_transform();
         let geometry = &ifc_mesh.geometry;
@@ -687,9 +779,10 @@ fn spawn_meshes_system(
     // Spawn opaque batch
     if !opaque_batch.is_empty() {
         log(&format!(
-            "[Bevy] Opaque batch: {} vertices, {} triangles",
+            "[Bevy] Opaque batch: {} vertices, {} triangles ({} winding fixes)",
             opaque_batch.vertex_count(),
-            opaque_batch.triangle_count()
+            opaque_batch.triangle_count(),
+            opaque_batch.winding_fixes
         ));
 
         // Store mappings for picking
@@ -700,13 +793,21 @@ fn spawn_meshes_system(
         }
 
         let mesh = opaque_batch.build();
+        // Matte plaster / wood: fully dielectric, rough, low reflectance so
+        // the sky environment map adds soft tone instead of glossy sheen.
         let material = StandardMaterial {
             base_color: Color::WHITE,
-            metallic: 0.05,
-            perceptual_roughness: 0.45,
-            reflectance: 0.4,
+            metallic: 0.0,
+            perceptual_roughness: 0.75,
+            reflectance: 0.25,
             double_sided: true,
             cull_mode: None,
+            // Mask (not Opaque): the federation/visibility systems hide
+            // entities by writing alpha=0 into the vertex color buffer.
+            // Opaque discards alpha; Mask discards fragments whose alpha
+            // falls below the threshold — exactly what we want for a
+            // discipline filter, and cheaper than full Blend.
+            alpha_mode: AlphaMode::Mask(0.5),
             ..default()
         };
 
@@ -740,6 +841,7 @@ fn spawn_meshes_system(
             reflectance: 0.6,
             double_sided: true,
             cull_mode: None,
+            alpha_mode: AlphaMode::Mask(0.5),
             ..default()
         };
 
@@ -872,7 +974,10 @@ fn auto_fit_camera_system(
 
         // Update camera controller directly (no animation for initial fit)
         camera_controller.target = center;
-        camera_controller.distance = distance.max(100.0); // Minimum distance of 100mm
+        // Same floor as `CameraController::fit_bounds`. (This used to be 100,
+        // written for mm-scale files; it parked the camera 100 m away from
+        // metre-based RoomPlan exports so a whole flat was a thumbnail.)
+        camera_controller.distance = distance.max(1.0);
         camera_controller.azimuth = 0.785; // 45 degrees
         camera_controller.elevation = 0.615; // ~35 degrees (isometric)
 
@@ -958,7 +1063,14 @@ fn update_mesh_federation_visibility_system(
         .map(|i| i.vertex_count as usize)
         .sum();
 
+    let mut batches_seen = 0usize;
+    let mut batches_skipped_len_mismatch = 0usize;
+    let mut batches_applied = 0usize;
+    let mut entities_hidden = 0usize;
+    let mut entities_shown = 0usize;
+
     for (mesh_handle, batched_mesh) in batched_meshes.iter() {
+        batches_seen += 1;
         let Some(mesh) = mesh_assets.get_mut(&mesh_handle.0) else {
             continue;
         };
@@ -982,8 +1094,14 @@ fn update_mesh_federation_visibility_system(
         // we caught a load-then-rebuild race). Skip and let the next
         // tick — after spawn_meshes_system completes — paint it.
         if colors.len() != expected_verts {
+            batches_skipped_len_mismatch += 1;
+            crate::log_info(&format!(
+                "[Bevy] Federation visibility: SKIP batch (is_transparent={}, colors.len()={}, expected={})",
+                batched_mesh.is_transparent, colors.len(), expected_verts,
+            ));
             continue;
         }
+        batches_applied += 1;
 
         for info in color_infos {
             let start = info.start_vertex as usize;
@@ -1008,6 +1126,7 @@ fn update_mesh_federation_visibility_system(
                 .visible(SourceId(info.source_id), entity_disc);
 
             if visible {
+                entities_shown += 1;
                 let color = if current_selection.contains(&info.entity_id) {
                     SELECTION_COLOR
                 } else {
@@ -1017,12 +1136,18 @@ fn update_mesh_federation_visibility_system(
                     *c = color;
                 }
             } else {
+                entities_hidden += 1;
                 for c in colors[start..end].iter_mut() {
                     *c = [c[0], c[1], c[2], 0.0];
                 }
             }
         }
     }
+
+    crate::log_info(&format!(
+        "[Bevy] Federation visibility result: batches seen={}, applied={}, skipped(len mismatch)={}, shown={}, hidden={}",
+        batches_seen, batches_applied, batches_skipped_len_mismatch, entities_shown, entities_hidden,
+    ));
 }
 
 #[cfg(not(feature = "color-palette"))]
@@ -1636,6 +1761,133 @@ fn get_monochrome_color(entity_type: &str) -> [f32; 4] {
 }
 
 /// Compute flat normals from triangle positions and indices
+/// Adjacent faces whose normals differ by less than this angle are blended
+/// into one smooth normal; sharper edges stay hard (box corners, wall edges).
+const SMOOTH_NORMAL_CREASE_DEG: f32 = 50.0;
+
+/// Should this entity's mesh get smooth (angle-weighted) vertex normals?
+///
+/// Furniture, sanitary/flow terminals and proxies are usually curved,
+/// detailed breps; anything with more than 24 triangles is treated the same
+/// way. Boxes (12 triangles) and other simple prisms always stay flat.
+fn wants_smooth_normals(entity_type: &str, triangle_count: usize) -> bool {
+    if triangle_count <= 12 {
+        return false;
+    }
+    if triangle_count > 24 {
+        return true;
+    }
+    let t = entity_type.to_ascii_uppercase();
+    t.contains("FURNISHING")
+        || t.contains("FURNITURE")
+        || t.contains("FLOWTERMINAL")
+        || t.contains("PROXY")
+}
+
+/// Angle-weighted smooth normals with crease preservation.
+///
+/// Vertices are welded by position (IFC faceted breps duplicate every vertex
+/// per face), then each vertex blends the normals of all faces meeting at
+/// that position whose normal lies within `crease_deg` of the vertex's own
+/// face normal. Faces across a sharper edge are left out, so a chamfered box
+/// keeps hard corners while a cylinder or a chair back shades smoothly.
+/// `reference_normals` (the flat normals the mesh came with) fix the sign of
+/// each face normal, so inconsistent IFC winding cannot flip the result.
+fn compute_smooth_normals(
+    positions: &[[f32; 3]],
+    indices: &[u32],
+    reference_normals: &[[f32; 3]],
+    crease_deg: f32,
+) -> Vec<[f32; 3]> {
+    use rustc_hash::FxHashMap;
+
+    let n = positions.len();
+    let crease_cos = crease_deg.to_radians().cos();
+
+    // Quantised position key: 0.05 mm in metre-based models; welding only
+    // needs to catch vertices duplicated from the same source point.
+    let key = |p: [f32; 3]| -> [i64; 3] {
+        [
+            (p[0] as f64 * 20_000.0).round() as i64,
+            (p[1] as f64 * 20_000.0).round() as i64,
+            (p[2] as f64 * 20_000.0).round() as i64,
+        ]
+    };
+
+    // (face normal, corner angle) contributions grouped by welded position.
+    let mut at_position: FxHashMap<[i64; 3], Vec<(Vec3, f32)>> = FxHashMap::default();
+    // Per-vertex reference (angle-weighted own-face normal) for the crease test.
+    let mut own = vec![Vec3::ZERO; n];
+
+    for tri in indices.as_chunks::<3>().0 {
+        let (i0, i1, i2) = (tri[0] as usize, tri[1] as usize, tri[2] as usize);
+        if i0 >= n || i1 >= n || i2 >= n {
+            continue;
+        }
+        let p0 = Vec3::from_array(positions[i0]);
+        let p1 = Vec3::from_array(positions[i1]);
+        let p2 = Vec3::from_array(positions[i2]);
+        let mut face = (p1 - p0).cross(p2 - p0);
+        if face.length_squared() < 1e-20 {
+            continue;
+        }
+        face = face.normalize();
+        // Align with the authored normals so winding order does not matter.
+        let authored = Vec3::from_array(reference_normals[i0])
+            + Vec3::from_array(reference_normals[i1])
+            + Vec3::from_array(reference_normals[i2]);
+        if authored.dot(face) < 0.0 {
+            face = -face;
+        }
+
+        let corner_angle = |a: Vec3, b: Vec3, c: Vec3| -> f32 {
+            let u = b - a;
+            let v = c - a;
+            let d = u.length() * v.length();
+            if d < 1e-12 {
+                0.0
+            } else {
+                (u.dot(v) / d).clamp(-1.0, 1.0).acos()
+            }
+        };
+        let angles = [
+            corner_angle(p0, p1, p2),
+            corner_angle(p1, p2, p0),
+            corner_angle(p2, p0, p1),
+        ];
+        for (vi, angle) in [i0, i1, i2].into_iter().zip(angles) {
+            own[vi] += face * angle;
+            at_position
+                .entry(key(positions[vi]))
+                .or_default()
+                .push((face, angle));
+        }
+    }
+
+    (0..n)
+        .map(|vi| {
+            let reference = if own[vi].length_squared() > 1e-12 {
+                own[vi].normalize()
+            } else {
+                Vec3::from_array(reference_normals[vi])
+            };
+            let mut acc = Vec3::ZERO;
+            if let Some(faces) = at_position.get(&key(positions[vi])) {
+                for &(face, angle) in faces {
+                    if face.dot(reference) >= crease_cos {
+                        acc += face * angle;
+                    }
+                }
+            }
+            if acc.length_squared() > 1e-12 {
+                acc.normalize().to_array()
+            } else {
+                reference.to_array()
+            }
+        })
+        .collect()
+}
+
 fn compute_flat_normals(positions: &[[f32; 3]], indices: &[u32]) -> Vec<[f32; 3]> {
     let mut normals = vec![[0.0f32, 0.0, 0.0]; positions.len()];
 
@@ -1682,4 +1934,79 @@ fn compute_flat_normals(positions: &[[f32; 3]], indices: &[u32]) -> Vec<[f32; 3]
     }
 
     normals
+}
+
+#[cfg(test)]
+mod normal_tests {
+    use super::*;
+
+    /// Two quads sharing the edge x = 0 (vertices duplicated per face, as
+    /// faceted breps do), the second quad tilted by `tilt_deg` around Z.
+    fn folded_quads(tilt_deg: f32) -> (Vec<[f32; 3]>, Vec<u32>, Vec<[f32; 3]>) {
+        let t = tilt_deg.to_radians();
+        let (s, c) = t.sin_cos();
+        let positions = vec![
+            // quad A in the XY plane, normal +Z
+            [-1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [-1.0, 1.0, 0.0],
+            // quad B, rotated about the Y axis at x = 0
+            [0.0, 0.0, 0.0],
+            [c, 0.0, -s],
+            [c, 1.0, -s],
+            [0.0, 1.0, 0.0],
+        ];
+        let indices = vec![0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7];
+        let nb = [s, 0.0, c];
+        let normals = vec![[0.0, 0.0, 1.0]; 4]
+            .into_iter()
+            .chain(std::iter::repeat_n(nb, 4))
+            .collect();
+        (positions, indices, normals)
+    }
+
+    fn dot(a: [f32; 3], b: [f32; 3]) -> f32 {
+        a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+    }
+
+    #[test]
+    fn gentle_fold_is_smoothed_across_the_shared_edge() {
+        let (p, i, n) = folded_quads(30.0);
+        let smooth = compute_smooth_normals(&p, &i, &n, 50.0);
+        // Vertex 1 (on the shared edge) blends both faces: halfway between.
+        let expected = [15f32.to_radians().sin(), 0.0, 15f32.to_radians().cos()];
+        assert!(dot(smooth[1], expected) > 0.999, "{:?}", smooth[1]);
+        assert!(dot(smooth[4], expected) > 0.999, "{:?}", smooth[4]);
+        // Vertex 0 is not on the shared edge: keeps quad A's normal.
+        assert!(dot(smooth[0], [0.0, 0.0, 1.0]) > 0.999);
+    }
+
+    #[test]
+    fn sharp_fold_keeps_hard_edge() {
+        let (p, i, n) = folded_quads(90.0);
+        let smooth = compute_smooth_normals(&p, &i, &n, 50.0);
+        assert!(dot(smooth[1], [0.0, 0.0, 1.0]) > 0.999, "{:?}", smooth[1]);
+        assert!(dot(smooth[4], [1.0, 0.0, 0.0]) > 0.999, "{:?}", smooth[4]);
+    }
+
+    #[test]
+    fn inconsistent_winding_does_not_flip_normals() {
+        let (p, mut i, n) = folded_quads(30.0);
+        // Reverse quad B's winding; the authored normals still say +Z-ish.
+        i[6..].chunks_mut(3).for_each(|t| t.swap(1, 2));
+        let smooth = compute_smooth_normals(&p, &i, &n, 50.0);
+        let expected = [15f32.to_radians().sin(), 0.0, 15f32.to_radians().cos()];
+        assert!(dot(smooth[4], expected) > 0.999, "{:?}", smooth[4]);
+    }
+
+    #[test]
+    fn boxes_stay_flat_and_detail_gets_smoothed() {
+        assert!(!wants_smooth_normals("IfcFurnishingElement", 12));
+        assert!(!wants_smooth_normals("IfcWall", 24));
+        assert!(wants_smooth_normals("IfcFurnishingElement", 20));
+        assert!(wants_smooth_normals("IfcFlowTerminal", 14));
+        assert!(wants_smooth_normals("IfcBuildingElementProxy", 16));
+        assert!(wants_smooth_normals("IfcWall", 25));
+    }
 }

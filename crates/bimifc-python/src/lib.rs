@@ -5,6 +5,7 @@ pub mod model;
 pub mod properties;
 pub mod spatial;
 pub mod types;
+pub mod writer;
 
 use pyo3::prelude::*;
 
@@ -13,6 +14,10 @@ use model::PyIfcModel;
 use properties::{PyProperty, PyPropertySet, PyQuantity};
 use spatial::{PySpatialNode, PyStoreyInfo};
 use types::{Entity, PyMeshData, PyModelMetadata};
+use writer::{
+    PyElementPset, PyIfcProperty, PyIfcValue, PyIfcWriter, PyProjectInfo, PyRect, PyRoomDimensions,
+    PyRoomElement, PySpace,
+};
 
 /// Convenience: parse an IFC file from disk
 #[pyfunction]
@@ -54,6 +59,17 @@ fn bimifc(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Lighting
     m.add_class::<PyLightingExport>()?;
+
+    // Writer / export types
+    m.add_class::<PyIfcValue>()?;
+    m.add_class::<PyIfcProperty>()?;
+    m.add_class::<PyElementPset>()?;
+    m.add_class::<PyRect>()?;
+    m.add_class::<PyRoomDimensions>()?;
+    m.add_class::<PyProjectInfo>()?;
+    m.add_class::<PyRoomElement>()?;
+    m.add_class::<PySpace>()?;
+    m.add_class::<PyIfcWriter>()?;
 
     // Convenience functions
     m.add_function(wrap_pyfunction!(from_file, m)?)?;

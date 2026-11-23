@@ -75,10 +75,7 @@ impl Plugin for RichModelPlugin {
 /// dominates (~hundreds of ms to ~seconds) and the user already saw
 /// the OS file-picker dialog. A spinner is overdue but out of scope
 /// for the parity port.
-fn reparse_on_load(
-    mut load_events: MessageReader<LoadIfcFileEvent>,
-    mut rich: ResMut<RichModel>,
-) {
+fn reparse_on_load(mut load_events: MessageReader<LoadIfcFileEvent>, mut rich: ResMut<RichModel>) {
     for ev in load_events.read() {
         let path = ev.path.clone();
         match reparse(&path) {

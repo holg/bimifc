@@ -119,9 +119,16 @@ impl PropertyReaderImpl {
         match prop.ifc_type {
             IfcType::IfcPropertySingleValue => {
                 // NominalValue at index 2, Unit at index 3
-                let value = self.format_value(prop.get(2)?);
+                let nominal = prop.get(2)?;
+                let value = self.format_value(nominal);
                 let unit = prop.get(3).and_then(|v| self.extract_unit(v));
-                Some(Property { name, value, unit })
+                let value_type = value_type_name(nominal);
+                Some(Property {
+                    name,
+                    value,
+                    unit,
+                    value_type,
+                })
             }
             IfcType::IfcPropertyEnumeratedValue => {
                 // EnumerationValues at index 2
@@ -137,6 +144,7 @@ impl PropertyReaderImpl {
                     name,
                     value: values,
                     unit: None,
+                    value_type: None,
                 })
             }
             IfcType::IfcPropertyBoundedValue => {
@@ -153,6 +161,7 @@ impl PropertyReaderImpl {
                     name,
                     value,
                     unit: None,
+                    value_type: None,
                 })
             }
             IfcType::IfcPropertyListValue => {
@@ -169,6 +178,7 @@ impl PropertyReaderImpl {
                     name,
                     value: values,
                     unit: None,
+                    value_type: None,
                 })
             }
             _ => None,
@@ -528,6 +538,16 @@ impl PropertyReaderImpl {
             gamma_angles,
             intensities,
         })
+    }
+}
+
+/// Return the raw IFC value/measure type token of a NominalValue if it is a
+/// typed/defined value (e.g. `IFCPOWERMEASURE(18.5)` → `Some("IFCPOWERMEASURE")`).
+/// Bare strings/numbers/enums have no wrapping type → `None`.
+fn value_type_name(attr: &AttributeValue) -> Option<String> {
+    match attr {
+        AttributeValue::TypedValue(name, _) => Some(name.clone()),
+        _ => None,
     }
 }
 

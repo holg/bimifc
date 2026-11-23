@@ -158,7 +158,12 @@ fn UrlLoader() -> impl IntoView {
                             percent: 10.0,
                         });
 
-                        match crate::components::toolbar::parse_and_process_ifc(&content, state) {
+                        // Texture references in the file resolve relative to its URL.
+                        crate::utils::set_ifc_base_url(Some(url.clone()));
+                        let parsed =
+                            crate::components::toolbar::parse_and_process_ifc(&content, state);
+                        crate::utils::set_ifc_base_url(None);
+                        match parsed {
                             Ok(_) => {
                                 bridge::log_info("IFC file loaded from URL");
                                 state.loading.set_loading(false);
@@ -219,7 +224,11 @@ fn StateBridge() -> impl IntoView {
                 .map(|e| e.id)
                 .collect();
             let combined: Vec<u64> = match isolated {
-                Some(user) => user.iter().copied().filter(|id| mep_ids.contains(id)).collect(),
+                Some(user) => user
+                    .iter()
+                    .copied()
+                    .filter(|id| mep_ids.contains(id))
+                    .collect(),
                 None => mep_ids.iter().copied().collect(),
             };
             Some(combined)

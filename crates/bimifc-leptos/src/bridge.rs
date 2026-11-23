@@ -176,6 +176,10 @@ pub struct GeometryData {
     /// instance. bimifc-bevy honors a non-zero value as authoritative.
     #[serde(default)]
     pub discipline: u8,
+    /// Texture coordinates into the renderer's layer atlas (one [u, v] pair
+    /// per vertex, see `bimifc_bevy::textures`); empty = untextured.
+    #[serde(default)]
+    pub uvs: Vec<f32>,
 }
 
 /// Entity data for Bevy
@@ -409,6 +413,43 @@ pub fn set_source_name(name: &str) {
 /// Save geometry data for Bevy
 /// In unified mode: direct memory transfer (no serialization!)
 /// In split mode: binary serialization via JS bridge
+/// Map an IFC texture coordinate (S right, T up) of texture set `set` of
+/// `set_count` into the renderer's layer atlas.
+pub fn atlas_uv(s: f32, t: f32, set: usize, set_count: usize) -> [f32; 2] {
+    #[cfg(feature = "unified")]
+    {
+        bimifc_bevy::textures::atlas_uv(s, t, set, set_count)
+    }
+    #[cfg(not(feature = "unified"))]
+    {
+        let k = set_count.max(1) as f32;
+        [
+            (set as f32 + s.clamp(0.0, 1.0)) / k,
+            (1.0 - t.clamp(0.0, 1.0)) * (1.0 - 1.0 / 256.0),
+        ]
+    }
+}
+
+/// Hand texture layer images to the renderer (unified build only).
+pub fn set_textures(set_count: usize, layers: Vec<(String, Vec<Vec<u8>>)>, active: usize) {
+    #[cfg(feature = "unified")]
+    bimifc_bevy::textures::set_pending_textures(bimifc_bevy::textures::TexturePayload {
+        set_count,
+        layers,
+        active,
+    });
+    #[cfg(not(feature = "unified"))]
+    let _ = (set_count, layers, active);
+}
+
+/// Show texture layer `index` (unified build only).
+pub fn set_texture_layer(index: usize) {
+    #[cfg(feature = "unified")]
+    bimifc_bevy::textures::set_pending_texture_layer(index);
+    #[cfg(not(feature = "unified"))]
+    let _ = index;
+}
+
 pub fn save_geometry(geometry: Vec<GeometryData>) {
     let start = js_sys::Date::now();
     let mesh_count = geometry.len();
@@ -424,7 +465,9 @@ pub fn save_geometry(geometry: Vec<GeometryData>) {
             .into_iter()
             .map(|g| IfcMesh {
                 entity_id: g.entity_id,
-                geometry: Arc::new(MeshGeometry::new(g.positions, g.normals, g.indices)),
+                geometry: Arc::new(
+                    MeshGeometry::new(g.positions, g.normals, g.indices).with_uvs(g.uvs),
+                ),
                 color: g.color,
                 transform: g.transform,
                 entity_type: g.entity_type,

@@ -16,6 +16,7 @@ pub mod photometric;
 pub mod picking;
 pub mod section;
 pub mod storage;
+pub mod textures;
 
 #[cfg(feature = "bevy-ui")]
 pub mod ui;
@@ -161,10 +162,16 @@ impl Plugin for IfcViewerPlugin {
                 PickingPlugin,
                 SectionPlanePlugin,
                 LoaderPlugin,
+                textures::TexturePlugin,
             ))
             .add_systems(
                 Update,
-                (poll_scene_changes, poll_selection_from_storage, poll_pending_filter),
+                (
+                    poll_scene_changes,
+                    poll_selection_from_storage,
+                    poll_pending_filter,
+                    draw_ground_plane,
+                ),
             );
 
         // Add Bevy UI when feature is enabled
@@ -245,8 +252,14 @@ impl SceneBounds {
 pub struct ViewerSettings {
     /// Current theme (affects background color)
     pub theme: Theme,
-    /// Show grid
+    /// Draw a ground (grade) plane at z = 0 — the top of the base
+    /// storey, i.e. street level. Makes it obvious at a glance which
+    /// storeys are below ground, the way a section drawing does.
     pub show_grid: bool,
+    /// Ground level in world metres. Storey 0's floor is grade by
+    /// definition in a scanned building, so this is 0 unless a caller
+    /// knows better (a surveyed site level, say).
+    pub ground_level: f32,
     /// Show axes helper
     pub show_axes: bool,
     /// Hidden entity IDs
@@ -255,6 +268,19 @@ pub struct ViewerSettings {
     pub isolated_entities: Option<FxHashSet<u64>>,
     /// Active storey filter
     pub storey_filter: Option<String>,
+    /// Draw `IfcSpace` volumes.
+    ///
+    /// A space is the room's air volume, and viewers draw it
+    /// translucent — which means it engulfs whatever is inside it. A
+    /// roof space swallows the gable; a room space hides its own
+    /// furniture. Off by default: a viewer should show the building,
+    /// and spaces are something you ask for.
+    pub show_spaces: bool,
+    /// Rendering quality preset (shadows, ambient occlusion, anti-aliasing).
+    /// Defaults to [`RenderQuality::Quality`] on native and
+    /// [`RenderQuality::Fast`] on wasm/WebGL2. Switching it at runtime is
+    /// supported — the camera plugin re-applies the preset when it changes.
+    pub render_quality: RenderQuality,
 }
 
 impl Default for ViewerSettings {
@@ -262,10 +288,36 @@ impl Default for ViewerSettings {
         Self {
             theme: Theme::Dark,
             show_grid: true,
+            ground_level: 0.0,
             show_axes: true,
             hidden_entities: FxHashSet::default(),
             isolated_entities: None,
             storey_filter: None,
+            show_spaces: false,
+            render_quality: RenderQuality::default(),
+        }
+    }
+}
+
+/// Rendering quality preset.
+///
+/// * `Fast` — no shadows, no ambient occlusion, 4x MSAA. What WebGL2
+///   can do; also useful on weak GPUs or very large federated models.
+/// * `Quality` — cascaded soft shadows from the key light and (native only)
+///   screen-space ambient occlusion + FXAA with MSAA off. The sky-lit
+///   environment map is active in both presets.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RenderQuality {
+    Fast,
+    Quality,
+}
+
+impl Default for RenderQuality {
+    fn default() -> Self {
+        if cfg!(target_arch = "wasm32") {
+            RenderQuality::Fast
+        } else {
+            RenderQuality::Quality
         }
     }
 }
@@ -294,6 +346,88 @@ impl Theme {
     }
 }
 
+/// Draw the ground plane: a filled grid at street level, extending a
+/// little past the building, plus a brighter outline where it meets the
+/// footprint. Anything below it is underground.
+///
+/// Gizmos rather than a mesh: no material, no asset, and it cannot be
+/// picked or hidden by a discipline filter by accident.
+fn draw_ground_plane(settings: Res<ViewerSettings>, scene: Res<IfcSceneData>, mut gizmos: Gizmos) {
+    if !settings.show_grid {
+        return;
+    }
+    let Some(bounds) = scene.bounds.as_ref() else {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        static WARNED: AtomicBool = AtomicBool::new(false);
+        if !WARNED.swap(true, Ordering::Relaxed) {
+            log_info("[Viewer] ground plane: no scene bounds yet");
+        }
+        return;
+    };
+    let size = bounds.size();
+    if !size.x.is_finite() || !size.z.is_finite() || size.x <= 0.0 || size.z <= 0.0 {
+        return;
+    }
+
+    // Bevy is Y-up: "ground level" is a height, and the plane spans X/Z.
+    let y = settings.ground_level;
+    let centre = bounds.center();
+    let margin = (size.x.max(size.z) * 0.35).clamp(1.0, 12.0);
+    let half_x = size.x * 0.5 + margin;
+    let half_z = size.z * 0.5 + margin;
+
+    let (line, edge) = match settings.theme {
+        Theme::Light => (
+            Color::srgba(0.45, 0.48, 0.52, 0.30),
+            Color::srgba(0.30, 0.33, 0.38, 0.85),
+        ),
+        Theme::Dark => (
+            Color::srgba(0.60, 0.64, 0.70, 0.22),
+            Color::srgba(0.75, 0.79, 0.85, 0.70),
+        ),
+    };
+
+    // A 1 m grid, thinned out for large sites so it stays readable.
+    {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        static LOGGED: AtomicBool = AtomicBool::new(false);
+        if !LOGGED.swap(true, Ordering::Relaxed) {
+            log_info(&format!(
+                "[Viewer] ground plane at y={y}, bounds y {:.2}..{:.2}, x {:.1}..{:.1}",
+                bounds.min.y, bounds.max.y, bounds.min.x, bounds.max.x
+            ));
+        }
+    }
+    let step = if half_x.max(half_z) > 40.0 { 5.0 } else { 1.0 };
+    let x0 = centre.x - half_x;
+    let x1 = centre.x + half_x;
+    let z0 = centre.z - half_z;
+    let z1 = centre.z + half_z;
+
+    let mut x = (x0 / step).ceil() * step;
+    while x <= x1 {
+        gizmos.line(Vec3::new(x, y, z0), Vec3::new(x, y, z1), line);
+        x += step;
+    }
+    let mut z = (z0 / step).ceil() * step;
+    while z <= z1 {
+        gizmos.line(Vec3::new(x0, y, z), Vec3::new(x1, y, z), line);
+        z += step;
+    }
+
+    // Outline at the building footprint: the waterline, in effect.
+    let (fx0, fx1) = (bounds.min.x, bounds.max.x);
+    let (fz0, fz1) = (bounds.min.z, bounds.max.z);
+    for (a, b) in [
+        (Vec3::new(fx0, y, fz0), Vec3::new(fx1, y, fz0)),
+        (Vec3::new(fx1, y, fz0), Vec3::new(fx1, y, fz1)),
+        (Vec3::new(fx1, y, fz1), Vec3::new(fx0, y, fz1)),
+        (Vec3::new(fx0, y, fz1), Vec3::new(fx0, y, fz0)),
+    ] {
+        gizmos.line(a, b, edge);
+    }
+}
+
 /// Timestamp for detecting localStorage changes (WASM)
 #[derive(Resource, Default)]
 pub struct IfcTimestamp(pub String);
@@ -318,8 +452,7 @@ pub fn poll_scene_changes(
 ) {
     // UNIFIED MODE: Check for direct memory transfer first (no serialization!)
     if let Some(mut meshes) = take_pending_meshes() {
-        let pending_name = take_pending_source_name()
-            .unwrap_or_else(|| "(unnamed)".to_string());
+        let pending_name = take_pending_source_name().unwrap_or_else(|| "(unnamed)".to_string());
         log_info(&format!(
             "[Bevy] Direct mesh transfer: {} meshes from '{}'",
             meshes.len(),
@@ -335,8 +468,7 @@ pub fn poll_scene_changes(
         info.path = Some(pending_name.clone());
         info.discipline = bimifc_federation::discipline_from_filename(&pending_name);
         info.entity_count = meshes.len();
-        info.triangle_count =
-            meshes.iter().map(|m| m.geometry.indices.len() / 3).sum();
+        info.triangle_count = meshes.iter().map(|m| m.geometry.indices.len() / 3).sum();
         let source_id = federation.scene.register(info);
 
         // Tag every mesh + classify if Leptos didn't.
@@ -398,18 +530,16 @@ pub fn poll_scene_changes(
                             geometry.len()
                         ));
 
-                        let pending_name = take_pending_source_name()
-                            .unwrap_or_else(|| "(unnamed)".to_string());
+                        let pending_name =
+                            take_pending_source_name().unwrap_or_else(|| "(unnamed)".to_string());
 
                         let mut info = bimifc_federation::SourceInfo::new(pending_name.clone());
                         info.path = Some(pending_name.clone());
                         info.discipline =
                             bimifc_federation::discipline_from_filename(&pending_name);
                         info.entity_count = geometry.len();
-                        info.triangle_count = geometry
-                            .iter()
-                            .map(|m| m.geometry.indices.len() / 3)
-                            .sum();
+                        info.triangle_count =
+                            geometry.iter().map(|m| m.geometry.indices.len() / 3).sum();
                         let source_id = federation.scene.register(info);
 
                         for m in &mut geometry {

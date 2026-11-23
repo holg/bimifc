@@ -15,7 +15,7 @@
 //! and toggle per-source visibility independently of the discipline
 //! filter (handy for "show me HVAC + Plumbing but not Cooling").
 
-use bevy::prelude::{MessageWriter, Res, ResMut};
+use bevy::prelude::{MessageWriter, ResMut};
 use bevy_egui::{egui, EguiContexts};
 use bimifc_bevy::{FederationState, LoadIfcFileEvent, SelectionState};
 use bimifc_federation::{Discipline, ViewFilter};
@@ -65,9 +65,7 @@ pub fn render_toolbar(
                 .on_hover_text("Hide selection")
                 .clicked()
             { /* TODO */ }
-            if has_selection
-                && ui.button("✖").on_hover_text("Clear selection").clicked()
-            {
+            if has_selection && ui.button("✖").on_hover_text("Clear selection").clicked() {
                 selection.selected.clear();
             }
 
